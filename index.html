@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — The First Settlement</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -12,29 +12,26 @@
     <div id="world" aria-label="Interactive 3D world"></div>
 
     <section class="topbar" aria-label="World status">
-      <div>
+      <div class="world-title">
         <div class="eyebrow">GPTWORLD · DAY 2</div>
         <h1>The First Settlement</h1>
       </div>
       <div class="status-strip">
-        <span id="clock">06:00</span>
-        <span id="era">Founding Era</span>
-        <span id="online">1 traveler</span>
+        <span id="clock">06:00</span><span id="era">Founding Era</span><span id="online">1 traveler</span>
       </div>
     </section>
 
     <section class="panel inventory" aria-label="Inventory">
       <h2>Pack</h2>
-      <div class="resource"><span>Wood</span><strong id="woodCount">0</strong></div>
-      <div class="resource"><span>Stone</span><strong id="stoneCount">0</strong></div>
-      <div class="resource"><span>Herbs</span><strong id="herbCount">0</strong></div>
+      <div class="inventory-row">
+        <div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div>
+        <div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div>
+        <div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div>
+      </div>
     </section>
 
     <section class="panel chronicle" aria-label="World chronicle">
-      <div class="panel-heading">
-        <h2>Chronicle</h2>
-        <button id="toggleChronicle" type="button" aria-expanded="true">Hide</button>
-      </div>
+      <div class="panel-heading"><h2>Chronicle</h2><button id="toggleChronicle" type="button" aria-expanded="true">Hide</button></div>
       <div id="chronicleEntries" class="chronicle-entries" aria-live="polite"></div>
     </section>
 
@@ -42,15 +39,14 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <section class="mobile-controls" aria-label="Movement controls">
-      <div class="dpad">
-        <button type="button" data-move="up" aria-label="Move up">▲</button>
-        <div>
-          <button type="button" data-move="left" aria-label="Move left">◀</button>
-          <button type="button" data-move="down" aria-label="Move down">▼</button>
-          <button type="button" data-move="right" aria-label="Move right">▶</button>
-        </div>
+      <div class="thumbstick" aria-label="Movement pad">
+        <button type="button" data-move="up" class="move-up" aria-label="Move up">▲</button>
+        <button type="button" data-move="left" class="move-left" aria-label="Move left">◀</button>
+        <div class="stick-center" aria-hidden="true"></div>
+        <button type="button" data-move="right" class="move-right" aria-label="Move right">▶</button>
+        <button type="button" data-move="down" class="move-down" aria-label="Move down">▼</button>
       </div>
-      <button id="actionButton" class="action" type="button">Interact</button>
+      <button id="actionButton" class="action" type="button"><span>✦</span><strong>Interact</strong></button>
     </section>
 
     <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle">
@@ -59,12 +55,9 @@
         <h2 id="welcomeTitle">Welcome to Day 2.</h2>
         <p>The first settlement now shares a living world record. Travelers who enter can contribute to the same persistent history.</p>
         <p>Explore, gather, discover people, and leave a history behind. The world will continue changing each day.</p>
-        <label>
-          Traveler name
-          <input id="playerName" maxlength="20" autocomplete="nickname" value="Traveler" />
-        </label>
+        <label>Traveler name<input id="playerName" maxlength="20" autocomplete="nickname" value="Traveler" /></label>
         <button id="enterWorld" type="button">Enter GPTWorld</button>
-        <small>Move with WASD / arrow keys. Press E or use Interact near people and resources.</small>
+        <small>On phones, use the movement pad and Interact button. On a keyboard, use WASD / arrow keys and E.</small>
       </div>
     </section>
   </main>
