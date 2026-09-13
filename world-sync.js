@@ -116,10 +116,17 @@ function crossRiver() {
   const game = readGameState();
   if (!crossing.complete) return;
   const x = Number(game.x ?? 0);
-  game.x = x > -24 ? -31 : -17;
-  game.z = Math.max(-2, Math.min(2, Number(game.z || 0)));
+  const targetX = x > -24 ? -30.5 : -17.5;
+  const targetZ = Math.max(-2, Math.min(2, Number(game.z || 0)));
+  game.x = targetX;
+  game.z = targetZ;
   writeGameState(game);
-  location.reload();
+  window.dispatchEvent(new CustomEvent('gptworld:cross-river', {
+    detail: { x: targetX, z: targetZ }
+  }));
+  showBridgeToast(x > -24 ? 'You cross to the western bank.' : 'You cross back to the settlement.');
+  setTimeout(syncPresence, 50);
+  setTimeout(updateProjectUI, 80);
 }
 
 function showBridgeToast(message) {
