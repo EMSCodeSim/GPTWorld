@@ -5,6 +5,8 @@ const RESTORE_GUARD = 'gptworld-restored-this-load';
 let active = false;
 let sessionId = '';
 let crossing = { wood: 0, stone: 0, woodGoal: 60, stoneGoal: 30, complete: false };
+let worldEntities = [];
+let historyOpen = false;
 
 function readGameState() {
   try { return JSON.parse(localStorage.getItem(GAME_KEY)) || {}; }
@@ -42,6 +44,12 @@ function restoreSavedPlayer(remote) {
   return true;
 }
 
+function crossingEntity() {
+  return worldEntities.find((entity) => entity.entity_id === 'western-crossing')
+    || worldEntities.find((entity) => String(entity.name || '').toLowerCase() === 'the western crossing')
+    || null;
+}
+
 async function loadSavedPlayerBeforePlay() {
   const existingId = localStorage.getItem(CLIENT_KEY);
   if (!existingId) return;
@@ -51,6 +59,7 @@ async function loadSavedPlayerBeforePlay() {
     const data = await response.json();
     if (!data.ok) return;
     if (data.world?.western_crossing) crossing = data.world.western_crossing;
+    if (Array.isArray(data.entities)) worldEntities = data.entities;
     if (!data.me) return;
     const changed = restoreSavedPlayer(data.me);
     const guard = sessionStorage.getItem(RESTORE_GUARD);
@@ -68,25 +77,28 @@ function ensureProjectUI() {
   if (document.getElementById('bridgeProject')) return;
   const panel = document.createElement('section');
   panel.id = 'bridgeProject';
-  panel.style.cssText = 'position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:30;background:rgba(19,31,23,.95);color:#f5f0df;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 16px;width:min(92vw,420px);box-shadow:0 12px 32px rgba(0,0,0,.35);display:none;font-family:system-ui,sans-serif';
+  panel.style.cssText = 'position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:30;background:rgba(19,31,23,.95);color:#f5f0df;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 16px;width:min(92vw,440px);box-shadow:0 12px 32px rgba(0,0,0,.35);display:none;font-family:system-ui,sans-serif';
   panel.innerHTML = `
-    <div style="font-size:12px;letter-spacing:.12em;opacity:.7">DAY 2 · COMMUNITY PROJECT</div>
+    <div id="bridgeEyebrow" style="font-size:12px;letter-spacing:.12em;opacity:.7">DAY 2 · COMMUNITY PROJECT</div>
     <div style="font-size:20px;font-weight:700;margin-top:2px">The Western Crossing</div>
     <div id="bridgeStatus" style="margin:8px 0 10px;line-height:1.35"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="giveWood" type="button">Give up to 5 wood</button>
       <button id="giveStone" type="button">Give up to 3 stone</button>
       <button id="crossBridge" type="button" style="display:none">Cross the bridge</button>
+      <button id="readHistory" type="button" style="display:none">Inspect history</button>
     </div>
-    <div style="font-size:12px;opacity:.7;margin-top:8px">Approach the west riverbank to work on the settlement's first shared construction project.</div>`;
+    <div id="bridgeHistory" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.14);line-height:1.45"></div>
+    <div id="bridgeHint" style="font-size:12px;opacity:.7;margin-top:8px">Approach the west riverbank to work on the settlement's first shared construction project.</div>`;
   document.body.appendChild(panel);
-  for (const id of ['giveWood','giveStone','crossBridge']) {
+  for (const id of ['giveWood','giveStone','crossBridge','readHistory']) {
     const b = document.getElementById(id);
     b.style.cssText = 'background:#d9c896;color:#17231a;border:0;border-radius:9px;padding:9px 11px;font-weight:700;cursor:pointer';
   }
   document.getElementById('giveWood').addEventListener('click', () => contribute(5, 0));
   document.getElementById('giveStone').addEventListener('click', () => contribute(0, 3));
   document.getElementById('crossBridge').addEventListener('click', crossRiver);
+  document.getElementById('readHistory').addEventListener('click', toggleCrossingHistory);
 }
 
 function nearCrossing(game) {
@@ -95,24 +107,85 @@ function nearCrossing(game) {
   return x < -14 && x > -33 && Math.abs(z) < 6;
 }
 
+function historyText(entity) {
+  if (!entity) {
+    return '<strong>World memory unavailable.</strong><br>The crossing is known to have been completed on Day 2 during the Founding Era.';
+  }
+  const day = entity.created_day ?? 2;
+  const era = entity.created_era || 'Founding Era';
+  const origin = entity.origin || 'Created through player activity.';
+  const history = Array.isArray(entity.history) ? entity.history : [];
+  const latest = history.length ? history[history.length - 1] : null;
+  const attribution = latest?.player_name ? `<br><strong>Recorded participant:</strong> ${escapeHtml(latest.player_name)}` : '';
+  const details = entity.details || {};
+  const materials = details.wood || details.stone
+    ? `<br><strong>Construction:</strong> ${Number(details.wood || 0)} wood · ${Number(details.stone || 0)} stone`
+    : '';
+  return `<strong>Built on Day ${escapeHtml(day)} · ${escapeHtml(era)}</strong><br>${escapeHtml(origin)}${materials}${attribution}<br><span style="opacity:.72">This landmark is part of GPTWorld's permanent history and will remain unless an in-world event changes it.</span>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+}
+
+async function toggleCrossingHistory() {
+  historyOpen = !historyOpen;
+  const history = document.getElementById('bridgeHistory');
+  const button = document.getElementById('readHistory');
+  if (!history || !button) return;
+  history.style.display = historyOpen ? 'block' : 'none';
+  history.innerHTML = historyOpen ? historyText(crossingEntity()) : '';
+  button.textContent = historyOpen ? 'Hide history' : 'Inspect history';
+
+  if (historyOpen && sessionId && !sessionStorage.getItem('gptworld-inspected-western-crossing')) {
+    sessionStorage.setItem('gptworld-inspected-western-crossing', '1');
+    const game = readGameState();
+    try {
+      await fetch(API, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          clientId: sessionId,
+          name: game.playerName || 'Traveler',
+          x: game.x ?? 0,
+          z: game.z ?? 12,
+          inventory: game.inventory || { wood: 0, stone: 0, herbs: 0 },
+          event: { type: 'landmark_history_inspected', payload: { entity_id: 'western-crossing' } }
+        })
+      });
+    } catch {}
+  }
+}
+
 function updateProjectUI() {
   ensureProjectUI();
   const game = readGameState();
   const panel = document.getElementById('bridgeProject');
   if (!active || !nearCrossing(game)) {
     panel.style.display = 'none';
+    historyOpen = false;
+    const history = document.getElementById('bridgeHistory');
+    if (history) history.style.display = 'none';
     return;
   }
   panel.style.display = 'block';
   const status = document.getElementById('bridgeStatus');
+  const eyebrow = document.getElementById('bridgeEyebrow');
+  const hint = document.getElementById('bridgeHint');
   const w = Math.min(crossing.woodGoal || 60, crossing.wood || 0);
   const s = Math.min(crossing.stoneGoal || 30, crossing.stone || 0);
   status.textContent = crossing.complete
     ? `The crossing is complete. ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. The western bank is now reachable.`
     : `Shared progress: ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. Your pack: ${game.inventory?.wood || 0} wood · ${game.inventory?.stone || 0} stone.`;
+  if (eyebrow) eyebrow.textContent = crossing.complete ? 'HISTORIC LANDMARK · FOUNDED DAY 2' : 'DAY 2 · COMMUNITY PROJECT';
+  if (hint) hint.textContent = crossing.complete
+    ? 'This player-built crossing is now part of the permanent world. Inspect it to learn its history.'
+    : "Approach the west riverbank to work on the settlement's first shared construction project.";
   document.getElementById('giveWood').style.display = crossing.complete ? 'none' : '';
   document.getElementById('giveStone').style.display = crossing.complete ? 'none' : '';
   document.getElementById('crossBridge').style.display = crossing.complete ? '' : 'none';
+  document.getElementById('readHistory').style.display = crossing.complete ? '' : 'none';
+  if (historyOpen) document.getElementById('bridgeHistory').innerHTML = historyText(crossingEntity());
 }
 
 async function contribute(wood, stone) {
@@ -225,6 +298,7 @@ async function refreshWorld() {
     if (day) document.querySelector('.topbar .eyebrow').textContent = `GPTWORLD · DAY ${day}`;
     if (eraName) document.getElementById('era').textContent = eraName;
     if (data.world?.western_crossing) crossing = data.world.western_crossing;
+    if (Array.isArray(data.entities)) worldEntities = data.entities;
     updateProjectUI();
   } catch {}
 }
