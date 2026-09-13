@@ -17,12 +17,19 @@ export default async (req) => {
     if (req.method === 'GET') {
       const url = new URL(req.url);
       const clientId = (url.searchParams.get('clientId') || '').slice(0, 80);
-      const [worldRows, onlineRows, meRows] = await Promise.all([
+      const [worldRows, onlineRows, meRows, entityRows] = await Promise.all([
         sql`SELECT key, value, updated_at FROM world_state ORDER BY key`,
         sql`SELECT client_id, display_name, x, z, last_seen_at FROM players WHERE last_seen_at > now() - interval '90 seconds' ORDER BY last_seen_at DESC LIMIT 50`,
-        clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([])
+        clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([]),
+        sql`SELECT entity_id, value, updated_at FROM world_entities ORDER BY entity_id`
       ]);
-      return json({ ok: true, world: Object.fromEntries(worldRows.map(r => [r.key, r.value])), online: onlineRows, me: meRows[0] || null });
+      return json({
+        ok: true,
+        world: Object.fromEntries(worldRows.map(r => [r.key, r.value])),
+        entities: entityRows.map(r => ({ entity_id: r.entity_id, ...r.value, updated_at: r.updated_at })),
+        online: onlineRows,
+        me: meRows[0] || null
+      });
     }
 
     if (req.method === 'POST') {
