@@ -19,17 +19,41 @@ export default async (req) => {
     ]);
 
     const world = Object.fromEntries(worldRows.map((row) => [row.key, row.value]));
+    const entities = world.world_entities || {};
+    const latestSnapshotRef = world.latest_world_snapshot || null;
+    const latestSnapshot = latestSnapshotRef?.key ? world[latestSnapshotRef.key] || null : null;
+
+    const ordinaryState = Object.fromEntries(
+      Object.entries(world).filter(([key]) =>
+        key !== 'world_entities'
+        && key !== 'latest_world_snapshot'
+        && !key.startsWith('world_snapshot_')
+      )
+    );
+
     return json({
       ok: true,
       generated_at: new Date().toISOString(),
-      world,
+      current_day: world.current_day || null,
+      world: ordinaryState,
+      entities,
+      snapshots: {
+        latest_ref: latestSnapshotRef,
+        latest: latestSnapshot
+      },
       population: populationRows[0] || {},
       activity_24h: activityRows,
       recent_events: recentEvents,
       evolution_context: {
         current_day: world.current_day || null,
-        active_projects: Object.entries(world).filter(([key, value]) => key !== 'current_day' && value && typeof value === 'object' && value.complete === false).map(([key, value]) => ({ key, value })),
-        completed_projects: Object.entries(world).filter(([key, value]) => value && typeof value === 'object' && value.complete === true).map(([key, value]) => ({ key, value }))
+        active_projects: Object.entries(ordinaryState)
+          .filter(([key, value]) => key !== 'current_day' && value && typeof value === 'object' && value.complete === false)
+          .map(([key, value]) => ({ key, value })),
+        completed_projects: Object.entries(ordinaryState)
+          .filter(([key, value]) => value && typeof value === 'object' && value.complete === true)
+          .map(([key, value]) => ({ key, value })),
+        persistent_entities: Object.values(entities),
+        event_cursor: latestSnapshotRef?.event_cursor || null
       }
     });
   } catch (error) {
