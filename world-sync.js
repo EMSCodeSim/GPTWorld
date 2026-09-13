@@ -1,16 +1,68 @@
 const API = '/.netlify/functions/world';
+const GAME_KEY = 'gptworld-day1';
+const CLIENT_KEY = 'gptworld-client-id';
+const RESTORE_GUARD = 'gptworld-restored-this-load';
 let active = false;
 let sessionId = '';
 let crossing = { wood: 0, stone: 0, woodGoal: 60, stoneGoal: 30, complete: false };
 
 function readGameState() {
-  try { return JSON.parse(localStorage.getItem('gptworld-day1')) || {}; }
+  try { return JSON.parse(localStorage.getItem(GAME_KEY)) || {}; }
   catch { return {}; }
 }
 
 function writeGameState(game) {
-  localStorage.setItem('gptworld-day1', JSON.stringify(game));
+  localStorage.setItem(GAME_KEY, JSON.stringify(game));
 }
+
+function sameSavedPlayer(local, remote) {
+  if (!remote) return true;
+  return String(local.playerName || '') === String(remote.display_name || '')
+    && Number(local.x ?? 0) === Number(remote.x ?? 0)
+    && Number(local.z ?? 12) === Number(remote.z ?? 12)
+    && Number(local.inventory?.wood || 0) === Number(remote.wood || 0)
+    && Number(local.inventory?.stone || 0) === Number(remote.stone || 0)
+    && Number(local.inventory?.herbs || 0) === Number(remote.herbs || 0);
+}
+
+function restoreSavedPlayer(remote) {
+  if (!remote) return false;
+  const game = readGameState();
+  if (sameSavedPlayer(game, remote)) return false;
+  game.playerName = remote.display_name || game.playerName || 'Traveler';
+  game.x = Number(remote.x ?? game.x ?? 0);
+  game.z = Number(remote.z ?? game.z ?? 12);
+  game.inventory = {
+    wood: Math.max(0, Number(remote.wood || 0)),
+    stone: Math.max(0, Number(remote.stone || 0)),
+    herbs: Math.max(0, Number(remote.herbs || 0))
+  };
+  game.returningPlayer = true;
+  writeGameState(game);
+  return true;
+}
+
+async function loadSavedPlayerBeforePlay() {
+  const existingId = localStorage.getItem(CLIENT_KEY);
+  if (!existingId) return;
+  sessionId = existingId;
+  try {
+    const response = await fetch(`${API}?clientId=${encodeURIComponent(existingId)}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (!data.ok) return;
+    if (data.world?.western_crossing) crossing = data.world.western_crossing;
+    if (!data.me) return;
+    const changed = restoreSavedPlayer(data.me);
+    const guard = sessionStorage.getItem(RESTORE_GUARD);
+    if (changed && !guard) {
+      sessionStorage.setItem(RESTORE_GUARD, '1');
+      location.reload();
+      return new Promise(() => {});
+    }
+  } catch {}
+}
+
+const playerRestoreReady = loadSavedPlayerBeforePlay();
 
 function ensureProjectUI() {
   if (document.getElementById('bridgeProject')) return;
@@ -177,10 +229,12 @@ async function refreshWorld() {
   } catch {}
 }
 
-document.getElementById('enterWorld')?.addEventListener('click', () => {
+document.getElementById('enterWorld')?.addEventListener('click', async () => {
+  await playerRestoreReady;
   active = true;
-  sessionId = localStorage.getItem('gptworld-client-id') || `traveler-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,10)}`}`;
-  localStorage.setItem('gptworld-client-id', sessionId);
+  sessionId = localStorage.getItem(CLIENT_KEY) || `traveler-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,10)}`}`;
+  localStorage.setItem(CLIENT_KEY, sessionId);
+  sessionStorage.removeItem(RESTORE_GUARD);
   ensureProjectUI();
   setTimeout(syncPresence, 200);
   setTimeout(refreshWorld, 350);
