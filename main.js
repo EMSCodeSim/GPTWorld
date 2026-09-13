@@ -87,7 +87,7 @@ function addBox(parent, color, size, pos, options = {}) {
 function addBuilding(x, z, width, depth, wallColor, roofColor, label) {
   const group = new THREE.Group();
   group.position.set(x, 0, z);
-  const body = addBox(group, wallColor, [width, 3.2, depth], [0, 1.6, 0]);
+  addBox(group, wallColor, [width, 3.2, depth], [0, 1.6, 0]);
   const roof = new THREE.Mesh(
     new THREE.ConeGeometry(Math.max(width, depth) * 0.78, 2.1, 4),
     new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.95 })
@@ -215,6 +215,17 @@ playerHead.castShadow = true;
 player.add(playerHead);
 player.position.set(state.x ?? 0, 0, state.z ?? 12);
 scene.add(player);
+
+window.addEventListener('gptworld:cross-river', (event) => {
+  const x = Number(event.detail?.x);
+  const z = Number(event.detail?.z);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+  player.position.set(x, 0, z);
+  velocity.set(0, 0, 0);
+  state.x = x;
+  state.z = z;
+  saveState();
+});
 
 const shadowBlob = new THREE.Mesh(
   new THREE.CircleGeometry(0.7, 18),
@@ -356,8 +367,9 @@ function interact() {
         addChronicle(`${playerName} gathered the settlement’s first recorded ${nearest.resource}.`);
       }
     }
-    nearest.object.scale.setScalar(0.78);
-    setTimeout(() => nearest?.object?.scale?.setScalar?.(1), 220);
+    const gatheredObject = nearest.object;
+    gatheredObject.scale.setScalar(0.78);
+    setTimeout(() => gatheredObject.scale.setScalar(1), 220);
     saveState();
     return;
   }
