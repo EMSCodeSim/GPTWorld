@@ -38,6 +38,19 @@ GPTWorld is a living, persistent-world experiment. It begins small and evolves o
 29. New systems must solve a problem, create meaningful interactions, deepen the simulation, or enable discovery. "Other games have it" is not enough.
 30. Each development cycle should make at least one meaningful improvement while protecting stability.
 
+## Living ecosystem rules
+
+31. The ecosystem evolves independently of the daily development agent.
+32. Climate, food availability, predation, competition, and inherited traits should drive ecological change.
+33. New species should emerge from surviving populations and environmental pressure rather than arbitrary scheduled creation.
+34. Extinction is permanent history. Extinct species remain in the fossil record even when no living examples remain.
+35. Players may influence ecological pressure through ordinary actions, but players never receive direct control over evolution.
+36. Ecological change should usually be gradual. Long quiet periods are valid and desirable.
+37. Player time and ecological time are separate. One real-world day may advance multiple generations or a simulated year without forcing the player world to age at the same rate.
+38. Ecological systems should create consequences for gathering, hunting, settlement growth, agriculture, travel, and future systems whenever practical.
+39. The simulation should preserve ancestry so a later species can be traced back through its lineage.
+40. The ecosystem has no predetermined final form.
+
 ## Founding premise
 
 A small group has established a settlement in an unfamiliar valley after leaving a homeland that is deliberately unexplained at the beginning. Five buildings stand along a dirt road. A river marks the western edge of known settlement territory. The surrounding land has not been properly mapped.
@@ -47,6 +60,10 @@ The world's backstory should be discovered and created gradually rather than wri
 ## Development loop
 
 Player activity changes the world → the world records history → development examines that history → a new feature, consequence, place, character, mystery, or system is introduced → players respond → the world evolves again.
+
+At the same time, the ecosystem follows its own loop:
+
+Climate changes → resources and populations respond → traits drift under pressure → populations recover, branch, migrate, or disappear → the natural record persists → future players inherit the consequences.
 
 ## World Chronicle
 
