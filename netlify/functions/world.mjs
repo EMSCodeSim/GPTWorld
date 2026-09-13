@@ -42,7 +42,7 @@ export default async (req) => {
         INSERT INTO players (client_id, display_name, x, z, last_seen_at)
         VALUES (${clientId}, ${name}, ${x}, ${z}, now())
         ON CONFLICT (client_id) DO UPDATE SET display_name = EXCLUDED.display_name, x = EXCLUDED.x, z = EXCLUDED.z, last_seen_at = now()
-        RETURNING id, created_at
+        RETURNING id
       `;
       const playerId = players[0].id;
 
@@ -51,6 +51,37 @@ export default async (req) => {
         VALUES (${playerId}, ${wood}, ${stone}, ${herbs}, now())
         ON CONFLICT (player_id) DO UPDATE SET wood = EXCLUDED.wood, stone = EXCLUDED.stone, herbs = EXCLUDED.herbs, updated_at = now()
       `;
+
+      if (body.action === 'contribute_bridge') {
+        const giveWood = Math.min(20, nonNegativeInt(body.wood));
+        const giveStone = Math.min(10, nonNegativeInt(body.stone));
+        if (giveWood + giveStone < 1) return json({ ok: false, error: 'nothing_to_contribute' }, 400);
+
+        const inv = await sql`SELECT wood, stone FROM player_inventory WHERE player_id = ${playerId} LIMIT 1`;
+        const haveWood = Number(inv[0]?.wood || 0);
+        const haveStone = Number(inv[0]?.stone || 0);
+        if (haveWood < giveWood || haveStone < giveStone) return json({ ok: false, error: 'not_enough_materials' }, 409);
+
+        const currentRows = await sql`SELECT value FROM world_state WHERE key = 'western_crossing' LIMIT 1`;
+        const current = currentRows[0]?.value || { wood: 0, stone: 0, woodGoal: 60, stoneGoal: 30, complete: false };
+        if (current.complete) return json({ ok: true, crossing: current, contributed: { wood: 0, stone: 0 } });
+
+        const woodGoal = Number(current.woodGoal || 60);
+        const stoneGoal = Number(current.stoneGoal || 30);
+        const acceptedWood = Math.min(giveWood, Math.max(0, woodGoal - Number(current.wood || 0)));
+        const acceptedStone = Math.min(giveStone, Math.max(0, stoneGoal - Number(current.stone || 0)));
+        if (acceptedWood + acceptedStone < 1) return json({ ok: true, crossing: { ...current, complete: true }, contributed: { wood: 0, stone: 0 } });
+
+        await sql`UPDATE player_inventory SET wood = wood - ${acceptedWood}, stone = stone - ${acceptedStone}, updated_at = now() WHERE player_id = ${playerId}`;
+        const nextWood = Number(current.wood || 0) + acceptedWood;
+        const nextStone = Number(current.stone || 0) + acceptedStone;
+        const complete = nextWood >= woodGoal && nextStone >= stoneGoal;
+        const crossing = { wood: nextWood, stone: nextStone, woodGoal, stoneGoal, complete };
+        await sql`UPDATE world_state SET value = ${JSON.stringify(crossing)}::jsonb, updated_at = now() WHERE key = 'western_crossing'`;
+        await sql`INSERT INTO world_events (player_id, event_type, payload) VALUES (${playerId}, 'bridge_contribution', ${JSON.stringify({ wood: acceptedWood, stone: acceptedStone, complete })}::jsonb)`;
+        if (complete) await sql`INSERT INTO world_events (player_id, event_type, payload) VALUES (${playerId}, 'western_crossing_completed', ${JSON.stringify({ day: 2 })}::jsonb)`;
+        return json({ ok: true, crossing, contributed: { wood: acceptedWood, stone: acceptedStone } });
+      }
 
       if (body.event && typeof body.event.type === 'string') {
         const eventType = body.event.type.replace(/[^a-z0-9_.-]/gi, '').slice(0, 40);
