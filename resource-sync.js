@@ -2,7 +2,7 @@ const RESOURCE_API = '/.netlify/functions/resource-state';
 const RESOURCE_GAME_KEY = 'gptworld-day1';
 const RESOURCE_CLIENT_KEY = 'gptworld-client-id';
 const RESOURCE_RESTORE_GUARD = 'gptworld-resource-restored';
-let lastSent = '';
+let serverInventory = null;
 let syncing = false;
 
 function readResourceGame() {
@@ -35,77 +35,104 @@ function updateVisibleInventory(inv) {
   }
 }
 
-async function restoreResources() {
+function applyAuthoritativeInventory(inv) {
+  if (!inv) return;
+  const next = {
+    wood: Math.max(0, Number(inv.wood || 0)),
+    stone: Math.max(0, Number(inv.stone || 0)),
+    herbs: Math.max(0, Number(inv.herbs || 0))
+  };
+  serverInventory = next;
+  const game = readResourceGame();
+  game.inventory = next;
+  writeResourceGame(game);
+  updateVisibleInventory(next);
+}
+
+async function fetchAuthoritativeInventory() {
   const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
-  if (!clientId) return;
+  if (!clientId) return null;
+  const response = await fetch(`${RESOURCE_API}?clientId=${encodeURIComponent(clientId)}`, { cache: 'no-store' });
+  const data = await response.json();
+  if (!data.ok || !data.inventory) return null;
+  return {
+    wood: Number(data.inventory.wood || 0),
+    stone: Number(data.inventory.stone || 0),
+    herbs: Number(data.inventory.herbs || 0)
+  };
+}
 
+async function restoreResources() {
   try {
-    const response = await fetch(`${RESOURCE_API}?clientId=${encodeURIComponent(clientId)}`, { cache: 'no-store' });
-    const data = await response.json();
-    if (!data.ok || !data.inventory) return;
-
-    const game = readResourceGame();
-    const serverInventory = {
-      wood: Math.max(0, Number(data.inventory.wood || 0)),
-      stone: Math.max(0, Number(data.inventory.stone || 0)),
-      herbs: Math.max(0, Number(data.inventory.herbs || 0))
-    };
-    const localInventory = normalizedInventory(game);
-    const differs = inventorySignature(localInventory) !== inventorySignature(serverInventory);
-    if (!differs) {
-      lastSent = inventorySignature(serverInventory);
-      return;
-    }
-
-    game.inventory = serverInventory;
-    writeResourceGame(game);
-    updateVisibleInventory(serverInventory);
-    lastSent = inventorySignature(serverInventory);
-
-    if (!sessionStorage.getItem(RESOURCE_RESTORE_GUARD)) {
+    const authoritative = await fetchAuthoritativeInventory();
+    if (!authoritative) return;
+    const local = normalizedInventory(readResourceGame());
+    const differs = inventorySignature(local) !== inventorySignature(authoritative);
+    applyAuthoritativeInventory(authoritative);
+    if (differs && !sessionStorage.getItem(RESOURCE_RESTORE_GUARD)) {
       sessionStorage.setItem(RESOURCE_RESTORE_GUARD, '1');
       location.reload();
     }
   } catch {}
 }
 
-async function saveResources(force = false) {
-  if (syncing) return;
+async function submitGather(resource, amount) {
   const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
-  if (!clientId) return;
-
-  const game = readResourceGame();
-  const inventory = normalizedInventory(game);
-  const signature = inventorySignature(inventory);
-  if (!force && signature === lastSent) return;
-
-  syncing = true;
+  if (!clientId) return false;
   try {
     const response = await fetch(RESOURCE_API, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId, inventory }),
-      keepalive: force
+      body: JSON.stringify({ clientId, action: 'gather', resource, amount })
     });
     const data = await response.json();
-    if (data.ok) lastSent = signature;
+    if (!data.ok || !data.inventory) return false;
+    applyAuthoritativeInventory(data.inventory);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function reconcileResources() {
+  if (syncing) return;
+  const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
+  if (!clientId) return;
+  syncing = true;
+  try {
+    if (!serverInventory) {
+      const authoritative = await fetchAuthoritativeInventory();
+      if (!authoritative) return;
+      applyAuthoritativeInventory(authoritative);
+      return;
+    }
+
+    const local = normalizedInventory(readResourceGame());
+    const resources = ['wood', 'stone', 'herbs'];
+
+    for (const resource of resources) {
+      const delta = local[resource] - serverInventory[resource];
+      if (delta > 0) {
+        let remaining = delta;
+        while (remaining > 0) {
+          const amount = Math.min(5, remaining);
+          const ok = await submitGather(resource, amount);
+          if (!ok) break;
+          remaining -= amount;
+        }
+      }
+    }
+
+    const refreshed = await fetchAuthoritativeInventory();
+    if (refreshed) applyAuthoritativeInventory(refreshed);
   } catch {}
   finally { syncing = false; }
 }
 
-function beaconResources() {
-  const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
-  if (!clientId || !navigator.sendBeacon) return;
-  const inventory = normalizedInventory(readResourceGame());
-  const body = new Blob([JSON.stringify({ clientId, inventory })], { type: 'application/json' });
-  navigator.sendBeacon(RESOURCE_API, body);
-}
-
 restoreResources();
-setInterval(() => saveResources(false), 1000);
-window.addEventListener('pagehide', beaconResources);
-window.addEventListener('beforeunload', beaconResources);
+setInterval(reconcileResources, 500);
 document.getElementById('enterWorld')?.addEventListener('click', () => {
   sessionStorage.removeItem(RESOURCE_RESTORE_GUARD);
-  setTimeout(() => saveResources(true), 300);
+  setTimeout(reconcileResources, 300);
 });
+window.addEventListener('focus', restoreResources);
