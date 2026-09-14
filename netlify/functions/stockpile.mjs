@@ -34,38 +34,35 @@ export default async req=>{
     const amount=cleanAmount(body.amount);
     const dw=resource==='wood'?amount:0,ds=resource==='stone'?amount:0,dh=resource==='herbs'?amount:0;
 
-    const [inventoryRows,stockRows,eventRows]=await sql.transaction((txn)=>[
-      txn`
+    const rows=await sql`
+      WITH deduct AS (
         UPDATE player_inventory
-        SET wood=wood-${dw},stone=stone-${ds},herbs=herbs-${dh},updated_at=now()
-        WHERE player_id=${playerId} AND wood>=${dw} AND stone>=${ds} AND herbs>=${dh}
-        RETURNING wood,stone,herbs,updated_at`,
-      txn`
-        UPDATE world_state w
+        SET wood=wood-${dw}, stone=stone-${ds}, herbs=herbs-${dh}, updated_at=now()
+        WHERE player_id=${playerId}
+          AND wood>=${dw} AND stone>=${ds} AND herbs>=${dh}
+        RETURNING wood,stone,herbs
+      ), updated AS (
+        UPDATE world_state ws
         SET value=jsonb_build_object(
-          'wood',COALESCE((w.value->>'wood')::int,0)+${dw},
-          'stone',COALESCE((w.value->>'stone')::int,0)+${ds},
-          'herbs',COALESCE((w.value->>'herbs')::int,0)+${dh}
-        ),updated_at=now()
-        WHERE w.key='settlement_stockpile'
-          AND EXISTS (
-            SELECT 1 FROM player_inventory pi
-            WHERE pi.player_id=${playerId} AND pi.updated_at=now()
-          )
-        RETURNING w.value,w.updated_at`,
-      txn`
+          'wood',COALESCE((ws.value->>'wood')::int,0)+${dw},
+          'stone',COALESCE((ws.value->>'stone')::int,0)+${ds},
+          'herbs',COALESCE((ws.value->>'herbs')::int,0)+${dh}
+        ), updated_at=now()
+        FROM deduct
+        WHERE ws.key='settlement_stockpile'
+        RETURNING ws.value, deduct.wood, deduct.stone, deduct.herbs
+      ), logged AS (
         INSERT INTO world_events (player_id,event_type,payload)
         SELECT ${playerId},'stockpile_deposit',jsonb_build_object('resource',${resource},'amount',${amount})
-        WHERE EXISTS (
-          SELECT 1 FROM world_state ws
-          WHERE ws.key='settlement_stockpile' AND ws.updated_at=now()
-        )
-        RETURNING id`
-    ],{isolationLevel:'Serializable'});
+        FROM updated
+        RETURNING id
+      )
+      SELECT updated.value,updated.wood,updated.stone,updated.herbs,logged.id AS event_id
+      FROM updated,logged`;
 
-    if(!inventoryRows.length||!stockRows.length||!eventRows.length)return reply({ok:false,error:'not_enough_materials'},409);
-    const inv=inventoryRows[0],s=stockRows[0].value||{};
-    return reply({ok:true,deposited:{resource,amount},stockpile:{wood:Number(s.wood||0),stone:Number(s.stone||0),herbs:Number(s.herbs||0)},inventory:{wood:Number(inv.wood||0),stone:Number(inv.stone||0),herbs:Number(inv.herbs||0)}});
+    if(!rows.length)return reply({ok:false,error:'not_enough_materials'},409);
+    const r=rows[0],s=r.value||{};
+    return reply({ok:true,deposited:{resource,amount},stockpile:{wood:Number(s.wood||0),stone:Number(s.stone||0),herbs:Number(s.herbs||0)},inventory:{wood:Number(r.wood||0),stone:Number(r.stone||0),herbs:Number(r.herbs||0)}});
   }catch(err){
     console.error('GPTWorld stockpile error',err);
     return reply({ok:false,error:'stockpile_failed',detail:String(err?.message||err||'unknown').slice(0,180)},500);
