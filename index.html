@@ -6,21 +6,7 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — The First Settlement</title>
   <link rel="stylesheet" href="./styles.css?v=mobile-live-1" />
-  <style>#livingDayNight>*{display:none!important}#bridgeProject{display:none!important}#livePlayersLayer,.live-player,#remotePlayersLayer,.remote-player{display:none!important}</style>
-  <script>
-    (()=>{
-      const killLegacyMultiplayer=()=>{
-        document.getElementById('livePlayersLayer')?.remove();
-        document.querySelectorAll('.live-player').forEach(el=>el.remove());
-        document.getElementById('remotePlayersLayer')?.remove();
-        document.querySelectorAll('.remote-player').forEach(el=>el.remove());
-      };
-      window.addEventListener('DOMContentLoaded',()=>{
-        killLegacyMultiplayer();
-        new MutationObserver(killLegacyMultiplayer).observe(document.documentElement,{childList:true,subtree:true});
-      });
-    })();
-  </script>
+  <style>#livingDayNight>*{display:none!important}#bridgeProject{display:none!important}</style>
 </head>
 <body>
   <main id="app">
@@ -35,9 +21,9 @@
     </section>
     <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle"><div class="welcome-card"><div class="eyebrow">A LIVING WORLD EXPERIMENT</div><h2 id="welcomeTitle">Welcome to Day 3.</h2><p>The settlement storehouse is now open to the whole community. Gathered wood, stone, and herbs can be contributed to a shared stockpile that persists for everyone.</p><p>Explore, gather, contribute, discover people, and leave a history behind. The world will continue changing each day.</p><label>Traveler name<input id="playerName" maxlength="20" autocomplete="nickname" value="Traveler" /></label><button id="enterWorld" type="button">Enter GPTWorld</button><small>On phones, drag the joystick to move and use Interact near people and resources. On a keyboard, use WASD / arrow keys and E.</small></div></section>
   </main>
-  <script type="module" src="./main.js?v=multiplayer-world-3"></script>
-  <script type="module" src="./world-sync.js?v=bridge-walk-1"></script>
-  <script type="module" src="./resource-sync.js?v=single-mp-1"></script>
+  <script type="module" src="./main.js?v=multiplayer-world-4"></script>
+  <script type="module" src="./world-sync.js?v=bridge-walk-2"></script>
+  <script type="module" src="./resource-sync.js?v=single-mp-2"></script>
   <script type="module" src="./ecosystem.js"></script>
   <script type="module" src="./day3.js?v=3.3"></script>
   <script type="module" src="./chronicle-sync.js?v=1"></script>
@@ -45,5 +31,22 @@
   <!-- Multiplayer is rendered only inside main.js as true Three.js world avatars. -->
   <script type="module" src="./info-center.js?v=1"></script>
   <script type="module" src="./runtime-health.js?v=1"></script>
+  <script>
+    (()=>{
+      const resumeReturningTraveler=()=>{
+        const clientId=localStorage.getItem('gptworld-client-id');
+        let game=null;
+        try{game=JSON.parse(localStorage.getItem('gptworld-day1')||'null')}catch{}
+        if(!clientId||!game)return;
+        const button=document.getElementById('enterWorld');
+        if(!button)return;
+        setTimeout(()=>{
+          if(!document.hidden&&document.getElementById('welcome')&&!document.getElementById('welcome').hidden) button.click();
+        },450);
+      };
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',resumeReturningTraveler,{once:true});
+      else resumeReturningTraveler();
+    })();
+  </script>
 </body>
 </html>
