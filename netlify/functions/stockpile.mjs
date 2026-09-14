@@ -37,23 +37,23 @@ export default async req=>{
     const rows=await sql`
       WITH deduct AS (
         UPDATE player_inventory
-        SET wood=wood-${dw}, stone=stone-${ds}, herbs=herbs-${dh}, updated_at=now()
-        WHERE player_id=${playerId}
-          AND wood>=${dw} AND stone>=${ds} AND herbs>=${dh}
+        SET wood=wood-${dw}::int, stone=stone-${ds}::int, herbs=herbs-${dh}::int, updated_at=now()
+        WHERE player_id=${playerId}::bigint
+          AND wood>=${dw}::int AND stone>=${ds}::int AND herbs>=${dh}::int
         RETURNING wood,stone,herbs
       ), updated AS (
         UPDATE world_state ws
         SET value=jsonb_build_object(
-          'wood',COALESCE((ws.value->>'wood')::int,0)+${dw},
-          'stone',COALESCE((ws.value->>'stone')::int,0)+${ds},
-          'herbs',COALESCE((ws.value->>'herbs')::int,0)+${dh}
+          'wood',COALESCE((ws.value->>'wood')::int,0)+${dw}::int,
+          'stone',COALESCE((ws.value->>'stone')::int,0)+${ds}::int,
+          'herbs',COALESCE((ws.value->>'herbs')::int,0)+${dh}::int
         ), updated_at=now()
         FROM deduct
         WHERE ws.key='settlement_stockpile'
         RETURNING ws.value, deduct.wood, deduct.stone, deduct.herbs
       ), logged AS (
         INSERT INTO world_events (player_id,event_type,payload)
-        SELECT ${playerId},'stockpile_deposit',jsonb_build_object('resource',${resource},'amount',${amount})
+        SELECT ${playerId}::bigint,'stockpile_deposit',jsonb_build_object('resource',${resource}::text,'amount',${amount}::int)
         FROM updated
         RETURNING id
       )
