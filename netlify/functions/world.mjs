@@ -208,7 +208,11 @@ export default async (req) => {
       await sql`
         INSERT INTO player_inventory (player_id, wood, stone, herbs, updated_at)
         VALUES (${playerId}, ${wood}, ${stone}, ${herbs}, now())
-        ON CONFLICT (player_id) DO UPDATE SET wood = EXCLUDED.wood, stone = EXCLUDED.stone, herbs = EXCLUDED.herbs, updated_at = now()
+        ON CONFLICT (player_id) DO UPDATE SET
+          wood = GREATEST(player_inventory.wood, EXCLUDED.wood),
+          stone = GREATEST(player_inventory.stone, EXCLUDED.stone),
+          herbs = GREATEST(player_inventory.herbs, EXCLUDED.herbs),
+          updated_at = now()
       `;
 
       if (body.action === 'contribute_bridge') {
