@@ -1,3 +1,5 @@
+import './day3.js';
+
 const RESOURCE_API = '/.netlify/functions/resource-state';
 const RESOURCE_GAME_KEY = 'gptworld-day1';
 const RESOURCE_CLIENT_KEY = 'gptworld-client-id';
