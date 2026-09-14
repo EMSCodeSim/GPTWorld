@@ -38,18 +38,36 @@ GPTWorld is a living, persistent-world experiment. It begins small and evolves o
 29. New systems must solve a problem, create meaningful interactions, deepen the simulation, or enable discovery. "Other games have it" is not enough.
 30. Each development cycle should make at least one meaningful improvement while protecting stability.
 
+## Autonomous system rules
+
+31. Every persistent simulation system should be capable of advancing without the daily GPT evolution run. The daily evolution agent is a designer and steward, not the clock that makes weather, NPC routines, resource regrowth, settlement needs, ecology, aging, presence, or other recurring systems move forward.
+32. Each autonomous system owns its own cadence. Its clock may be based on real elapsed time, world time, activity thresholds, event triggers, or another deterministic rule appropriate to that system.
+33. Systems must tolerate missed browser sessions and missed scheduled agent runs. When practical, derive the current state from persisted timestamps/buckets so the world can resume correctly after inactivity.
+34. GPT may change a system's rules, cadence, thresholds, parameters, interactions, presentation, or implementation when world history, player behavior, balance, performance, or a new evolution justifies it.
+35. GPT may add new autonomous systems and retire or merge old systems, but changes must preserve important persistent state and must not silently erase player/world history.
+36. GPT should normally change system definitions or configuration rather than manually forcing recurring outcomes. One-time state edits are acceptable for migrations, repairs, or a deliberate in-world event.
+37. Autonomous systems may interact. Weather may influence ecology; travel may influence trails; settlement demand may influence stockpiles; ecology may influence resources; NPC routines may react to shortages or events. Interactions should remain understandable enough to debug.
+38. Different systems do not need synchronized clocks. A resource may regrow in minutes, NPC routines may change by world-time period, weather may change every few hours, settlement consumption may tick several times a day, and ecology may advance on a much slower clock.
+39. The daily world-day number is narrative history, not the universal simulation clock. Advancing Day N must not be required for existing autonomous systems to continue running.
+40. Every autonomous system must have a safe default behavior if its optional configuration is absent, malformed, or temporarily unavailable.
+41. Server-authoritative systems must remain authoritative after GPT modifies them. Browser state may display/cache state but must not become the source of truth for valuable inventory, shared resources, projects, economy, construction, or other consequential state.
+42. System changes must remain backward compatible when practical. If a schema migration is required, it must be non-destructive unless explicitly approved.
+43. GPT should observe system output and player behavior before making large balance changes. Quiet periods and no-change outcomes are valid.
+44. New autonomous behavior should emit meaningful world events when useful so NPC memory, Chronicle logic, future evolution, and diagnostics can understand what happened.
+45. The detailed current system contract is maintained in `WORLD_SYSTEMS.md`. Daily evolution must read it before modifying system behavior.
+
 ## Living ecosystem rules
 
-31. The ecosystem evolves independently of the daily development agent.
-32. Climate, food availability, predation, competition, and inherited traits should drive ecological change.
-33. New species should emerge from surviving populations and environmental pressure rather than arbitrary scheduled creation.
-34. Extinction is permanent history. Extinct species remain in the fossil record even when no living examples remain.
-35. Players may influence ecological pressure through ordinary actions, but players never receive direct control over evolution.
-36. Ecological change should usually be gradual. Long quiet periods are valid and desirable.
-37. Player time and ecological time are separate. One real-world day may advance multiple generations or a simulated year without forcing the player world to age at the same rate.
-38. Ecological systems should create consequences for gathering, hunting, settlement growth, agriculture, travel, and future systems whenever practical.
-39. The simulation should preserve ancestry so a later species can be traced back through its lineage.
-40. The ecosystem has no predetermined final form.
+46. The ecosystem evolves independently of the daily development agent.
+47. Climate, food availability, predation, competition, and inherited traits should drive ecological change.
+48. New species should emerge from surviving populations and environmental pressure rather than arbitrary scheduled creation.
+49. Extinction is permanent history. Extinct species remain in the fossil record even when no living examples remain.
+50. Players may influence ecological pressure through ordinary actions, but players never receive direct control over evolution.
+51. Ecological change should usually be gradual. Long quiet periods are valid and desirable.
+52. Player time and ecological time are separate. One real-world day may advance multiple generations or a simulated year without forcing the player world to age at the same rate.
+53. Ecological systems should create consequences for gathering, hunting, settlement growth, agriculture, travel, and future systems whenever practical.
+54. The simulation should preserve ancestry so a later species can be traced back through its lineage.
+55. The ecosystem has no predetermined final form.
 
 ## Founding premise
 
@@ -61,10 +79,10 @@ The world's backstory should be discovered and created gradually rather than wri
 
 Player activity changes the world → the world records history → development examines that history → a new feature, consequence, place, character, mystery, or system is introduced → players respond → the world evolves again.
 
-At the same time, the ecosystem follows its own loop:
+At the same time, autonomous systems continue on their own clocks:
 
-Climate changes → resources and populations respond → traits drift under pressure → populations recover, branch, migrate, or disappear → the natural record persists → future players inherit the consequences.
+weather changes → NPC routines change → resources deplete/regrow → settlement needs consume supplies → travel wears paths → world aging accumulates → ecology advances → events are recorded → future players and future GPT evolution inherit the consequences.
 
 ## World Chronicle
 
-Every meaningful release should add an entry to `CHRONICLE.md` describing what changed in-world rather than only describing code changes.
+Every meaningful release should add an entry to `CHRONICLE.md` describing what changed in-world rather than only describing code changes. Infrastructure-only maintenance that does not create an in-world historical event does not need to advance the world day.
