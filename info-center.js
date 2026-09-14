@@ -1,0 +1,124 @@
+const INFO_WORLD_API='/.netlify/functions/living-systems';
+const INFO_MEMORY_API='/.netlify/functions/world-memory';
+let infoOpen=false;
+let infoTab='overview';
+let living=null;
+let ecosystem=null;
+let bridgeNearby=false;
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function ensureStyles(){
+  if(document.getElementById('infoCenterStyles'))return;
+  const style=document.createElement('style');
+  style.id='infoCenterStyles';
+  style.textContent=`
+  #infoCenterButton{position:fixed;right:18px;bottom:18px;z-index:80;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(15,24,18,.94);color:#f3efe5;padding:11px 15px;font:800 13px system-ui,sans-serif;box-shadow:0 9px 28px rgba(0,0,0,.3);backdrop-filter:blur(10px)}
+  #infoCenter{position:fixed;z-index:79;right:18px;top:72px;bottom:72px;width:min(440px,calc(100vw - 36px));background:rgba(12,20,15,.97);color:#f3efe5;border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.46);backdrop-filter:blur(14px);display:none;overflow:hidden;font:13px system-ui,sans-serif}
+  #infoCenter.open{display:flex;flex-direction:column}
+  .info-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 15px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .info-tabs{display:flex;gap:6px;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);overflow-x:auto}
+  .info-tabs button{white-space:nowrap;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(255,255,255,.05);color:#cfc9bd;padding:7px 10px;font-weight:700}
+  .info-tabs button.active{background:#d2b36a;color:#17130b;border-color:#d2b36a}
+  #infoCenterBody{overflow:auto;padding:14px 15px 20px;line-height:1.45}
+  .info-card{padding:11px 12px;margin:0 0 9px;border-radius:12px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.06)}
+  .info-card small{opacity:.62}.info-muted{opacity:.68}.info-section{font-size:11px;letter-spacing:.12em;opacity:.58;margin:15px 0 7px}
+  @media(max-width:800px),(pointer:coarse){#infoCenterButton{right:max(14px,env(safe-area-inset-right));bottom:max(176px,calc(env(safe-area-inset-bottom) + 168px));padding:10px 13px}#infoCenter{left:10px;right:10px;top:max(58px,calc(env(safe-area-inset-top) + 48px));bottom:max(160px,calc(env(safe-area-inset-bottom) + 150px));width:auto;border-radius:16px}.info-head{padding:11px 12px 9px}#infoCenterBody{padding:12px}.info-tabs{padding:7px 8px}}
+  `;
+  document.head.appendChild(style);
+}
+
+function hideLegacyMenus(){
+  const chronicle=document.querySelector('.chronicle'); if(chronicle) chronicle.style.display='none';
+  const pulse=document.getElementById('livingPulse'); if(pulse) pulse.style.display='none';
+  const ecoButton=document.getElementById('naturalHistoryButton'); if(ecoButton) ecoButton.style.display='none';
+  const ecoPanel=document.getElementById('naturalHistoryPanel'); if(ecoPanel) ecoPanel.style.display='none';
+}
+
+function ensureUI(){
+  if(document.getElementById('infoCenter'))return;
+  ensureStyles();
+  const btn=document.createElement('button');
+  btn.id='infoCenterButton';btn.type='button';btn.textContent='ⓘ Info';btn.setAttribute('aria-expanded','false');
+  document.body.appendChild(btn);
+  const panel=document.createElement('section');
+  panel.id='infoCenter';panel.setAttribute('aria-label','GPTWorld information center');
+  panel.innerHTML=`<div class="info-head"><div><div style="font-size:10px;letter-spacing:.14em;opacity:.55">GPTWORLD</div><strong style="font-size:18px">Info Center</strong></div><button id="infoClose" type="button" style="border:0;background:transparent;color:#f3efe5;font-size:24px">×</button></div><div class="info-tabs"><button data-tab="overview">World</button><button data-tab="chronicle">Chronicle</button><button data-tab="ecology">Ecology</button><button data-tab="bridge" id="bridgeTab" style="display:none">Bridge</button></div><div id="infoCenterBody"></div>`;
+  document.body.appendChild(panel);
+  btn.addEventListener('click',()=>setOpen(!infoOpen));
+  document.getElementById('infoClose')?.addEventListener('click',()=>setOpen(false));
+  panel.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{infoTab=b.dataset.tab;render();if(infoTab==='bridge')openBridgeHistory();}));
+  render();
+}
+
+function setOpen(v){infoOpen=v;document.getElementById('infoCenter')?.classList.toggle('open',v);const b=document.getElementById('infoCenterButton');if(b){b.setAttribute('aria-expanded',String(v));b.textContent=v?'Close info':'ⓘ Info';}if(v){refreshAll();render();}}
+
+function render(){
+  ensureUI();
+  const body=document.getElementById('infoCenterBody');if(!body)return;
+  document.querySelectorAll('#infoCenter [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===infoTab));
+  if(infoTab==='overview')renderOverview(body);
+  else if(infoTab==='chronicle')renderChronicle(body);
+  else if(infoTab==='ecology')renderEcology(body);
+  else renderBridge(body);
+}
+
+function renderOverview(body){
+  const w=living?.weather||{}, n=living?.needs||{}, a=living?.aging||{}, npcs=living?.npcs?.routines||{};
+  const npcRows=Object.entries(npcs).map(([name,v])=>`<div class="info-card"><strong>${esc(name)}</strong><div class="info-muted">${esc(v.activity)} · ${esc(v.location)}</div></div>`).join('');
+  body.innerHTML=`<div class="info-card"><strong>Weather</strong><div>${esc(w.condition||'loading')} · ${Number(w.temperatureC||0).toFixed(1)}°C · wind ${Number(w.windKph||0).toFixed(0)} km/h</div></div><div class="info-card"><strong>Settlement</strong><div>${esc(n.status||'loading')} · supply ${Number(n.score||0)}/100</div><small>Shared supplies are consumed over time.</small></div><div class="info-card"><strong>World aging</strong><div>Age ${Number(a.ageDays||0)} days · wear ${Math.round(Number(a.travelWear||0)*100)}% · regrowth ${Math.round(Number(a.forestRegrowth||0)*100)}% · patina ${Math.round(Number(a.patina||0)*100)}%</div></div><div class="info-section">NPC ROUTINES</div>${npcRows||'<div class="info-muted">Loading NPC activity…</div>'}`;
+}
+
+function renderChronicle(body){
+  const source=document.getElementById('chronicleEntries');
+  if(source&&source.children.length){body.innerHTML=`<div class="info-muted" style="margin-bottom:10px">Official history and recent shared-world activity.</div>${source.innerHTML}`;return;}
+  body.innerHTML='<div class="info-muted">Loading the Chronicle…</div>';
+}
+
+function renderEcology(body){
+  const e=ecosystem;
+  if(!e){body.innerHTML='<div class="info-muted">Loading natural history…</div>';return;}
+  const species=Array.isArray(e.species)?e.species:[], extinct=Array.isArray(e.extinct)?e.extinct:[], c=e.climate||{};
+  body.innerHTML=`<div class="info-card"><strong>Eco Year ${Number(e.simulatedYear||0)}</strong><div>${species.length} living species · ${extinct.length} extinct</div><small>${Number(c.temperatureC||0).toFixed(1)}°C · rainfall ${Math.round(Number(c.rainfall||0)*100)}% · fertility ${Math.round(Number(c.fertility||0)*100)}%</small></div><div class="info-section">LIVING SPECIES</div>${species.map(s=>`<div class="info-card"><strong>${esc(s.name)}</strong><div class="info-muted">${esc(s.kind)} · population ${Number(s.population||0).toLocaleString()} · ${esc(s.habitat||'unknown habitat')}</div></div>`).join('')||'<div class="info-muted">No species recorded.</div>'}`;
+}
+
+function renderBridge(body){
+  const panel=document.getElementById('bridgeProject');
+  if(!bridgeNearby||!panel){body.innerHTML='<div class="info-muted">Move near the Western Crossing to inspect its history.</div>';return;}
+  const status=document.getElementById('bridgeStatus')?.textContent||'The Western Crossing is nearby.';
+  const hist=document.getElementById('bridgeHistory')?.innerHTML||'';
+  body.innerHTML=`<div class="info-card"><strong>The Western Crossing</strong><div class="info-muted" style="margin-top:5px">${esc(status)}</div></div>${hist?`<div class="info-card">${hist}</div>`:'<button id="loadBridgeHistory" type="button" style="width:100%;border:0;border-radius:10px;padding:11px;background:#d2b36a;color:#17130b;font-weight:800">Inspect bridge history</button>'}`;
+  document.getElementById('loadBridgeHistory')?.addEventListener('click',openBridgeHistory);
+}
+
+function openBridgeHistory(){
+  if(!bridgeNearby)return;
+  const read=document.getElementById('readHistory');
+  const hist=document.getElementById('bridgeHistory');
+  if(read&&hist&&!hist.innerHTML)read.click();
+  setTimeout(()=>{const panel=document.getElementById('bridgeProject');if(panel)panel.style.display='none';renderBridge(document.getElementById('infoCenterBody'));},80);
+}
+
+async function refreshAll(){
+  try{const r=await fetch(INFO_WORLD_API,{cache:'no-store'});const d=await r.json();if(d.ok)living=d;}catch{}
+  try{const r=await fetch(INFO_MEMORY_API,{cache:'no-store'});const d=await r.json();if(d.ok)ecosystem=d.world?.ecosystem||d.ecosystem||null;}catch{}
+  render();
+}
+
+function manageBridge(){
+  const panel=document.getElementById('bridgeProject');
+  if(!panel)return;
+  const status=document.getElementById('bridgeStatus')?.textContent||'';
+  const complete=/complete|walk across/i.test(status);
+  const wasVisible=getComputedStyle(panel).display!=='none';
+  bridgeNearby=complete&&wasVisible || (bridgeNearby&&complete&&/complete|walk across/i.test(status));
+  const tab=document.getElementById('bridgeTab');if(tab)tab.style.display=bridgeNearby?'':'none';
+  if(complete){panel.style.display='none';}
+}
+
+ensureUI();
+hideLegacyMenus();
+refreshAll();
+setInterval(()=>{hideLegacyMenus();manageBridge();if(infoOpen&&infoTab==='chronicle')render();},500);
+setInterval(refreshAll,60000);
+window.addEventListener('focus',refreshAll);
