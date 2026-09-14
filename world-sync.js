@@ -1,4 +1,4 @@
-const API = '/.netlify/functions/world';
+const API = '/.netlify/functions/world-v2';
 const GAME_KEY = 'gptworld-day1';
 const CLIENT_KEY = 'gptworld-client-id';
 const RESTORE_GUARD = 'gptworld-restored-this-load';
@@ -20,8 +20,8 @@ function writeGameState(game) {
 function sameSavedPlayer(local, remote) {
   if (!remote) return true;
   return String(local.playerName || '') === String(remote.display_name || '')
-    && Number(local.x ?? 0) === Number(remote.x ?? 0)
-    && Number(local.z ?? 12) === Number(remote.z ?? 12)
+    && Math.abs(Number(local.x ?? 0) - Number(remote.x ?? 0)) < 0.05
+    && Math.abs(Number(local.z ?? 12) - Number(remote.z ?? 12)) < 0.05
     && Number(local.inventory?.wood || 0) === Number(remote.wood || 0)
     && Number(local.inventory?.stone || 0) === Number(remote.stone || 0)
     && Number(local.inventory?.herbs || 0) === Number(remote.herbs || 0);
@@ -108,9 +108,7 @@ function nearCrossing(game) {
 }
 
 function historyText(entity) {
-  if (!entity) {
-    return '<strong>World memory unavailable.</strong><br>The crossing is known to have been completed on Day 2 during the Founding Era.';
-  }
+  if (!entity) return '<strong>World memory unavailable.</strong><br>The crossing is known to have been completed on Day 2 during the Founding Era.';
   const day = entity.created_day ?? 2;
   const era = entity.created_era || 'Founding Era';
   const origin = entity.origin || 'Created through player activity.';
@@ -118,9 +116,7 @@ function historyText(entity) {
   const latest = history.length ? history[history.length - 1] : null;
   const attribution = latest?.player_name ? `<br><strong>Recorded participant:</strong> ${escapeHtml(latest.player_name)}` : '';
   const details = entity.details || {};
-  const materials = details.wood || details.stone
-    ? `<br><strong>Construction:</strong> ${Number(details.wood || 0)} wood · ${Number(details.stone || 0)} stone`
-    : '';
+  const materials = details.wood || details.stone ? `<br><strong>Construction:</strong> ${Number(details.wood || 0)} wood · ${Number(details.stone || 0)} stone` : '';
   return `<strong>Built on Day ${escapeHtml(day)} · ${escapeHtml(era)}</strong><br>${escapeHtml(origin)}${materials}${attribution}<br><span style="opacity:.72">This landmark is part of GPTWorld's permanent history and will remain unless an in-world event changes it.</span>`;
 }
 
@@ -149,7 +145,6 @@ async function toggleCrossingHistory() {
           name: game.playerName || 'Traveler',
           x: game.x ?? 0,
           z: game.z ?? 12,
-          inventory: game.inventory || { wood: 0, stone: 0, herbs: 0 },
           event: { type: 'landmark_history_inspected', payload: { entity_id: 'western-crossing' } }
         })
       });
@@ -178,9 +173,7 @@ function updateProjectUI() {
     ? `The crossing is complete. ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. The western bank is now reachable.`
     : `Shared progress: ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. Your pack: ${game.inventory?.wood || 0} wood · ${game.inventory?.stone || 0} stone.`;
   if (eyebrow) eyebrow.textContent = crossing.complete ? 'HISTORIC LANDMARK · FOUNDED DAY 2' : 'DAY 2 · COMMUNITY PROJECT';
-  if (hint) hint.textContent = crossing.complete
-    ? 'This player-built crossing is now part of the permanent world. Inspect it to learn its history.'
-    : "Approach the west riverbank to work on the settlement's first shared construction project.";
+  if (hint) hint.textContent = crossing.complete ? 'This player-built crossing is now part of the permanent world. Inspect it to learn its history.' : "Approach the west riverbank to work on the settlement's first shared construction project.";
   document.getElementById('giveWood').style.display = crossing.complete ? 'none' : '';
   document.getElementById('giveStone').style.display = crossing.complete ? 'none' : '';
   document.getElementById('crossBridge').style.display = crossing.complete ? '' : 'none';
@@ -208,7 +201,6 @@ async function contribute(wood, stone) {
         name: game.playerName || 'Traveler',
         x: game.x ?? 0,
         z: game.z ?? 12,
-        inventory: game.inventory || { wood: 0, stone: 0, herbs: 0 },
         action: 'contribute_bridge',
         wood: giveWood,
         stone: giveStone
@@ -216,7 +208,7 @@ async function contribute(wood, stone) {
     });
     const data = await response.json();
     if (!data.ok) {
-      showBridgeToast(data.error === 'not_enough_materials' ? 'Your shared inventory is still syncing. Try again.' : 'The project could not accept that contribution.');
+      showBridgeToast(data.error === 'not_enough_materials' ? 'Your saved inventory does not have enough material.' : 'The project could not accept that contribution.');
       return;
     }
     crossing = data.crossing || crossing;
@@ -226,10 +218,8 @@ async function contribute(wood, stone) {
     game.inventory.wood = Math.max(0, Number(game.inventory.wood || 0) - usedWood);
     game.inventory.stone = Math.max(0, Number(game.inventory.stone || 0) - usedStone);
     writeGameState(game);
-    const woodEl = document.getElementById('woodCount');
-    const stoneEl = document.getElementById('stoneCount');
-    if (woodEl) woodEl.textContent = String(game.inventory.wood);
-    if (stoneEl) stoneEl.textContent = String(game.inventory.stone);
+    document.getElementById('woodCount').textContent = String(game.inventory.wood);
+    document.getElementById('stoneCount').textContent = String(game.inventory.stone);
     showBridgeToast(crossing.complete ? 'The Western Crossing is complete!' : `Contributed ${usedWood} wood and ${usedStone} stone.`);
     updateProjectUI();
   } catch {
@@ -246,9 +236,7 @@ function crossRiver() {
   game.x = targetX;
   game.z = targetZ;
   writeGameState(game);
-  window.dispatchEvent(new CustomEvent('gptworld:cross-river', {
-    detail: { x: targetX, z: targetZ }
-  }));
+  window.dispatchEvent(new CustomEvent('gptworld:cross-river', { detail: { x: targetX, z: targetZ } }));
   showBridgeToast(x > -24 ? 'You cross to the western bank.' : 'You cross back to the settlement.');
   setTimeout(syncPresence, 50);
   setTimeout(updateProjectUI, 80);
@@ -273,8 +261,7 @@ async function syncPresence() {
         clientId: sessionId,
         name: game.playerName || 'Traveler',
         x: game.x ?? 0,
-        z: game.z ?? 12,
-        inventory: game.inventory || { wood: 0, stone: 0, herbs: 0 }
+        z: game.z ?? 12
       })
     });
     const data = await response.json();
