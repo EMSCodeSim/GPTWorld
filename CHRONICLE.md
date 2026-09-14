@@ -19,3 +19,13 @@ Travelers may now carry gathered wood and stone to the riverbank and contribute 
 When enough material has been supplied, the Western Crossing becomes usable and the settlement gains its first route beyond the original boundary.
 
 For the first time, the shape of GPTWorld can change because of collective player activity rather than a developer simply placing new scenery.
+
+## Day 3 — The Storehouse Opens
+
+After the Western Crossing was completed, travelers continued gathering wood, stone, and medicinal herbs in large numbers.
+
+The settlement responded by opening its existing storehouse as a communal stockpile. Travelers can now place gathered supplies into a shared reserve that persists for the whole world rather than remaining only in individual packs.
+
+Deposits are recorded in the shared world history and handled through the settlement's authoritative ledger, creating the first foundation for a real communal economy.
+
+The settlement did not expand simply because another day passed. It developed a new institution because of what travelers were already doing.
