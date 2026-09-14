@@ -29,21 +29,30 @@ export default async req=>{
     const amount=cleanAmount(body.amount);
     const dw=resource==='wood'?amount:0,ds=resource==='stone'?amount:0,dh=resource==='herbs'?amount:0;
     const rows=await sql`
-      WITH locked AS (SELECT value FROM world_state WHERE key='settlement_stockpile' FOR UPDATE),
-      spend AS (
-        UPDATE player_inventory SET wood=wood-${dw},stone=stone-${ds},herbs=herbs-${dh},updated_at=now()
+      WITH spend AS (
+        UPDATE player_inventory
+        SET wood=wood-${dw},stone=stone-${ds},herbs=herbs-${dh},updated_at=now()
         WHERE player_id=${playerId} AND wood>=${dw} AND stone>=${ds} AND herbs>=${dh}
         RETURNING wood,stone,herbs
       ),
       stock AS (
-        UPDATE world_state w SET value=jsonb_build_object('wood',COALESCE((locked.value->>'wood')::int,0)+${dw},'stone',COALESCE((locked.value->>'stone')::int,0)+${ds},'herbs',COALESCE((locked.value->>'herbs')::int,0)+${dh}),updated_at=now()
-        FROM locked,spend WHERE w.key='settlement_stockpile' RETURNING w.value
+        UPDATE world_state w
+        SET value=jsonb_build_object(
+          'wood',COALESCE((w.value->>'wood')::int,0)+${dw},
+          'stone',COALESCE((w.value->>'stone')::int,0)+${ds},
+          'herbs',COALESCE((w.value->>'herbs')::int,0)+${dh}
+        ),updated_at=now()
+        FROM spend
+        WHERE w.key='settlement_stockpile'
+        RETURNING w.value
       ),
       event AS (
         INSERT INTO world_events (player_id,event_type,payload)
         SELECT ${playerId},'stockpile_deposit',jsonb_build_object('resource',${resource},'amount',${amount}) FROM stock
+        RETURNING id
       )
-      SELECT stock.value,spend.wood,spend.stone,spend.herbs FROM stock,spend`;
+      SELECT stock.value,spend.wood,spend.stone,spend.herbs,event.id AS event_id
+      FROM stock,spend,event`;
     if(!rows.length)return reply({ok:false,error:'not_enough_materials'},409);
     const r=rows[0],s=r.value||{};
     return reply({ok:true,deposited:{resource,amount},stockpile:{wood:Number(s.wood||0),stone:Number(s.stone||0),herbs:Number(s.herbs||0)},inventory:{wood:Number(r.wood||0),stone:Number(r.stone||0),herbs:Number(r.herbs||0)}});
