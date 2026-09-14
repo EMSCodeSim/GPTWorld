@@ -85,19 +85,17 @@ function ensureProjectUI() {
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="giveWood" type="button">Give up to 5 wood</button>
       <button id="giveStone" type="button">Give up to 3 stone</button>
-      <button id="crossBridge" type="button" style="display:none">Cross the bridge</button>
       <button id="readHistory" type="button" style="display:none">Inspect history</button>
     </div>
     <div id="bridgeHistory" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.14);line-height:1.45"></div>
     <div id="bridgeHint" style="font-size:12px;opacity:.7;margin-top:8px">Approach the west riverbank to work on the settlement's first shared construction project.</div>`;
   document.body.appendChild(panel);
-  for (const id of ['giveWood','giveStone','crossBridge','readHistory']) {
+  for (const id of ['giveWood','giveStone','readHistory']) {
     const b = document.getElementById(id);
     b.style.cssText = 'background:#d9c896;color:#17231a;border:0;border-radius:9px;padding:9px 11px;font-weight:700;cursor:pointer';
   }
   document.getElementById('giveWood').addEventListener('click', () => contribute(5, 0));
   document.getElementById('giveStone').addEventListener('click', () => contribute(0, 3));
-  document.getElementById('crossBridge').addEventListener('click', crossRiver);
   document.getElementById('readHistory').addEventListener('click', toggleCrossingHistory);
 }
 
@@ -121,7 +119,7 @@ function historyText(entity) {
 }
 
 function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+  return String(value ?? '').replace(/[&<>'\"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 }
 
 async function toggleCrossingHistory() {
@@ -170,13 +168,12 @@ function updateProjectUI() {
   const w = Math.min(crossing.woodGoal || 60, crossing.wood || 0);
   const s = Math.min(crossing.stoneGoal || 30, crossing.stone || 0);
   status.textContent = crossing.complete
-    ? `The crossing is complete. ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. The western bank is now reachable.`
+    ? `The crossing is complete. ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. Walk across the bridge normally.`
     : `Shared progress: ${w}/${crossing.woodGoal || 60} wood · ${s}/${crossing.stoneGoal || 30} stone. Your pack: ${game.inventory?.wood || 0} wood · ${game.inventory?.stone || 0} stone.`;
   if (eyebrow) eyebrow.textContent = crossing.complete ? 'HISTORIC LANDMARK · FOUNDED DAY 2' : 'DAY 2 · COMMUNITY PROJECT';
-  if (hint) hint.textContent = crossing.complete ? 'This player-built crossing is now part of the permanent world. Inspect it to learn its history.' : "Approach the west riverbank to work on the settlement's first shared construction project.";
+  if (hint) hint.textContent = crossing.complete ? 'The bridge is part of the physical world now. Cross it by walking over it; inspect history only if you want the record.' : "Approach the west riverbank to work on the settlement's first shared construction project.";
   document.getElementById('giveWood').style.display = crossing.complete ? 'none' : '';
   document.getElementById('giveStone').style.display = crossing.complete ? 'none' : '';
-  document.getElementById('crossBridge').style.display = crossing.complete ? '' : 'none';
   document.getElementById('readHistory').style.display = crossing.complete ? '' : 'none';
   if (historyOpen) document.getElementById('bridgeHistory').innerHTML = historyText(crossingEntity());
 }
@@ -225,21 +222,6 @@ async function contribute(wood, stone) {
   } catch {
     showBridgeToast('The shared world is temporarily unreachable.');
   }
-}
-
-function crossRiver() {
-  const game = readGameState();
-  if (!crossing.complete) return;
-  const x = Number(game.x ?? 0);
-  const targetX = x > -24 ? -30.5 : -17.5;
-  const targetZ = Math.max(-2, Math.min(2, Number(game.z || 0)));
-  game.x = targetX;
-  game.z = targetZ;
-  writeGameState(game);
-  window.dispatchEvent(new CustomEvent('gptworld:cross-river', { detail: { x: targetX, z: targetZ } }));
-  showBridgeToast(x > -24 ? 'You cross to the western bank.' : 'You cross back to the settlement.');
-  setTimeout(syncPresence, 50);
-  setTimeout(updateProjectUI, 80);
 }
 
 function showBridgeToast(message) {
