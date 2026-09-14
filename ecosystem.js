@@ -1,4 +1,4 @@
-const ECOSYSTEM_API = '/.netlify/functions/world';
+const ECOSYSTEM_API = '/.netlify/functions/world-memory';
 let ecosystemState = null;
 let naturalHistoryOpen = false;
 
@@ -73,13 +73,24 @@ function renderNaturalHistory() {
   document.getElementById('closeNaturalHistory')?.addEventListener('click', toggleNaturalHistory);
 }
 
+function renderLoadError(message = 'The living record is temporarily unavailable.') {
+  const content = document.getElementById('naturalHistoryContent');
+  if (!content) return;
+  content.innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-size:11px;letter-spacing:.14em;opacity:.58">LIVING ECOSYSTEM</div><h2 style="margin:4px 0 0;font-size:24px">Natural History</h2></div><button id="closeNaturalHistory" type="button" aria-label="Close natural history" style="border:0;background:transparent;color:#f4efdf;font-size:22px;cursor:pointer">×</button></div><p style="margin-top:16px;opacity:.75">${esc(message)}</p>`;
+  document.getElementById('closeNaturalHistory')?.addEventListener('click', toggleNaturalHistory);
+}
+
 function toggleNaturalHistory() {
   naturalHistoryOpen = !naturalHistoryOpen;
   const panel = document.getElementById('naturalHistoryPanel');
   if (!panel) return;
   panel.style.display = naturalHistoryOpen ? 'block' : 'none';
   if (naturalHistoryOpen) {
-    renderNaturalHistory();
+    if (ecosystemState) renderNaturalHistory();
+    else {
+      const content = document.getElementById('naturalHistoryContent');
+      if (content) content.textContent = 'Loading the living record…';
+    }
     refreshEcosystem();
   }
 }
@@ -87,15 +98,18 @@ function toggleNaturalHistory() {
 async function refreshEcosystem() {
   try {
     const response = await fetch(ECOSYSTEM_API, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    if (!data.ok) return;
-    ecosystemState = data.ecosystem || data.world?.ecosystem || null;
-    if (ecosystemState) {
-      const button = document.getElementById('naturalHistoryButton');
-      if (button) button.textContent = `🌱 Eco Year ${Number(ecosystemState.simulatedYear || 0)}`;
-      if (naturalHistoryOpen) renderNaturalHistory();
-    }
-  } catch {}
+    if (!data.ok) throw new Error(data.error || 'Natural history unavailable');
+    ecosystemState = data.world?.ecosystem || data.ecosystem || null;
+    if (!ecosystemState) throw new Error('No ecosystem record found');
+    const button = document.getElementById('naturalHistoryButton');
+    if (button) button.textContent = `🌱 Eco Year ${Number(ecosystemState.simulatedYear || 0)}`;
+    if (naturalHistoryOpen) renderNaturalHistory();
+  } catch (error) {
+    console.error('Natural History load failed', error);
+    if (naturalHistoryOpen) renderLoadError('The living record could not be loaded. Please try again shortly.');
+  }
 }
 
 ensureNaturalHistoryUI();
