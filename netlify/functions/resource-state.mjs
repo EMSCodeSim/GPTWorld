@@ -5,86 +5,112 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
 });
 
-const ALLOWED_RESOURCES = new Set(['wood', 'stone', 'herbs']);
-const cleanAmount = (value) => Math.max(1, Math.min(5, Math.floor(Number.isFinite(Number(value)) ? Number(value) : 1)));
+const NODE_CONFIG = {
+  'tree-0':{resource:'wood',max:6,regrowMinutes:60},'tree-1':{resource:'wood',max:6,regrowMinutes:60},'tree-2':{resource:'wood',max:6,regrowMinutes:60},'tree-3':{resource:'wood',max:6,regrowMinutes:60},'tree-4':{resource:'wood',max:6,regrowMinutes:60},'tree-5':{resource:'wood',max:6,regrowMinutes:60},'tree-6':{resource:'wood',max:6,regrowMinutes:60},'tree-7':{resource:'wood',max:6,regrowMinutes:60},'tree-8':{resource:'wood',max:6,regrowMinutes:60},'tree-9':{resource:'wood',max:6,regrowMinutes:60},'tree-10':{resource:'wood',max:6,regrowMinutes:60},'tree-11':{resource:'wood',max:6,regrowMinutes:60},'tree-12':{resource:'wood',max:6,regrowMinutes:60},'tree-13':{resource:'wood',max:6,regrowMinutes:60},'tree-14':{resource:'wood',max:6,regrowMinutes:60},'tree-15':{resource:'wood',max:6,regrowMinutes:60},'tree-16':{resource:'wood',max:6,regrowMinutes:60},'tree-17':{resource:'wood',max:6,regrowMinutes:60},'tree-18':{resource:'wood',max:6,regrowMinutes:60},'tree-19':{resource:'wood',max:6,regrowMinutes:60},'tree-20':{resource:'wood',max:6,regrowMinutes:60},'tree-21':{resource:'wood',max:6,regrowMinutes:60},'tree-22':{resource:'wood',max:6,regrowMinutes:60},
+  'rock-0':{resource:'stone',max:4,regrowMinutes:90},'rock-1':{resource:'stone',max:4,regrowMinutes:90},'rock-2':{resource:'stone',max:4,regrowMinutes:90},'rock-3':{resource:'stone',max:4,regrowMinutes:90},'rock-4':{resource:'stone',max:4,regrowMinutes:90},
+  'herb-0':{resource:'herbs',max:3,regrowMinutes:20},'herb-1':{resource:'herbs',max:3,regrowMinutes:20},'herb-2':{resource:'herbs',max:3,regrowMinutes:20},'herb-3':{resource:'herbs',max:3,regrowMinutes:20},'herb-4':{resource:'herbs',max:3,regrowMinutes:20}
+};
 
 async function getInventory(sql, playerId) {
-  const rows = await sql`
-    SELECT wood, stone, herbs, updated_at
-    FROM player_inventory
-    WHERE player_id = ${playerId}
-    LIMIT 1
-  `;
+  const rows = await sql`SELECT wood, stone, herbs, updated_at FROM player_inventory WHERE player_id = ${playerId} LIMIT 1`;
   const row = rows[0] || {};
-  return {
-    wood: Number(row.wood || 0),
-    stone: Number(row.stone || 0),
-    herbs: Number(row.herbs || 0),
-    updated_at: row.updated_at || null
-  };
+  return { wood:Number(row.wood||0), stone:Number(row.stone||0), herbs:Number(row.herbs||0), updated_at:row.updated_at||null };
+}
+
+async function resourceNodes(sql){
+  await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+  const rows=await sql`SELECT value FROM world_state WHERE key='resource_nodes' LIMIT 1`;
+  const stored=rows[0]?.value||{};
+  const now=Date.now();
+  const out={};
+  for(const [id,cfg] of Object.entries(NODE_CONFIG)){
+    const s=stored[id]||{};
+    const regrowAt=s.regrowAt?Date.parse(s.regrowAt):0;
+    const regrown=regrowAt>0&&regrowAt<=now;
+    out[id]={resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null)};
+  }
+  return out;
 }
 
 export default async (req) => {
-  if (!process.env.DATABASE_URL) return json({ ok: false, error: 'database_not_configured' }, 503);
-  const sql = neon(process.env.DATABASE_URL);
-
-  try {
-    if (req.method === 'GET') {
-      const url = new URL(req.url);
-      const clientId = String(url.searchParams.get('clientId') || '').trim().slice(0, 80);
-      if (!clientId) return json({ ok: false, error: 'client_id_required' }, 400);
-
-      const players = await sql`SELECT id FROM players WHERE client_id = ${clientId} LIMIT 1`;
-      if (!players.length) return json({ ok: true, inventory: null });
-      const inventory = await getInventory(sql, players[0].id);
-      return json({ ok: true, inventory });
+  if (!process.env.DATABASE_URL) return json({ ok:false,error:'database_not_configured' },503);
+  const sql=neon(process.env.DATABASE_URL);
+  try{
+    if(req.method==='GET'){
+      const url=new URL(req.url);
+      const clientId=String(url.searchParams.get('clientId')||'').trim().slice(0,80);
+      if(!clientId)return json({ok:false,error:'client_id_required'},400);
+      const players=await sql`SELECT id FROM players WHERE client_id=${clientId} LIMIT 1`;
+      const nodes=await resourceNodes(sql);
+      if(!players.length)return json({ok:true,inventory:null,nodes});
+      return json({ok:true,inventory:await getInventory(sql,players[0].id),nodes});
     }
 
-    if (req.method === 'POST') {
-      const body = await req.json();
-      const clientId = String(body.clientId || '').trim().slice(0, 80);
-      if (!clientId) return json({ ok: false, error: 'client_id_required' }, 400);
-
-      const players = await sql`SELECT id FROM players WHERE client_id = ${clientId} LIMIT 1`;
-      if (!players.length) return json({ ok: false, error: 'player_not_registered' }, 409);
-      const playerId = players[0].id;
-
-      if (body.action !== 'gather') {
-        return json({ ok: false, error: 'server_authoritative_inventory' }, 409);
-      }
-
-      const resource = String(body.resource || '').trim().toLowerCase();
-      if (!ALLOWED_RESOURCES.has(resource)) return json({ ok: false, error: 'invalid_resource' }, 400);
-      const amount = cleanAmount(body.amount);
-
-      await sql`
-        INSERT INTO player_inventory (player_id, wood, stone, herbs, updated_at)
-        VALUES (
-          ${playerId},
-          ${resource === 'wood' ? amount : 0},
-          ${resource === 'stone' ? amount : 0},
-          ${resource === 'herbs' ? amount : 0},
-          now()
+    if(req.method==='POST'){
+      const body=await req.json();
+      const clientId=String(body.clientId||'').trim().slice(0,80);
+      if(!clientId)return json({ok:false,error:'client_id_required'},400);
+      const players=await sql`SELECT id FROM players WHERE client_id=${clientId} LIMIT 1`;
+      if(!players.length)return json({ok:false,error:'player_not_registered'},409);
+      if(body.action!=='gather')return json({ok:false,error:'server_authoritative_inventory'},409);
+      const playerId=players[0].id;
+      const nodeId=String(body.nodeId||'').trim().slice(0,40);
+      const cfg=NODE_CONFIG[nodeId];
+      if(!cfg)return json({ok:false,error:'invalid_resource_node'},400);
+      const resource=String(body.resource||'').trim().toLowerCase();
+      if(resource!==cfg.resource)return json({ok:false,error:'resource_node_mismatch'},400);
+      const amount=1;
+      await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+      const result=await sql`
+        WITH current AS (
+          SELECT value FROM world_state WHERE key='resource_nodes' FOR UPDATE
+        ), calc AS (
+          SELECT value,
+            CASE
+              WHEN NULLIF(value->${nodeId}->>'regrowAt','') IS NOT NULL AND (value->${nodeId}->>'regrowAt')::timestamptz <= now() THEN ${cfg.max}::int
+              ELSE COALESCE((value->${nodeId}->>'remaining')::int,${cfg.max}::int)
+            END AS before_count
+          FROM current
+        ), changed AS (
+          UPDATE world_state ws SET value=jsonb_set(
+            calc.value,
+            ARRAY[${nodeId}::text],
+            jsonb_build_object(
+              'resource',${cfg.resource}::text,
+              'max',${cfg.max}::int,
+              'remaining',GREATEST(0,calc.before_count-${amount}::int),
+              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END
+            ),true
+          ), updated_at=now()
+          FROM calc WHERE ws.key='resource_nodes' AND calc.before_count>=${amount}::int
+          RETURNING GREATEST(0,calc.before_count-${amount}::int) AS remaining
+        ), inv AS (
+          UPDATE player_inventory pi SET
+            wood=wood+${cfg.resource==='wood'?1:0}::int,
+            stone=stone+${cfg.resource==='stone'?1:0}::int,
+            herbs=herbs+${cfg.resource==='herbs'?1:0}::int,
+            updated_at=now()
+          FROM changed WHERE pi.player_id=${playerId}::bigint
+          RETURNING changed.remaining
+        ), logged AS (
+          INSERT INTO world_events (player_id,event_type,payload)
+          SELECT ${playerId}::bigint,'resource_gathered',jsonb_build_object('resource',${cfg.resource}::text,'amount',1,'nodeId',${nodeId}::text,'remaining',remaining)
+          FROM inv RETURNING id
         )
-        ON CONFLICT (player_id) DO UPDATE SET
-          wood = player_inventory.wood + ${resource === 'wood' ? amount : 0},
-          stone = player_inventory.stone + ${resource === 'stone' ? amount : 0},
-          herbs = player_inventory.herbs + ${resource === 'herbs' ? amount : 0},
-          updated_at = now()
-      `;
-
-      await sql`
-        INSERT INTO world_events (player_id, event_type, payload)
-        VALUES (${playerId}, 'resource_gathered', ${JSON.stringify({ resource, amount })}::jsonb)
-      `;
-
-      const inventory = await getInventory(sql, playerId);
-      return json({ ok: true, gathered: { resource, amount }, inventory });
+        SELECT remaining FROM inv`;
+      if(!result.length){
+        const nodes=await resourceNodes(sql);
+        const node=nodes[nodeId];
+        return json({ok:false,error:'resource_depleted',node,nodeId},409);
+      }
+      const remaining=Number(result[0].remaining||0);
+      const inventory=await getInventory(sql,playerId);
+      const nodes=await resourceNodes(sql);
+      return json({ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes});
     }
-
-    return json({ ok: false, error: 'method_not_allowed' }, 405);
-  } catch (error) {
-    console.error('GPTWorld resource-state error', error);
-    return json({ ok: false, error: 'resource_state_failed' }, 500);
+    return json({ok:false,error:'method_not_allowed'},405);
+  }catch(error){
+    console.error('GPTWorld resource-state error',error);
+    return json({ok:false,error:'resource_state_failed',detail:String(error?.message||error).slice(0,180)},500);
   }
 };
