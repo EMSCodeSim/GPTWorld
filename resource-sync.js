@@ -2,8 +2,6 @@ const RESOURCE_API = '/.netlify/functions/resource-state';
 const RESOURCE_GAME_KEY = 'gptworld-day1';
 const RESOURCE_CLIENT_KEY = 'gptworld-client-id';
 const RESOURCE_RESTORE_GUARD = 'gptworld-resource-restored';
-let serverInventory = null;
-let syncing = false;
 
 function readResourceGame() {
   try { return JSON.parse(localStorage.getItem(RESOURCE_GAME_KEY)) || {}; }
@@ -42,11 +40,11 @@ function applyAuthoritativeInventory(inv) {
     stone: Math.max(0, Number(inv.stone || 0)),
     herbs: Math.max(0, Number(inv.herbs || 0))
   };
-  serverInventory = next;
   const game = readResourceGame();
   game.inventory = next;
   writeResourceGame(game);
   updateVisibleInventory(next);
+  window.dispatchEvent(new CustomEvent('gptworld:inventory-state', { detail: next }));
 }
 
 async function fetchAuthoritativeInventory() {
@@ -76,63 +74,10 @@ async function restoreResources() {
   } catch {}
 }
 
-async function submitGather(resource, amount) {
-  const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
-  if (!clientId) return false;
-  try {
-    const response = await fetch(RESOURCE_API, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId, action: 'gather', resource, amount })
-    });
-    const data = await response.json();
-    if (!data.ok || !data.inventory) return false;
-    applyAuthoritativeInventory(data.inventory);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function reconcileResources() {
-  if (syncing) return;
-  const clientId = localStorage.getItem(RESOURCE_CLIENT_KEY);
-  if (!clientId) return;
-  syncing = true;
-  try {
-    if (!serverInventory) {
-      const authoritative = await fetchAuthoritativeInventory();
-      if (!authoritative) return;
-      applyAuthoritativeInventory(authoritative);
-      return;
-    }
-
-    const local = normalizedInventory(readResourceGame());
-    const resources = ['wood', 'stone', 'herbs'];
-
-    for (const resource of resources) {
-      const delta = local[resource] - serverInventory[resource];
-      if (delta > 0) {
-        let remaining = delta;
-        while (remaining > 0) {
-          const amount = Math.min(5, remaining);
-          const ok = await submitGather(resource, amount);
-          if (!ok) break;
-          remaining -= amount;
-        }
-      }
-    }
-
-    const refreshed = await fetchAuthoritativeInventory();
-    if (refreshed) applyAuthoritativeInventory(refreshed);
-  } catch {}
-  finally { syncing = false; }
-}
-
 restoreResources();
-setInterval(reconcileResources, 500);
 document.getElementById('enterWorld')?.addEventListener('click', () => {
   sessionStorage.removeItem(RESOURCE_RESTORE_GUARD);
-  setTimeout(reconcileResources, 300);
+  setTimeout(restoreResources, 350);
 });
 window.addEventListener('focus', restoreResources);
+setInterval(restoreResources, 15000);
