@@ -1,4 +1,4 @@
-name: One-shot wildlife motion upgrade
+name: One-shot wildlife identity upgrade
 on:
   push:
     paths:
@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply wildlife smoothing final
-        run: python scripts/smooth-wildlife.py
+      - name: Add recognizable wildlife details
+        run: python scripts/wildlife-identity.py
       - name: Syntax check stable engine
         run: node --check main.js
-      - name: Commit wildlife motion
+      - name: Commit wildlife identity
         run: |
           git config user.name "GPTWorld Graphics Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Smooth wildlife movement and player reactions"
+          git commit -m "Make wildlife species easier to recognize"
           git push
