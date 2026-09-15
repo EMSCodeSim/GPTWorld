@@ -1,4 +1,4 @@
-name: One-shot wildlife identity upgrade
+name: One-shot humanoid graphics polish
 on:
   push:
     paths:
@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add recognizable wildlife details
-        run: python scripts/wildlife-identity.py
+      - name: Polish people and NPC graphics
+        run: python scripts/humanoid-polish.py
       - name: Syntax check stable engine
         run: node --check main.js
-      - name: Commit wildlife identity
+      - name: Commit humanoid polish
         run: |
           git config user.name "GPTWorld Graphics Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Make wildlife species easier to recognize"
+          git commit -m "Polish player and NPC character graphics"
           git push
