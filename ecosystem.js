@@ -1,4 +1,5 @@
 const ECOSYSTEM_API = '/.netlify/functions/world';
+const nativeFetch = window.fetch.bind(window);
 let ecosystemState = null;
 let naturalHistoryOpen = false;
 let baseRenderEntities = [];
@@ -81,10 +82,35 @@ function ecologyVisualEntities(now = Date.now()) {
   return out;
 }
 
+function mergedEntities(serverEntities = []) {
+  const base = Array.isArray(serverEntities) ? serverEntities.filter(e => !String(e?.id || '').startsWith('eco-')) : [];
+  return [...base, ...ecologyVisualEntities()];
+}
+
+function installEcologyFetchBridge() {
+  if (window.__gptworldEcologyFetchBridge) return;
+  window.__gptworldEcologyFetchBridge = true;
+  window.fetch = async (...args) => {
+    const response = await nativeFetch(...args);
+    try {
+      const requestUrl = typeof args[0] === 'string' ? args[0] : String(args[0]?.url || '');
+      if (!ecosystemState || !requestUrl.includes('/.netlify/functions/world-v2') || !response.ok) return response;
+      const data = await response.clone().json();
+      if (!data?.ok || !data.world) return response;
+      data.world.render_entities = mergedEntities(data.world.render_entities);
+      const headers = new Headers(response.headers);
+      headers.set('content-type', 'application/json; charset=utf-8');
+      headers.set('cache-control', 'no-store');
+      return new Response(JSON.stringify(data), { status: response.status, statusText: response.statusText, headers });
+    } catch {
+      return response;
+    }
+  };
+}
+
 function publishEcologyVisuals() {
   if (!ecosystemState) return;
-  const ecology = ecologyVisualEntities();
-  const merged = [...baseRenderEntities.filter(e => !String(e?.id || '').startsWith('eco-')), ...ecology];
+  const merged = mergedEntities(baseRenderEntities);
   const signature = JSON.stringify(merged);
   if (signature === lastVisualSignature) return;
   lastVisualSignature = signature;
@@ -180,7 +206,7 @@ function toggleNaturalHistory() {
 
 async function refreshEcosystem() {
   try {
-    const response = await fetch(ECOSYSTEM_API, { cache: 'no-store' });
+    const response = await nativeFetch(ECOSYSTEM_API, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!data.ok) throw new Error(data.error || 'Natural history unavailable');
@@ -197,6 +223,7 @@ async function refreshEcosystem() {
   }
 }
 
+installEcologyFetchBridge();
 ensureNaturalHistoryUI();
 refreshEcosystem();
 setInterval(refreshEcosystem, 30000);
