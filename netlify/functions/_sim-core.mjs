@@ -21,11 +21,11 @@ function habitat(h,seed){h=String(h||'').toLowerCase();if(h.includes('river'))re
 function part(out,id,x,z,width,height,depth,color,extra={}){out.push({id:String(id).slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(width,2),height:round(height,2),depth:round(depth,2),color,...extra});}
 
 function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`;if(s.id==='rivergrass'){
-  const green='#6f9b55',dark='#4f7b43';
-  part(out,`${base}-center`,x,z,size*.28,.75+size*1.6,size*.28,green,{species:s.id,part:'blade'});
-  part(out,`${base}-left`,x-size*.3,z+size*.12,size*.2,.48+size*1.2,size*.2,dark,{species:s.id,part:'blade'});
-  part(out,`${base}-right`,x+size*.3,z-size*.1,size*.2,.55+size*1.35,size*.2,green,{species:s.id,part:'blade'});
-  return;
+ const green='#6f9b55',dark='#4f7b43';
+ part(out,`${base}-center`,x,z,size*.28,.75+size*1.6,size*.28,green,{species:s.id,part:'blade'});
+ part(out,`${base}-left`,x-size*.3,z+size*.12,size*.2,.48+size*1.2,size*.2,dark,{species:s.id,part:'blade'});
+ part(out,`${base}-right`,x+size*.3,z-size*.1,size*.2,.55+size*1.35,size*.2,green,{species:s.id,part:'blade'});
+ return;
  }
  const leaf='#4f793e',branch='#5f4a32';
  part(out,`${base}-stem`,x,z,size*.24,.5+size*.8,size*.24,branch,{species:s.id,part:'stem'});
@@ -33,31 +33,39 @@ function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`;if(s
  part(out,`${base}-side`,x+size*.48,z-size*.22,size*.72,.4+size*.65,size*.7,'#5f8448',{species:s.id,part:'crown'});
 }
 
-function animalParts(out,s,i,x,z,body,heading){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const dark=predator?'#3f3027':runner?'#735f3e':'#604c32';const base=`eco-animal-${s.id}-${i}`;const dx=Math.cos(heading),dz=Math.sin(heading),sx=-dz,sz=dx;
+function animalParts(out,s,i,x,z,body,heading,behavior='roaming'){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const dark=predator?'#3f3027':runner?'#735f3e':'#604c32';const base=`eco-animal-${s.id}-${i}`;const dx=Math.cos(heading),dz=Math.sin(heading),sx=-dz,sz=dx;
  const px=(forward,side=0)=>x+dx*forward+sx*side,pz=(forward,side=0)=>z+dz*forward+sz*side;
  const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;
- part(out,`${base}-body`,x,z,bodyLen,bodyHigh,bodyWide,color,{species:s.id,part:'body'});
+ const common={species:s.id,animalId:`${s.id}-${i}`,behavior};
+ part(out,`${base}-body`,x,z,bodyLen,bodyHigh,bodyWide,color,{...common,part:'body'});
  const headF=bodyLen*.58,headSize=predator?body*.62:runner?body*.5:body*.58;
- part(out,`${base}-head`,px(headF),pz(headF),headSize,headSize,headSize,dark,{species:s.id,part:'head'});
+ part(out,`${base}-head`,px(headF),pz(headF),headSize,headSize,headSize,dark,{...common,part:'head'});
  const legH=predator?body*.7:runner?body*.78:body*.86,legW=Math.max(.13,body*.16),front=bodyLen*.32,rear=-bodyLen*.32,side=bodyWide*.34;
- for(const [name,f,sd] of [['fl',front,side],['fr',front,-side],['rl',rear,side],['rr',rear,-side]])part(out,`${base}-${name}`,px(f,sd),pz(f,sd),legW,legH,legW,dark,{species:s.id,part:'leg'});
+ for(const [name,f,sd] of [['fl',front,side],['fr',front,-side],['rl',rear,side],['rr',rear,-side]])part(out,`${base}-${name}`,px(f,sd),pz(f,sd),legW,legH,legW,dark,{...common,part:'leg'});
  const tailF=-bodyLen*.62;
- part(out,`${base}-tail`,px(tailF),pz(tailF),predator?body*.75:body*.52,Math.max(.14,body*.18),Math.max(.12,body*.14),dark,{species:s.id,part:'tail'});
+ part(out,`${base}-tail`,px(tailF),pz(tailF),predator?body*.75:body*.52,Math.max(.14,body*.18),Math.max(.12,body*.14),dark,{...common,part:'tail'});
  if(predator){
-   part(out,`${base}-ear-l`,px(headF+body*.06,headSize*.28),pz(headF+body*.06,headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{species:s.id,part:'ear'});
-   part(out,`${base}-ear-r`,px(headF+body*.06,-headSize*.28),pz(headF+body*.06,-headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{species:s.id,part:'ear'});
+  part(out,`${base}-ear-l`,px(headF+body*.06,headSize*.28),pz(headF+body*.06,headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{...common,part:'ear'});
+  part(out,`${base}-ear-r`,px(headF+body*.06,-headSize*.28),pz(headF+body*.06,-headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{...common,part:'ear'});
  }else if(!runner){
-   part(out,`${base}-horn-l`,px(headF+body*.12,headSize*.32),pz(headF+body*.12,headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{species:s.id,part:'horn'});
-   part(out,`${base}-horn-r`,px(headF+body*.12,-headSize*.32),pz(headF+body*.12,-headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{species:s.id,part:'horn'});
+  part(out,`${base}-horn-l`,px(headF+body*.12,headSize*.32),pz(headF+body*.12,headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{...common,part:'horn'});
+  part(out,`${base}-horn-r`,px(headF+body*.12,-headSize*.32),pz(headF+body*.12,-headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{...common,part:'horn'});
  }
 }
 
-export function ecologyRenderEntities(ecosystem,now=Date.now()){
- const species=Array.isArray(ecosystem?.species)?ecosystem.species:[];const out=[];const timeSlot=Math.floor(now/4000);
+function motionTick(frame,phase,feeding){if(!feeding)return frame;const offset=Math.floor(phase*20);const local=frame+offset;const cycle=24,move=18;const effective=Math.floor(local/cycle)*move+Math.min(local%cycle,move);return effective-offset;}
+function animalPosition(s,i,frame,weather){const phase=hash01(`${s.id}:phase:${i}`)*Math.PI*2;const area=habitat(s.habitat,hash01(s.id||s.name||'species'));const predator=s.kind==='predator';const runner=s.id==='reed-runner';const cycle=(frame+Math.floor(hash01(`${s.id}:feed:${i}`)*24))%24;const feeding=!predator&&cycle>=18;const mt=motionTick(frame,phase,feeding);const weatherSlow=1-clamp(Number(weather?.precipitationRate||0)*.45+Number(weather?.wind||0)*.12,0,.55);const speed=(predator?.038:runner?.05:.034)*weatherSlow;const step=mt*speed;return{phase,area,feeding,x:clamp(area.x+Math.sin(step+phase)*area.rx*.62,-32,32),z:clamp(area.z+Math.cos(step*.77+phase*1.4)*area.rz*.62,-32,32)};}
+
+export function ecologyRenderEntities(ecosystem,now=Date.now(),weather=null,observer=null){
+ const species=Array.isArray(ecosystem?.species)?ecosystem.species:[];const out=[];const frame=Math.floor(now/800);const herbivores=species.filter(s=>s.kind==='herbivore'&&Number(s.population||0)>0);
  for(const s of species){const pop=Math.max(0,Number(s.population||0));if(pop<=0)continue;const seed=hash01(s.id||s.name||'species');const area=habitat(s.habitat,seed);
-  if(s.kind==='plant'){const count=Math.max(5,Math.min(24,Math.round(Math.sqrt(pop)/6)));for(let i=0;i<count;i++){const a=hash01(`${s.id}:a:${i}`)*Math.PI*2;const r=Math.sqrt(hash01(`${s.id}:r:${i}`));const x=clamp(area.x+Math.cos(a)*area.rx*r,-32,32);const z=clamp(area.z+Math.sin(a)*area.rz*r,-32,32);const size=.35+hash01(`${s.id}:s:${i}`)*.5;plantCluster(out,s,i,x,z,size);}continue;}
+  if(s.kind==='plant'){const count=Math.max(5,Math.min(24,Math.round(Math.sqrt(pop)/6)));for(let i=0;i<count;i++){const a=hash01(`${s.id}:a:${i}`)*Math.PI*2;const r=Math.sqrt(hash01(`${s.id}:r:${i}`));const breeze=Number(weather?.wind||0)*.12*Math.sin(frame*.18+i);const x=clamp(area.x+Math.cos(a)*area.rx*r+breeze,-32,32);const z=clamp(area.z+Math.sin(a)*area.rz*r,-32,32);const size=.35+hash01(`${s.id}:s:${i}`)*.5;plantCluster(out,s,i,x,z,size);}continue;}
   const max=s.kind==='predator'?5:9;const count=Math.max(1,Math.min(max,Math.round(pop/(s.kind==='predator'?14:65))));
-  for(let i=0;i<count;i++){const phase=hash01(`${s.id}:phase:${i}`)*Math.PI*2;const speed=s.kind==='predator'?.22:.15;const step=timeSlot*speed;const x=clamp(area.x+Math.sin(step+phase)*area.rx*.62,-32,32);const z=clamp(area.z+Math.cos(step*.77+phase*1.4)*area.rz*.62,-32,32);const nextStep=(timeSlot+1)*speed;const nx=clamp(area.x+Math.sin(nextStep+phase)*area.rx*.62,-32,32);const nz=clamp(area.z+Math.cos(nextStep*.77+phase*1.4)*area.rz*.62,-32,32);const heading=Math.atan2(nz-z,nx-x);const body=.65+clamp(Number(s.traits?.size||.4),0,1)*.8;animalParts(out,s,i,x,z,body,heading);}
+  for(let i=0;i<count;i++){const pos=animalPosition(s,i,frame,weather);let x=pos.x,z=pos.z,behavior=pos.feeding?'feeding':'roaming';
+   if(s.kind==='predator'&&herbivores.length){const prey=herbivores[(i+Math.floor(frame/30))%herbivores.length];const preyPos=animalPosition(prey,i%3,frame,weather);const d=Math.hypot(preyPos.x-x,preyPos.z-z);if(d<18){x=x+(preyPos.x-x)*.18;z=z+(preyPos.z-z)*.18;behavior='stalking';}}
+   const ox=Number(observer?.x),oz=Number(observer?.z);if(s.kind==='herbivore'&&Number.isFinite(ox)&&Number.isFinite(oz)){const dx=x-ox,dz=z-oz,d=Math.hypot(dx,dz);if(d<7){const force=(7-d)/7*5;x=clamp(x+(dx/(d||1))*force,-32,32);z=clamp(z+(dz/(d||1))*force,-32,32);behavior='fleeing';}}
+   const next=animalPosition(s,i,frame+1,weather);let nx=next.x,nz=next.z;if(behavior==='feeding'){nx=x;nz=z;}else if(behavior==='stalking'&&herbivores.length){const prey=herbivores[(i+Math.floor(frame/30))%herbivores.length];const preyNext=animalPosition(prey,i%3,frame+1,weather);nx=next.x+(preyNext.x-next.x)*.18;nz=next.z+(preyNext.z-next.z)*.18;}else if(behavior==='fleeing'&&Number.isFinite(ox)&&Number.isFinite(oz)){const dx=next.x-ox,dz=next.z-oz,d=Math.hypot(dx,dz);const force=d<7?(7-d)/7*5:0;nx=clamp(next.x+(dx/(d||1))*force,-32,32);nz=clamp(next.z+(dz/(d||1))*force,-32,32);}
+   const heading=Math.atan2(nz-z,nx-x);const body=.65+clamp(Number(s.traits?.size||.4),0,1)*.8;animalParts(out,s,i,x,z,body,heading,behavior);}
  }
  return out;
 }
