@@ -18,10 +18,48 @@ s.lastTickAt=new Date().toISOString();return s;}
 
 function hash01(text){let h=2166136261;for(let i=0;i<String(text).length;i++){h^=String(text).charCodeAt(i);h=Math.imul(h,16777619);}return((h>>>0)%100000)/100000;}
 function habitat(h,seed){h=String(h||'').toLowerCase();if(h.includes('river'))return{x:-16+seed*3,z:-8+seed*20,rx:5,rz:11};if(h.includes('ridge')||h.includes('upland'))return{x:18,z:-5+seed*14,rx:9,rz:8};if(h.includes('scrub'))return{x:9,z:14,rx:11,rz:7};return{x:4,z:5,rx:13,rz:12};}
+function part(out,id,x,z,width,height,depth,color,extra={}){out.push({id:String(id).slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(width,2),height:round(height,2),depth:round(depth,2),color,...extra});}
+
+function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`;if(s.id==='rivergrass'){
+  const green='#6f9b55',dark='#4f7b43';
+  part(out,`${base}-center`,x,z,size*.28,.75+size*1.6,size*.28,green,{species:s.id,part:'blade'});
+  part(out,`${base}-left`,x-size*.3,z+size*.12,size*.2,.48+size*1.2,size*.2,dark,{species:s.id,part:'blade'});
+  part(out,`${base}-right`,x+size*.3,z-size*.1,size*.2,.55+size*1.35,size*.2,green,{species:s.id,part:'blade'});
+  return;
+ }
+ const leaf='#4f793e',branch='#5f4a32';
+ part(out,`${base}-stem`,x,z,size*.24,.5+size*.8,size*.24,branch,{species:s.id,part:'stem'});
+ part(out,`${base}-crown`,x,z,size*1.2,.55+size*.9,size*1.05,leaf,{species:s.id,part:'crown'});
+ part(out,`${base}-side`,x+size*.48,z-size*.22,size*.72,.4+size*.65,size*.7,'#5f8448',{species:s.id,part:'crown'});
+}
+
+function animalParts(out,s,i,x,z,body,heading){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const dark=predator?'#3f3027':runner?'#735f3e':'#604c32';const base=`eco-animal-${s.id}-${i}`;const dx=Math.cos(heading),dz=Math.sin(heading),sx=-dz,sz=dx;
+ const px=(forward,side=0)=>x+dx*forward+sx*side,pz=(forward,side=0)=>z+dz*forward+sz*side;
+ const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;
+ part(out,`${base}-body`,x,z,bodyLen,bodyHigh,bodyWide,color,{species:s.id,part:'body'});
+ const headF=bodyLen*.58,headSize=predator?body*.62:runner?body*.5:body*.58;
+ part(out,`${base}-head`,px(headF),pz(headF),headSize,headSize,headSize,dark,{species:s.id,part:'head'});
+ const legH=predator?body*.7:runner?body*.78:body*.86,legW=Math.max(.13,body*.16),front=bodyLen*.32,rear=-bodyLen*.32,side=bodyWide*.34;
+ for(const [name,f,sd] of [['fl',front,side],['fr',front,-side],['rl',rear,side],['rr',rear,-side]])part(out,`${base}-${name}`,px(f,sd),pz(f,sd),legW,legH,legW,dark,{species:s.id,part:'leg'});
+ const tailF=-bodyLen*.62;
+ part(out,`${base}-tail`,px(tailF),pz(tailF),predator?body*.75:body*.52,Math.max(.14,body*.18),Math.max(.12,body*.14),dark,{species:s.id,part:'tail'});
+ if(predator){
+   part(out,`${base}-ear-l`,px(headF+body*.06,headSize*.28),pz(headF+body*.06,headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{species:s.id,part:'ear'});
+   part(out,`${base}-ear-r`,px(headF+body*.06,-headSize*.28),pz(headF+body*.06,-headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{species:s.id,part:'ear'});
+ }else if(!runner){
+   part(out,`${base}-horn-l`,px(headF+body*.12,headSize*.32),pz(headF+body*.12,headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{species:s.id,part:'horn'});
+   part(out,`${base}-horn-r`,px(headF+body*.12,-headSize*.32),pz(headF+body*.12,-headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{species:s.id,part:'horn'});
+ }
+}
 
 export function ecologyRenderEntities(ecosystem,now=Date.now()){
-const species=Array.isArray(ecosystem?.species)?ecosystem.species:[];const out=[];const timeSlot=Math.floor(now/4000);for(const s of species){const pop=Math.max(0,Number(s.population||0));if(pop<=0)continue;const seed=hash01(s.id||s.name||'species');const area=habitat(s.habitat,seed);if(s.kind==='plant'){const count=Math.max(5,Math.min(24,Math.round(Math.sqrt(pop)/6)));for(let i=0;i<count;i++){const a=hash01(`${s.id}:a:${i}`)*Math.PI*2;const r=Math.sqrt(hash01(`${s.id}:r:${i}`));const x=clamp(area.x+Math.cos(a)*area.rx*r,-32,32);const z=clamp(area.z+Math.sin(a)*area.rz*r,-32,32);const size=.35+hash01(`${s.id}:s:${i}`)*.5;out.push({id:`eco-plant-${s.id}-${i}`.slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(size,2),height:round(.65+size*1.7,2),depth:round(size,2),color:s.id==='rivergrass'?'#6f9b55':'#4f793e'});}continue;}
-const max=s.kind==='predator'?5:9;const count=Math.max(1,Math.min(max,Math.round(pop/(s.kind==='predator'?14:65))));for(let i=0;i<count;i++){const phase=hash01(`${s.id}:phase:${i}`)*Math.PI*2;const step=timeSlot*(s.kind==='predator'?.22:.15);const x=clamp(area.x+Math.sin(step+phase)*area.rx*.62,-32,32);const z=clamp(area.z+Math.cos(step*.77+phase*1.4)*area.rz*.62,-32,32);const body=.65+clamp(Number(s.traits?.size||.4),0,1)*.8;const color=s.kind==='predator'?'#6b4d38':s.id==='reed-runner'?'#b39a67':'#96784e';out.push({id:`eco-animal-${s.id}-${i}-body`.slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(body*1.5,2),height:round(body*.75,2),depth:round(body*.72,2),color});out.push({id:`eco-animal-${s.id}-${i}-head`.slice(0,80),type:'object',x:round(x+body*.7,2),z:round(z,2),width:round(body*.58,2),height:round(body*.58,2),depth:round(body*.58,2),color});}}
-return out;}
+ const species=Array.isArray(ecosystem?.species)?ecosystem.species:[];const out=[];const timeSlot=Math.floor(now/4000);
+ for(const s of species){const pop=Math.max(0,Number(s.population||0));if(pop<=0)continue;const seed=hash01(s.id||s.name||'species');const area=habitat(s.habitat,seed);
+  if(s.kind==='plant'){const count=Math.max(5,Math.min(24,Math.round(Math.sqrt(pop)/6)));for(let i=0;i<count;i++){const a=hash01(`${s.id}:a:${i}`)*Math.PI*2;const r=Math.sqrt(hash01(`${s.id}:r:${i}`));const x=clamp(area.x+Math.cos(a)*area.rx*r,-32,32);const z=clamp(area.z+Math.sin(a)*area.rz*r,-32,32);const size=.35+hash01(`${s.id}:s:${i}`)*.5;plantCluster(out,s,i,x,z,size);}continue;}
+  const max=s.kind==='predator'?5:9;const count=Math.max(1,Math.min(max,Math.round(pop/(s.kind==='predator'?14:65))));
+  for(let i=0;i<count;i++){const phase=hash01(`${s.id}:phase:${i}`)*Math.PI*2;const speed=s.kind==='predator'?.22:.15;const step=timeSlot*speed;const x=clamp(area.x+Math.sin(step+phase)*area.rx*.62,-32,32);const z=clamp(area.z+Math.cos(step*.77+phase*1.4)*area.rz*.62,-32,32);const nextStep=(timeSlot+1)*speed;const nx=clamp(area.x+Math.sin(nextStep+phase)*area.rx*.62,-32,32);const nz=clamp(area.z+Math.cos(nextStep*.77+phase*1.4)*area.rz*.62,-32,32);const heading=Math.atan2(nz-z,nx-x);const body=.65+clamp(Number(s.traits?.size||.4),0,1)*.8;animalParts(out,s,i,x,z,body,heading);}
+ }
+ return out;
+}
 
 export function simulationSummary(world={}){return{ecology:world.ecosystem||null,weather:world.weather_sim||null,disasters:world.disaster_sim||null,narrativeDay:world.current_day||null};}
