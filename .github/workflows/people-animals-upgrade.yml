@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply corrected wildlife smoothing
+      - name: Apply wildlife smoothing final
         run: python scripts/smooth-wildlife.py
       - name: Syntax check stable engine
         run: node --check main.js
