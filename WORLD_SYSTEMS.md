@@ -92,9 +92,10 @@ GPT may change: aging rates, trail thresholds, weather exposure, deterioration/r
 Aging must continue from timestamps/activity even when no numbered day is released.
 
 ### Ecosystem
-Owner: `netlify/functions/world.mjs`.
-Current cadence: independent ecological advancement based on its own persisted real-date clock.
+Owner: `netlify/functions/ecosystem-tick.mjs` scheduled clock, with `netlify/functions/world.mjs` owning the server-authoritative evolution routine.
+Current cadence: the scheduled clock checks hourly; the persisted `lastRealDate` guard allows at most one ecological-year advance per UTC calendar date.
 State: `world_state.ecosystem`.
+Independence rule: ecology must advance even when no player opens the site and regardless of the numbered GPTWorld day. Browser polling and the daily GPT evolution agent are not the ecology clock.
 GPT may change: ecological cadence, species model, climate rules, migration/speciation/extinction mechanics, ecosystem→resource interactions.
 Extinction/history must remain persistent.
 
