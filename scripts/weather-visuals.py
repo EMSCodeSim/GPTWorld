@@ -15,8 +15,8 @@ assert old in s,'weather insertion anchor not found';s=s.replace(old,new,1)
 old="const crossing=data.world?.western_crossing;setBridgeBuilt(Boolean(crossing?.complete));applyRenderEntities"
 new="const crossing=data.world?.western_crossing;setBridgeBuilt(Boolean(crossing?.complete));applyWeatherVisuals(data.world?.weather_sim||data.simulations?.weather||{});applyRenderEntities"
 assert old in s,'weather state anchor not found';s=s.replace(old,new,1)
-old="updateCreatures(t,dt);updateRemotePlayers(dt,t);"
-new="updateCreatures(t,dt);updateRemotePlayers(dt,t);updateWeatherVisuals(dt,t);"
+old="updatePlayer(dt,t);updateNPCs(t,dt);updateRemotePlayers(dt,t);updateCreatures(t,dt);updateNearest();"
+new="updatePlayer(dt,t);updateNPCs(t,dt);updateRemotePlayers(dt,t);updateCreatures(t,dt);updateWeatherVisuals(dt,t);updateNearest();"
 assert old in s,'animation anchor not found';s=s.replace(old,new,1)
 p.write_text(s)
 ip=Path('index.html');h=ip.read_text();assert './main.js?v=terrain-polish-1' in h,'cache anchor not found';ip.write_text(h.replace('./main.js?v=terrain-polish-1','./main.js?v=weather-visuals-1',1))
