@@ -33,25 +33,7 @@ function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`;if(s
  part(out,`${base}-side`,x+size*.48,z-size*.22,size*.72,.4+size*.65,size*.7,'#5f8448',{species:s.id,part:'crown'});
 }
 
-function animalParts(out,s,i,x,z,body,heading,behavior='roaming'){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const dark=predator?'#3f3027':runner?'#735f3e':'#604c32';const base=`eco-animal-${s.id}-${i}`;const dx=Math.cos(heading),dz=Math.sin(heading),sx=-dz,sz=dx;
- const px=(forward,side=0)=>x+dx*forward+sx*side,pz=(forward,side=0)=>z+dz*forward+sz*side;
- const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;
- const common={species:s.id,animalId:`${s.id}-${i}`,behavior};
- part(out,`${base}-body`,x,z,bodyLen,bodyHigh,bodyWide,color,{...common,part:'body'});
- const headF=bodyLen*.58,headSize=predator?body*.62:runner?body*.5:body*.58;
- part(out,`${base}-head`,px(headF),pz(headF),headSize,headSize,headSize,dark,{...common,part:'head'});
- const legH=predator?body*.7:runner?body*.78:body*.86,legW=Math.max(.13,body*.16),front=bodyLen*.32,rear=-bodyLen*.32,side=bodyWide*.34;
- for(const [name,f,sd] of [['fl',front,side],['fr',front,-side],['rl',rear,side],['rr',rear,-side]])part(out,`${base}-${name}`,px(f,sd),pz(f,sd),legW,legH,legW,dark,{...common,part:'leg'});
- const tailF=-bodyLen*.62;
- part(out,`${base}-tail`,px(tailF),pz(tailF),predator?body*.75:body*.52,Math.max(.14,body*.18),Math.max(.12,body*.14),dark,{...common,part:'tail'});
- if(predator){
-  part(out,`${base}-ear-l`,px(headF+body*.06,headSize*.28),pz(headF+body*.06,headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{...common,part:'ear'});
-  part(out,`${base}-ear-r`,px(headF+body*.06,-headSize*.28),pz(headF+body*.06,-headSize*.28),body*.16,body*.28,body*.14,'#2f251f',{...common,part:'ear'});
- }else if(!runner){
-  part(out,`${base}-horn-l`,px(headF+body*.12,headSize*.32),pz(headF+body*.12,headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{...common,part:'horn'});
-  part(out,`${base}-horn-r`,px(headF+body*.12,-headSize*.32),pz(headF+body*.12,-headSize*.32),body*.12,body*.34,body*.12,'#d0c39b',{...common,part:'horn'});
- }
-}
+function animalParts(out,s,i,x,z,body,heading,behavior='roaming'){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;part(out,`eco-animal-${s.id}-${i}`,x,z,bodyLen,bodyHigh,bodyWide,color,{species:s.id,animalId:`${s.id}-${i}`,behavior,part:'creature',kind:s.kind,heading:round(heading,4),bodyScale:round(body,3)});}
 
 function motionTick(frame,phase,feeding){if(!feeding)return frame;const offset=Math.floor(phase*20);const local=frame+offset;const cycle=24,move=18;const effective=Math.floor(local/cycle)*move+Math.min(local%cycle,move);return effective-offset;}
 function animalPosition(s,i,frame,weather){const phase=hash01(`${s.id}:phase:${i}`)*Math.PI*2;const area=habitat(s.habitat,hash01(s.id||s.name||'species'));const predator=s.kind==='predator';const runner=s.id==='reed-runner';const cycle=(frame+Math.floor(hash01(`${s.id}:feed:${i}`)*24))%24;const feeding=!predator&&cycle>=18;const mt=motionTick(frame,phase,feeding);const weatherSlow=1-clamp(Number(weather?.precipitationRate||0)*.45+Number(weather?.wind||0)*.12,0,.55);const speed=(predator?.038:runner?.05:.034)*weatherSlow;const step=mt*speed;return{phase,area,feeding,x:clamp(area.x+Math.sin(step+phase)*area.rx*.62,-32,32),z:clamp(area.z+Math.cos(step*.77+phase*1.4)*area.rz*.62,-32,32)};}
