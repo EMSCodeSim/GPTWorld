@@ -118,6 +118,17 @@ function applyLifeCycleEvents(state, year) {
   return state;
 }
 
+function applyMigrationAndTerritories(state) {
+  const year=Number(state.simulatedYear||0), species=Array.isArray(state.species)?state.species:[];
+  for(const s of species.filter(x=>x.kind!=='plant')){
+    const predator=s.kind==='predator';
+    s.territory={type:predator?'territory':'seasonal range',homeHabitat:s.habitat,radius:predator?round(6+Number(s.traits?.size||.4)*7,1):round(8+Number(s.traits?.speed||.4)*6,1),year};
+    s.migration={enabled:!predator,driver:Number(s.needs?.thirst||0)>.55?'water':Number(s.needs?.hunger||0)>.5?'food':'season',route:predator?'follow prey':'seasonal habitat route',year};
+  }
+  state.migration={version:1,year,activeSpecies:species.filter(x=>x.kind==='herbivore'&&x.migration?.enabled).map(x=>x.id),predatorsFollowingPrey:species.filter(x=>x.kind==='predator').map(x=>x.id)};
+  return state;
+}
+
 function evolveOneYear(state) {
   const next = structuredClone(state);
   const year = Number(next.simulatedYear || 0) + 1;
@@ -227,6 +238,7 @@ function evolveOneYear(state) {
   applyLifeCycleEvents(next, year);
   applyPlantHabitats(next);
   applyFoodChainNeeds(next);
+  applyMigrationAndTerritories(next);
   return next;
 }
 
@@ -237,6 +249,7 @@ async function ensureAndAdvanceEcosystem(sql) {
   let state = rows[0]?.value || seed;
   applyPlantHabitats(state);
   applyFoodChainNeeds(state);
+  applyMigrationAndTerritories(state);
   const today = new Date().toISOString().slice(0, 10);
   if (state.lastRealDate !== today) {
     state = evolveOneYear(state);
