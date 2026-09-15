@@ -37,6 +37,35 @@ function initialEcosystem() {
   };
 }
 
+function applyFoodChainNeeds(state) {
+  const species=Array.isArray(state.species)?state.species:[];
+  const plants=species.filter(s=>s.kind==='plant');
+  const herbivores=species.filter(s=>s.kind==='herbivore');
+  const predators=species.filter(s=>s.kind==='predator');
+  const plantFood=plants.reduce((a,s)=>a+Number(s.population||0),0);
+  const prey=herbivores.reduce((a,s)=>a+Number(s.population||0),0);
+  const moisture=clamp(Number(state.climate?.rainfall||.5),0,1);
+  for(const s of species){
+    s.needs ||= {};
+    const pop=Math.max(1,Number(s.population||1));
+    if(s.kind==='plant'){
+      s.needs={water:round(clamp(.25+(1-moisture)*.65,0,1),2),competition:round(clamp(pop/10000,0,1),2)};
+      s.goal=moisture<.3?'survive drought':'grow and spread';
+    }else if(s.kind==='herbivore'){
+      const food=clamp(plantFood/Math.max(1,herbivores.reduce((a,x)=>a+Number(x.population||0),0)*18),0,1);
+      const predatorPressure=clamp(predators.reduce((a,x)=>a+Number(x.population||0),0)/Math.max(1,pop*.22),0,1);
+      s.needs={hunger:round(1-food,2),thirst:round(clamp((1-moisture)*.8,0,1),2),energy:round(clamp(.45+food*.4-predatorPressure*.2,0,1),2),fear:round(predatorPressure,2)};
+      s.goal=s.needs.fear>.65?'avoid predators':s.needs.thirst>.62?'seek water':s.needs.hunger>.55?'seek plants':'feed and rest';
+    }else{
+      const preyFit=clamp(prey/Math.max(1,predators.reduce((a,x)=>a+Number(x.population||0),0)*11),0,1);
+      s.needs={hunger:round(1-preyFit,2),thirst:round(clamp((1-moisture)*.7,0,1),2),energy:round(clamp(.35+preyFit*.5,0,1),2),fear:.08};
+      s.goal=s.needs.thirst>.65?'seek water':s.needs.hunger>.48?'hunt prey':'patrol territory';
+    }
+  }
+  state.foodChain={version:1,plantBiomass:plantFood,herbivorePopulation:prey,predatorPopulation:predators.reduce((a,s)=>a+Number(s.population||0),0),updatedYear:Number(state.simulatedYear||0)};
+  return state;
+}
+
 function evolveOneYear(state) {
   const next = structuredClone(state);
   const year = Number(next.simulatedYear || 0) + 1;
@@ -141,6 +170,7 @@ function evolveOneYear(state) {
     next.recentEvents.push({ year, type: 'climate', text: climateText });
   }
 
+  applyFoodChainNeeds(next);
   return next;
 }
 
@@ -149,6 +179,7 @@ async function ensureAndAdvanceEcosystem(sql) {
   await sql`INSERT INTO world_state (key, value, updated_at) VALUES ('ecosystem', ${JSON.stringify(seed)}::jsonb, now()) ON CONFLICT (key) DO NOTHING`;
   const rows = await sql`SELECT value FROM world_state WHERE key = 'ecosystem' LIMIT 1`;
   let state = rows[0]?.value || seed;
+  applyFoodChainNeeds(state);
   const today = new Date().toISOString().slice(0, 10);
   if (state.lastRealDate !== today) {
     state = evolveOneYear(state);
