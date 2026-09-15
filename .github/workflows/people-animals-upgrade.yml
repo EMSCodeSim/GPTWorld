@@ -1,4 +1,4 @@
-name: One-shot evolving world login
+name: One-shot Ecology food chain v1
 on:
   push:
     paths:
@@ -10,14 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Upgrade login and traveler names
-        run: python scripts/login-world-update.py
-      - name: Syntax check stable engine
-        run: node --check main.js
-      - name: Commit login upgrade
+      - name: Connect animal needs and food chain
+        run: python scripts/ecology-food-chain-v1.py
+      - name: Syntax check ecology functions
         run: |
-          git config user.name "GPTWorld UX Bot"
+          node --check netlify/functions/world.mjs
+          node --check netlify/functions/_sim-core.mjs
+      - name: Commit ecology upgrade
+        run: |
+          git config user.name "GPTWorld Ecology Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html
-          git commit -m "Explain evolving world and remember traveler names"
+          git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
+          git commit -m "Add animal needs and food chain v1"
           git push
