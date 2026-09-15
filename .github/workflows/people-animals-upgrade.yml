@@ -1,0 +1,52 @@
+name: One-shot people and animals upgrade
+on:
+  push:
+    paths:
+      - '.github/workflows/people-animals-upgrade.yml'
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch stable engine graphics only
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path('main.js')
+          s=p.read_text()
+          Path('main-stable-before-people-animals.js').write_text(s)
+
+          humanoid="""function createHumanoid({outfit=0x8b7650,skin=0xdfb083,hair=0x3b2a20,accent=0x3d3329,pack=false}={}){const g=new THREE.Group();const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.43,.86,8),new THREE.MeshStandardMaterial({color:outfit,roughness:.95}));torso.position.y=1.28;torso.castShadow=true;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.30,12,9),new THREE.MeshStandardMaterial({color:skin,roughness:1}));head.position.y=1.96;head.castShadow=true;g.add(head);const hairMesh=new THREE.Mesh(new THREE.SphereGeometry(.305,10,7,0,Math.PI*2,0,Math.PI*.52),new THREE.MeshStandardMaterial({color:hair,roughness:1}));hairMesh.position.y=2.05;g.add(hairMesh);const armGeo=new THREE.CylinderGeometry(.095,.11,.70,6),legGeo=new THREE.CylinderGeometry(.12,.14,.70,6);const armL=new THREE.Mesh(armGeo,new THREE.MeshStandardMaterial({color:outfit,roughness:.95})),armR=armL.clone(),legL=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:accent,roughness:.98})),legR=legL.clone();armL.position.set(-.45,1.25,0);armR.position.set(.45,1.25,0);legL.position.set(-.19,.47,0);legR.position.set(.19,.47,0);for(const m of[armL,armR,legL,legR]){m.castShadow=true;g.add(m)}for(const x of[-.45,.45]){const hand=new THREE.Mesh(new THREE.SphereGeometry(.105,8,6),new THREE.MeshStandardMaterial({color:skin,roughness:1}));hand.position.set(x,.88,0);g.add(hand)}for(const x of[-.19,.19]){const boot=new THREE.Mesh(new THREE.BoxGeometry(.25,.18,.38),new THREE.MeshStandardMaterial({color:0x332a22,roughness:1}));boot.position.set(x,.10,.07);g.add(boot)}if(pack){const bag=new THREE.Mesh(new THREE.BoxGeometry(.58,.72,.28),new THREE.MeshStandardMaterial({color:0x5c4934,roughness:1}));bag.position.set(0,1.30,-.34);bag.castShadow=true;g.add(bag)}g.userData.rig={armL,armR,legL,legR,torso};return g}function animateHumanoid(g,moving,t,speed=1){const r=g.userData.rig;if(!r)return;const a=moving?Math.sin(t*.012*speed)*.52:0;r.legL.rotation.x=a;r.legR.rotation.x=-a;r.armL.rotation.x=-a*.72;r.armR.rotation.x=a*.72;r.torso.rotation.z=moving?Math.sin(t*.024*speed)*.02:0}function addNPC(name,x,z,color,lines){const g=createHumanoid({outfit:color,hair:0x3a2b23});g.position.set(x,0,z);scene.add(g);const npc={type:'npc',label:name,object:g,radius:2.6,lines,lineIndex:0,anchor:new THREE.Vector3(x,0,z),target:new THREE.Vector3(x,0,z),phase:Math.random()*Math.PI*2,activity:'',location:'',moving:false};interactables.push(npc);npcs.push(npc);return npc}"""
+          s,n=re.subn(r"function addNPC\(name,x,z,color,lines\)\{.*?return npc\}",humanoid,s,count=1)
+          assert n==1,'addNPC patch failed'
+
+          animal="""function renderEcologyPart(e){const g=new THREE.Group(),part=String(e.part||''),w=Math.max(.08,Number(e.width||.4)),h=Math.max(.08,Number(e.height||.4)),d=Math.max(.08,Number(e.depth||.4)),c=colorValue(e.color,0x8a704d);g.position.set(Number(e.x||0),0,Number(e.z||0));let m;if(e.animalId){if(part==='body'){m=new THREE.Mesh(new THREE.SphereGeometry(.5,10,7),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=.62;m.scale.set(Math.max(.38,w),Math.max(.32,h*.78),Math.max(.30,d));}else if(part==='head'){m=new THREE.Mesh(new THREE.SphereGeometry(.5,10,7),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=.82;m.scale.set(Math.max(.22,w*.82),Math.max(.24,h*.78),Math.max(.24,d*.88));}else if(part==='leg'){m=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(.035,w*.28),Math.max(.045,w*.36),Math.max(.18,h),5),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=Math.max(.09,h/2);}else if(part==='tail'){m=new THREE.Mesh(new THREE.ConeGeometry(Math.max(.04,d*.35),Math.max(.20,w*1.2),6),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=.64;m.rotation.z=Math.PI/2;}else if(part==='ear'||part==='horn'){m=new THREE.Mesh(new THREE.ConeGeometry(Math.max(.035,w*.38),Math.max(.14,h),6),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=1.03;}else{m=new THREE.Mesh(new THREE.DodecahedronGeometry(.25,0),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=.6;}m.castShadow=true;g.add(m);}else{m=addBox(g,c,[w,h,d],[0,h/2,0]);}scene.add(g);return g}function renderObjectEntity(e){if(e.animalId)return renderEcologyPart(e);const g=new THREE.Group();g.position.set(Number(e.x||0),0,Number(e.z||0));const w=Math.max(.15,Number(e.width||1)),h=Math.max(.15,Number(e.height||1)),d=Math.max(.15,Number(e.depth||1));addBox(g,colorValue(e.color,0x77654d),[w,h,d],[0,h/2,0]);scene.add(g);return g}"""
+          s,n=re.subn(r"function renderObjectEntity\(e\)\{.*?return g\}",animal,s,count=1)
+          assert n==1,'animal renderer patch failed'
+
+          remote="""function createRemotePlayer(row){const g=createHumanoid({outfit:playerColor(row.client_id),pack:true});g.add(makeNameSprite(row.display_name));const x=Number(row.x||0),z=Number(row.z||12);g.position.set(x,0,z);scene.add(g);return{object:g,target:new THREE.Vector3(x,0,z),lastTarget:new THREE.Vector3(x,0,z),lastSeen:Date.now(),moving:false}}"""
+          s,n=re.subn(r"function createRemotePlayer\(row\)\{.*?return\{object:g,target:new THREE\.Vector3\(x,0,z\),lastTarget:new THREE\.Vector3\(x,0,z\),lastSeen:Date\.now\(\),moving:false\}\}",remote,s,count=1)
+          assert n==1,'remote player patch failed'
+
+          local="""const player=createHumanoid({outfit:0x8b7650,skin:0xe0b586,hair:0x3a2b23,accent:0x49392c,pack:true});player.position.set(state.x??0,0,state.z??12);scene.add(player);const shadow=new THREE.Mesh(new THREE.CircleGeometry(.7,18),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.18,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.02;player.add(shadow);"""
+          s,n=re.subn(r"const player=new THREE\.Group\(\),playerBody=.*?player\.add\(shadow\);",local,s,count=1)
+          assert n==1,'local player patch failed'
+
+          s=s.replace("function updateRemotePlayers(dt){const alpha=1-Math.exp(-8*Math.max(0,dt));for(const p of remotePlayers.values()){const dx=p.target.x-p.object.position.x,dz=p.target.z-p.object.position.z;if(Math.hypot(dx,dz)>.015)p.object.rotation.y=Math.atan2(dx,dz);p.object.position.lerp(p.target,alpha);const bob=p.moving?.025*Math.sin(performance.now()*.012):0;p.object.position.y=bob}}","function updateRemotePlayers(dt,t){const alpha=1-Math.exp(-8*Math.max(0,dt));for(const p of remotePlayers.values()){const dx=p.target.x-p.object.position.x,dz=p.target.z-p.object.position.z;if(Math.hypot(dx,dz)>.015)p.object.rotation.y=Math.atan2(dx,dz);p.object.position.lerp(p.target,alpha);animateHumanoid(p.object,p.moving,t,1)}}")
+          s=s.replace('function updatePlayer(dt){','function updatePlayer(dt,t){')
+          s=s.replace("cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));","animateHumanoid(player,strength>.05,t,1.12);cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));")
+          s=s.replace("function updateNPCs(t,dt){for(const n of npcs){const dx=n.target.x-n.object.position.x,dz=n.target.z-n.object.position.z;const dist=Math.hypot(dx,dz);if(dist<.08)continue;const step=Math.min(dist,Math.max(.01,dt)*1.35);n.object.position.x+=dx/dist*step;n.object.position.z+=dz/dist*step;n.object.rotation.y=Math.atan2(dx,dz)}}","function updateNPCs(t,dt){for(const n of npcs){const dx=n.target.x-n.object.position.x,dz=n.target.z-n.object.position.z;const dist=Math.hypot(dx,dz);n.moving=dist>=.08;if(n.moving){const step=Math.min(dist,Math.max(.01,dt)*1.35);n.object.position.x+=dx/dist*step;n.object.position.z+=dz/dist*step;n.object.rotation.y=Math.atan2(dx,dz)}animateHumanoid(n.object,n.moving,t,.8)}}")
+          s=s.replace('updatePlayer(dt);updateNPCs(t,dt);updateRemotePlayers(dt);','updatePlayer(dt,t);updateNPCs(t,dt);updateRemotePlayers(dt,t);')
+          p.write_text(s)
+      - name: Syntax check
+        run: node --check main.js
+      - name: Commit graphics patch
+        run: |
+          git config user.name "GPTWorld Graphics Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add main.js main-stable-before-people-animals.js
+          git commit -m "Improve people and animals on stable engine"
+          git push
