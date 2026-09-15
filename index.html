@@ -19,7 +19,7 @@
       <div id="joystick" class="joystick" role="application" aria-label="Movement joystick"><div class="joystick-ring"></div><div id="joystickKnob" class="joystick-knob"></div></div>
       <button id="actionButton" class="action" type="button"><span>✦</span><strong>Interact</strong></button>
     </section>
-    <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle"><div class="welcome-card"><div class="eyebrow">A LIVING WORLD EXPERIMENT</div><h2 id="welcomeTitle">Welcome to Day 4.</h2><p>Travel beyond the completed Western Crossing has begun to leave a mark. A short survey trail and marker now extend onto the western bank, where travelers can gather from newly mapped resources.</p><p>The settlement remains well supplied, so this is a cautious step outward rather than a major expansion. Explore, gather, contribute, and leave a history behind.</p><label>Traveler name<input id="playerName" maxlength="20" autocomplete="nickname" value="Traveler" /></label><button id="enterWorld" type="button">Enter GPTWorld</button><small>On phones, drag the joystick to move and use Interact near people and resources. On a keyboard, use WASD / arrow keys and E.</small></div></section>
+    <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle"><div class="welcome-card"><div class="eyebrow">GPTWORLD · A WORLD THAT KEEPS CHANGING</div><h2 id="welcomeTitle">Enter the living world.</h2><p>GPTWorld does not reset when you leave. Weather and seasons continue, plants and animals live inside their own simulation, disasters can reshape the land, and the settlement changes through what travelers do.</p><p>Each world day, GPT can observe what happened and evolve the world or gameplay. Your gathering, exploration, construction and other choices become part of the shared history future travelers inherit.</p><div id="returningTraveler" hidden><strong>Welcome back.</strong><p>Choose one of your travelers on this device:</p><div id="knownNames" class="known-names"></div><button id="newTraveler" type="button" class="secondary">Create another traveler</button></div><div id="newTravelerForm"><label>Create your traveler<input id="playerName" maxlength="20" autocomplete="nickname" value="" placeholder="Traveler name" /></label><div id="nameError" role="alert" hidden></div></div><button id="enterWorld" type="button">Enter GPTWorld</button><small>Names must be appropriate. On phones, use the joystick to move and Interact near people, animals, resources and world features.</small></div></section>
   </main>
   <script type="module" src="./main.js?v=weather-visuals-1"></script>
   <script type="module" src="./world-sync.js?v=bridge-walk-2"></script>
@@ -34,19 +34,16 @@
   <script type="module" src="./runtime-health.js?v=1"></script>
   <script>
     (()=>{
-      const resumeReturningTraveler=()=>{
-        const clientId=localStorage.getItem('gptworld-client-id');
-        let game=null;
-        try{game=JSON.parse(localStorage.getItem('gptworld-day1')||'null')}catch{}
-        if(!clientId||!game)return;
-        const button=document.getElementById('enterWorld');
-        if(!button)return;
-        setTimeout(()=>{
-          if(!document.hidden&&document.getElementById('welcome')&&!document.getElementById('welcome').hidden) button.click();
-        },450);
+      const NAME_KEY='gptworld-known-names';
+      const saved=()=>{try{return JSON.parse(localStorage.getItem(NAME_KEY)||'[]').filter(Boolean)}catch{return[]}};
+      const legacy=()=>{try{return JSON.parse(localStorage.getItem('gptworld-day1')||'null')?.playerName||''}catch{return''}};
+      const init=()=>{
+        let names=saved(); const old=legacy(); if(old&&old!=='Traveler'&&!names.includes(old)){names.unshift(old);localStorage.setItem(NAME_KEY,JSON.stringify(names.slice(0,6)))}
+        const returning=document.getElementById('returningTraveler'),box=document.getElementById('knownNames'),form=document.getElementById('newTravelerForm'),input=document.getElementById('playerName'),fresh=document.getElementById('newTraveler');
+        if(names.length){returning.hidden=false;form.hidden=true;names.slice(0,6).forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='known-name';b.textContent=name;b.addEventListener('click',()=>{input.value=name;box.querySelectorAll('button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')});box.appendChild(b)});box.firstElementChild?.click()}
+        fresh?.addEventListener('click',()=>{form.hidden=false;input.value='';input.focus()});
       };
-      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',resumeReturningTraveler,{once:true});
-      else resumeReturningTraveler();
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
     })();
   </script>
 </body>
