@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { ecologyRenderEntities, simulationSummary } from './_sim-core.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -15,6 +16,12 @@ function entityArray(world) {
   return Object.entries(entities).map(([entity_id, value]) => ({ entity_id, ...(value || {}) }));
 }
 
+function baseRenderEntities(value){
+  if(Array.isArray(value)) return value;
+  if(Array.isArray(value?.entities)) return value.entities;
+  return [];
+}
+
 export default async (req) => {
   if (!process.env.DATABASE_URL) return json({ ok: false, error: 'database_not_configured' }, 503);
   const sql = neon(process.env.DATABASE_URL);
@@ -29,7 +36,9 @@ export default async (req) => {
         clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([])
       ]);
       const world = Object.fromEntries(worldRows.map(row => [row.key, row.value]));
-      return json({ ok: true, world, entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
+      const persistent=baseRenderEntities(world.render_entities).filter(e=>!String(e?.id||'').startsWith('eco-'));
+      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem)];
+      return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
     if (req.method === 'POST') {
@@ -56,10 +65,7 @@ export default async (req) => {
 
         const result = await sql`
           WITH current AS (
-            SELECT value
-            FROM world_state
-            WHERE key = 'western_crossing'
-            FOR UPDATE
+            SELECT value FROM world_state WHERE key = 'western_crossing' FOR UPDATE
           ), calc AS (
             SELECT
               LEAST(${giveWood}::int, GREATEST(0, COALESCE((value->>'woodGoal')::int, 60) - COALESCE((value->>'wood')::int, 0))) AS accepted_wood,
@@ -72,14 +78,10 @@ export default async (req) => {
             FROM current
           ), deduct AS (
             UPDATE player_inventory pi
-            SET wood = wood - calc.accepted_wood,
-                stone = stone - calc.accepted_stone,
-                updated_at = now()
+            SET wood = wood - calc.accepted_wood, stone = stone - calc.accepted_stone, updated_at = now()
             FROM calc
-            WHERE pi.player_id = ${playerId}
-              AND NOT calc.already_complete
-              AND pi.wood >= calc.accepted_wood
-              AND pi.stone >= calc.accepted_stone
+            WHERE pi.player_id = ${playerId} AND NOT calc.already_complete
+              AND pi.wood >= calc.accepted_wood AND pi.stone >= calc.accepted_stone
               AND (calc.accepted_wood + calc.accepted_stone) > 0
             RETURNING calc.*
           ), updated AS (
@@ -91,20 +93,15 @@ export default async (req) => {
               'stoneGoal', deduct.stone_goal,
               'complete', (deduct.current_wood + deduct.accepted_wood >= deduct.wood_goal AND deduct.current_stone + deduct.accepted_stone >= deduct.stone_goal)
             ), updated_at = now()
-            FROM deduct
-            WHERE ws.key = 'western_crossing'
+            FROM deduct WHERE ws.key = 'western_crossing'
             RETURNING ws.value, deduct.accepted_wood, deduct.accepted_stone
           ), logged AS (
             INSERT INTO world_events (player_id, event_type, payload)
-            SELECT ${playerId}, 'bridge_contribution', jsonb_build_object('wood', accepted_wood, 'stone', accepted_stone, 'complete', (value->>'complete')::boolean)
-            FROM updated
+            SELECT ${playerId}, 'bridge_contribution', jsonb_build_object('wood', accepted_wood, 'stone', accepted_stone, 'complete', (value->>'complete')::boolean) FROM updated
             UNION ALL
-            SELECT ${playerId}, 'western_crossing_completed', jsonb_build_object('day', 2)
-            FROM updated
-            WHERE (value->>'complete')::boolean = true
+            SELECT ${playerId}, 'western_crossing_completed', jsonb_build_object('day', 2) FROM updated WHERE (value->>'complete')::boolean = true
             RETURNING id
-          )
-          SELECT value, accepted_wood, accepted_stone FROM updated
+          ) SELECT value, accepted_wood, accepted_stone FROM updated
         `;
 
         if (!result.length) {
