@@ -37,7 +37,7 @@ export default async (req) => {
       ]);
       const world = Object.fromEntries(worldRows.map(row => [row.key, row.value]));
       const persistent=baseRenderEntities(world.render_entities).filter(e=>!String(e?.id||'').startsWith('eco-'));
-      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem)];
+      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem,Date.now(),world.weather_sim,meRows[0]||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
