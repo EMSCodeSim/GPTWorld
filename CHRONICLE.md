@@ -29,3 +29,11 @@ The settlement responded by opening its existing storehouse as a communal stockp
 Deposits are recorded in the shared world history and handled through the settlement's authoritative ledger, creating the first foundation for a real communal economy.
 
 The settlement did not expand simply because another day passed. It developed a new institution because of what travelers were already doing.
+
+## Day 4 — The Western Survey
+
+With the Western Crossing complete and the storehouse well supplied, travelers began pushing farther onto the western bank.
+
+A short survey trail and marker now extend beyond the river, leaving a visible record of the settlement's first deliberate mapping effort outside the original valley core. Newly mapped wood, stone, and medicinal herbs can now be gathered there through the same persistent server-authoritative resource system used elsewhere in the world.
+
+The expansion is intentionally modest: the settlement has not founded a new outpost or claimed a large territory. It has simply begun turning repeated travel and resource work into a persistent path toward whatever lies farther west.
