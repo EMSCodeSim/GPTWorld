@@ -21,3 +21,4 @@ jobs:
           git add main.js index.html
           git commit -m "Connect visible weather to Weather Sim"
           git push
+# retry after animation hook correction
