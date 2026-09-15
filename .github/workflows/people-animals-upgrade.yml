@@ -1,4 +1,4 @@
-name: One-shot terrain graphics polish
+name: One-shot Weather Sim visuals
 on:
   push:
     paths:
@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add lightweight terrain variation
-        run: python scripts/terrain-polish.py
+      - name: Connect visible weather to Weather Sim
+        run: python scripts/weather-visuals.py
       - name: Syntax check stable engine
         run: node --check main.js
-      - name: Commit terrain polish
+      - name: Commit weather visuals
         run: |
           git config user.name "GPTWorld Graphics Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Add lightweight terrain variation"
+          git commit -m "Connect visible weather to Weather Sim"
           git push
