@@ -1,4 +1,4 @@
-name: One-shot Wildlife Life Cycle v1
+name: One-shot Seasonal Migration and Territories v1
 on:
   push:
     paths:
@@ -10,16 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add predation reproduction and death
-        run: python scripts/predation-reproduction-death-v1.py
+      - name: Add migration territories and trails
+        run: python scripts/migration-territories-v1.py
       - name: Syntax check ecology functions
         run: |
           node --check netlify/functions/world.mjs
           node --check netlify/functions/_sim-core.mjs
-      - name: Commit wildlife life cycle
+      - name: Commit migration upgrade
         run: |
           git config user.name "GPTWorld Ecology Bot"
           git config user.email "actions@users.noreply.github.com"
           git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
-          git commit -m "Add predation reproduction and death v1"
+          git commit -m "Add seasonal migration territories and trails v1"
           git push
