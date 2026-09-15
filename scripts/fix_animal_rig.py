@@ -1,0 +1,22 @@
+from pathlib import Path
+import re
+
+core=Path('netlify/functions/_sim-core.mjs')
+s=core.read_text()
+replacement="""function animalParts(out,s,i,x,z,body,heading,behavior='roaming'){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;part(out,`eco-animal-${s.id}-${i}`,x,z,bodyLen,bodyHigh,bodyWide,color,{species:s.id,animalId:`${s.id}-${i}`,behavior,part:'creature',kind:s.kind,heading:round(heading,4),bodyScale:round(body,3)});}
+
+function motionTick"""
+s,n=re.subn(r"function animalParts\(.*?\n\}\n\nfunction motionTick",replacement,s,count=1,flags=re.S)
+assert n==1,'animalParts replacement failed'
+core.write_text(s)
+
+main=Path('main.js')
+s=main.read_text()
+replacement="""function renderEcologyPart(e){const g=new THREE.Group(),part=String(e.part||''),w=Math.max(.08,Number(e.width||.4)),h=Math.max(.08,Number(e.height||.4)),d=Math.max(.08,Number(e.depth||.4)),c=colorValue(e.color,0x8a704d);g.position.set(Number(e.x||0),0,Number(e.z||0));if(part==='creature'&&e.animalId){const species=String(e.species||''),predator=String(e.kind||'')==='predator',runner=species==='reed-runner',body=Math.max(.45,Number(e.bodyScale||.8)),dark=predator?0x3f3027:runner?0x735f3e:0x604c32,light=runner?0xd4c18d:0xc7aa78,mat=x=>new THREE.MeshStandardMaterial({color:x,roughness:1}),add=(geo,color,x,y,z)=>{const m=new THREE.Mesh(geo,mat(color));m.position.set(x,y,z);m.castShadow=true;g.add(m);return m};const bodyMesh=add(new THREE.SphereGeometry(.5,10,7),c,0,body*.72,0);bodyMesh.scale.set(w,Math.max(.42,h),Math.max(.36,d));const headF=w*.58,headSize=predator?body*.62:runner?body*.5:body*.58;const head=add(new THREE.SphereGeometry(.5,10,7),dark,headF,body*.86,0);head.scale.set(headSize,headSize*.78,headSize*.82);const legH=predator?body*.7:runner?body*.78:body*.86,legW=Math.max(.07,body*.11),front=w*.32,rear=-w*.32,side=d*.34;for(const [x,z] of [[front,side],[front,-side],[rear,side],[rear,-side]])add(new THREE.CylinderGeometry(legW*.72,legW,legH,5),dark,x,legH/2,z);const tail=add(new THREE.ConeGeometry(Math.max(.07,body*.11),predator?body*.75:body*.52,6),dark,-w*.62,body*.75,0);tail.rotation.z=Math.PI/2;if(predator){for(const z of[-headSize*.28,headSize*.28])add(new THREE.ConeGeometry(body*.10,body*.28,6),0x2f251f,headF+body*.02,body*1.22,z);}else if(!runner){for(const z of[-headSize*.32,headSize*.32])add(new THREE.ConeGeometry(body*.075,body*.34,6),0xd0c39b,headF+body*.08,body*1.25,z);}else{for(const z of[-headSize*.28,headSize*.28])add(new THREE.ConeGeometry(body*.08,body*.22,6),dark,headF,body*1.16,z);}const muzzle=add(new THREE.SphereGeometry(.5,8,6),light,headF+headSize*.58,body*.82,0);muzzle.scale.set(headSize*.45,headSize*.28,headSize*.34);g.rotation.y=-Number(e.heading||0);g.userData.creature=true;g.userData.behavior=String(e.behavior||'roaming');scene.add(g);return g;}let m;if(e.animalId){m=new THREE.Mesh(new THREE.DodecahedronGeometry(.25,0),new THREE.MeshStandardMaterial({color:c,roughness:1}));m.position.y=.6;m.castShadow=true;g.add(m);}else{m=addBox(g,c,[w,h,d],[0,h/2,0]);}scene.add(g);return g}function renderObjectEntity(e){if(e.animalId)return renderEcologyPart(e);const g=new THREE.Group();g.position.set(Number(e.x||0),0,Number(e.z||0));const w=Math.max(.15,Number(e.width||1)),h=Math.max(.15,Number(e.height||1)),d=Math.max(.15,Number(e.depth||1));addBox(g,colorValue(e.color,0x77654d),[w,h,d],[0,h/2,0]);scene.add(g);return g}"""
+s,n=re.subn(r"function renderEcologyPart\(e\)\{.*?function renderObjectEntity\(e\)\{.*?return g\}",replacement,s,count=1,flags=re.S)
+assert n==1,'client animal renderer replacement failed'
+main.write_text(s)
+
+idx=Path('index.html')
+s=idx.read_text().replace('main.js?v=people-animals-1','main.js?v=animal-rig-1')
+idx.write_text(s)
