@@ -1,4 +1,4 @@
-const ECOSYSTEM_API = '/.netlify/functions/world-memory';
+const ECOSYSTEM_API = '/.netlify/functions/world';
 let ecosystemState = null;
 let naturalHistoryOpen = false;
 
