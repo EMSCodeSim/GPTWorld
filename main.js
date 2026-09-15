@@ -14,6 +14,14 @@ const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-per
 scene.add(new THREE.HemisphereLight(0xbfe3ff,0x38442d,2.2));
 const sun=new THREE.DirectionalLight(0xfff0cf,2.5);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-35;sun.shadow.camera.right=35;sun.shadow.camera.top=35;sun.shadow.camera.bottom=-35;scene.add(sun);
 const ground=new THREE.Mesh(new THREE.BoxGeometry(70,1,70),new THREE.MeshStandardMaterial({color:0x667d4e,roughness:1}));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
+// Lightweight ground variation: visual-only patches keep the existing flat collision/world layout intact.
+const terrainDetail=new THREE.Group();scene.add(terrainDetail);
+const patchMat=new THREE.MeshStandardMaterial({color:0x718658,roughness:1});
+const dryMat=new THREE.MeshStandardMaterial({color:0x7b8054,roughness:1});
+const bankMat=new THREE.MeshStandardMaterial({color:0x667552,roughness:1});
+const patchData=[[-15,-17,5.5,3.2,.12],[-8,15,4.8,2.7,-.3],[14,15,5.8,3.4,.24],[20,-15,4.5,2.6,-.18],[-33,13,4.2,2.4,.4],[8,26,5.2,2.8,-.5]];
+for(let i=0;i<patchData.length;i++){const [x,z,rx,rz,r]=patchData[i],m=new THREE.Mesh(new THREE.CircleGeometry(1,18),i%3===0?dryMat:patchMat);m.scale.set(rx,rz,1);m.rotation.x=-Math.PI/2;m.rotation.z=r;m.position.set(x,.012,z);m.receiveShadow=true;terrainDetail.add(m)}
+for(const x of[-29.6,-18.4]){const bank=new THREE.Mesh(new THREE.BoxGeometry(1.3,.035,70),bankMat);bank.position.set(x,.018,0);bank.receiveShadow=true;terrainDetail.add(bank)}
 const river=new THREE.Mesh(new THREE.BoxGeometry(10,.18,70),new THREE.MeshStandardMaterial({color:0x4d8090,roughness:.35,metalness:.05,transparent:true,opacity:.9}));river.position.set(-24,.08,0);scene.add(river);
 const roads=new THREE.Group();scene.add(roads);
 const interactables=[],blockers=[],npcs=[],resourceNodes=[];
