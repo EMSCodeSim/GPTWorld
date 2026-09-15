@@ -1,14 +1,98 @@
 const ECOSYSTEM_API = '/.netlify/functions/world';
 let ecosystemState = null;
 let naturalHistoryOpen = false;
+let baseRenderEntities = [];
+let lastVisualSignature = '';
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]));
 }
 
+function hash01(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function habitatCenter(habitat, seed = 0) {
+  const h = String(habitat || '').toLowerCase();
+  if (h.includes('river')) return { x: -17 + seed * 4, z: -12 + seed * 24, rx: 5, rz: 13 };
+  if (h.includes('ridge') || h.includes('upland')) return { x: 19, z: -7 + seed * 18, rx: 11, rz: 10 };
+  if (h.includes('scrub')) return { x: 8, z: 15, rx: 14, rz: 8 };
+  if (h.includes('wet')) return { x: -14, z: 9, rx: 7, rz: 11 };
+  return { x: 4, z: 5, rx: 16, rz: 15 };
+}
+
+function ecologyVisualEntities(now = Date.now()) {
+  const e = ecosystemState;
+  if (!e || !Array.isArray(e.species)) return [];
+  const out = [];
+  const t = now / 1000;
+
+  for (const s of e.species) {
+    const population = Math.max(0, Number(s.population || 0));
+    const kind = String(s.kind || '');
+    const seed = hash01(String(s.id || s.name || kind));
+    const area = habitatCenter(s.habitat, seed);
+
+    if (kind === 'plant') {
+      const count = clamp(Math.round(Math.sqrt(population) / 9), 3, 18);
+      for (let i = 0; i < count; i++) {
+        const a = hash01(`${s.id}:plant:a:${i}`) * Math.PI * 2;
+        const r = Math.sqrt(hash01(`${s.id}:plant:r:${i}`));
+        const x = clamp(area.x + Math.cos(a) * area.rx * r, -32, 32);
+        const z = clamp(area.z + Math.sin(a) * area.rz * r, -32, 32);
+        const size = 0.22 + hash01(`${s.id}:plant:s:${i}`) * 0.34;
+        out.push({
+          id: `eco-plant-${s.id}-${i}`.slice(0, 80), type: 'object',
+          x: Number(x.toFixed(2)), z: Number(z.toFixed(2)),
+          width: Number(size.toFixed(2)), height: Number((0.35 + size * 1.6).toFixed(2)), depth: Number(size.toFixed(2)),
+          color: s.id === 'rivergrass' ? '#6f9252' : '#557a45'
+        });
+      }
+      continue;
+    }
+
+    const divisor = kind === 'predator' ? 15 : 70;
+    const maxVisible = kind === 'predator' ? 5 : 9;
+    const count = clamp(Math.round(population / divisor), 1, maxVisible);
+    for (let i = 0; i < count; i++) {
+      const phase = hash01(`${s.id}:animal:p:${i}`) * Math.PI * 2;
+      const speed = kind === 'predator' ? 0.09 : 0.055 + hash01(`${s.id}:speed:${i}`) * 0.025;
+      const wanderX = area.rx * (0.35 + hash01(`${s.id}:wx:${i}`) * 0.5);
+      const wanderZ = area.rz * (0.35 + hash01(`${s.id}:wz:${i}`) * 0.5);
+      const x = clamp(area.x + Math.sin(t * speed + phase) * wanderX, -32, 32);
+      const z = clamp(area.z + Math.cos(t * speed * 0.83 + phase * 1.7) * wanderZ, -32, 32);
+      const traits = s.traits || {};
+      const body = clamp(0.38 + Number(traits.size || 0.4) * 0.7, 0.38, 1.05);
+      out.push({
+        id: `eco-animal-${s.id}-${i}`.slice(0, 80), type: 'object',
+        x: Number(x.toFixed(2)), z: Number(z.toFixed(2)),
+        width: Number((body * 1.25).toFixed(2)), height: Number((body * 0.8).toFixed(2)), depth: Number((body * 0.65).toFixed(2)),
+        color: kind === 'predator' ? '#6f5542' : (s.id === 'reed-runner' ? '#a18b61' : '#92784f')
+      });
+    }
+  }
+  return out;
+}
+
+function publishEcologyVisuals() {
+  if (!ecosystemState) return;
+  const ecology = ecologyVisualEntities();
+  const merged = [...baseRenderEntities.filter(e => !String(e?.id || '').startsWith('eco-')), ...ecology];
+  const signature = JSON.stringify(merged);
+  if (signature === lastVisualSignature) return;
+  lastVisualSignature = signature;
+  window.dispatchEvent(new CustomEvent('gptworld:render-entities', { detail: merged }));
+}
+
 function ensureNaturalHistoryUI() {
   if (document.getElementById('naturalHistoryButton')) return;
-
   const button = document.createElement('button');
   button.id = 'naturalHistoryButton';
   button.type = 'button';
@@ -50,13 +134,12 @@ function renderNaturalHistory() {
   const extinct = Array.isArray(e.extinct) ? e.extinct : [];
   const events = Array.isArray(e.recentEvents) ? e.recentEvents.slice(-6).reverse() : [];
   const c = e.climate || {};
-
   content.innerHTML = `
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
       <div><div style="font-size:11px;letter-spacing:.14em;opacity:.58">LIVING ECOSYSTEM</div><h2 style="margin:4px 0 0;font-size:24px">Natural History</h2></div>
       <button id="closeNaturalHistory" type="button" aria-label="Close natural history" style="border:0;background:transparent;color:#f4efdf;font-size:22px;cursor:pointer">×</button>
     </div>
-    <p style="margin:12px 0 14px;line-height:1.42;opacity:.78;font-size:13px">This ecosystem evolves independently. Climate changes food, food changes populations, and surviving traits drift over generations. Players live inside it but do not directly control evolution.</p>
+    <p style="margin:12px 0 14px;line-height:1.42;opacity:.78;font-size:13px">The plants and animals you see in the world are generated from this persistent ecology. Their visible density follows population, and animals roam continuously on the ecology clock rather than the numbered world day.</p>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
       <div style="padding:10px;border-radius:12px;background:rgba(255,255,255,.06)"><small style="opacity:.58">ECO YEAR</small><div style="font-size:19px;font-weight:800">${Number(e.simulatedYear || 0)}</div></div>
       <div style="padding:10px;border-radius:12px;background:rgba(255,255,255,.06)"><small style="opacity:.58">LIVING</small><div style="font-size:19px;font-weight:800">${species.length}</div></div>
@@ -101,10 +184,12 @@ async function refreshEcosystem() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!data.ok) throw new Error(data.error || 'Natural history unavailable');
-    ecosystemState = data.world?.ecosystem || data.ecosystem || null;
+    ecosystemState = data.ecosystem || data.world?.ecosystem || null;
+    baseRenderEntities = Array.isArray(data.world?.render_entities) ? data.world.render_entities : [];
     if (!ecosystemState) throw new Error('No ecosystem record found');
     const button = document.getElementById('naturalHistoryButton');
     if (button) button.textContent = `🌱 Eco Year ${Number(ecosystemState.simulatedYear || 0)}`;
+    publishEcologyVisuals();
     if (naturalHistoryOpen) renderNaturalHistory();
   } catch (error) {
     console.error('Natural History load failed', error);
@@ -115,3 +200,4 @@ async function refreshEcosystem() {
 ensureNaturalHistoryUI();
 refreshEcosystem();
 setInterval(refreshEcosystem, 30000);
+setInterval(publishEcologyVisuals, 1500);
