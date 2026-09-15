@@ -1,4 +1,4 @@
-name: One-shot Weather Sim visuals
+name: One-shot evolving world login
 on:
   push:
     paths:
@@ -10,15 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Connect visible weather to Weather Sim
-        run: python scripts/weather-visuals.py
+      - name: Upgrade login and traveler names
+        run: python scripts/login-world-update.py
       - name: Syntax check stable engine
         run: node --check main.js
-      - name: Commit weather visuals
+      - name: Commit login upgrade
         run: |
-          git config user.name "GPTWorld Graphics Bot"
+          git config user.name "GPTWorld UX Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Connect visible weather to Weather Sim"
+          git commit -m "Explain evolving world and remember traveler names"
           git push
-# retry after animation hook correction
