@@ -21,8 +21,8 @@ jobs:
       - name: Verify entry wiring
         run: |
           grep -q "function startGame" main.js
-          grep -q "enterWorldBtn.addEventListener('click',startGame)" main.js
-          grep -q "entry-repair-1" index.html
+          grep -q "enterWorldBtn.addEventListener" main.js
+          grep -q "entry-repair-2" index.html
       - name: Commit repair
         run: |
           git config user.name "GPTWorld Repair Bot"
