@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
+import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-4';
 
 const API='/.netlify/functions/private-world';
 const CLIENT_KEY='gptworld-client-id';
@@ -7,10 +8,11 @@ const worldEl=$('world'),loading=$('loading'),loadingTitle=$('loadingTitle'),loa
 const retry=$('retry'),returnTown=$('returnTown'),promptEl=$('prompt'),toastEl=$('toast'),actionButton=$('actionButton');
 const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather'),temperature:$('temperature')};
 const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
+const syncStateEl=$('syncState');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,saveBusy=false;
+let toastTimer,nearest=null,lastSave=0,saveBusy=false,activeClientId='',cacheAvailable=true;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 
@@ -19,6 +21,7 @@ const color=value=>new THREE.Color(value);
 function hash01(value){let hash=2166136261;for(const char of String(value)){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return (hash>>>0)/4294967295;}
 function material(value,extra={}){return new THREE.MeshStandardMaterial({color:value,roughness:.94,...extra});}
 function box(parent,value,size,pos){const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),material(value));mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
+function setSyncState(state,label){syncStateEl.dataset.state=state;syncStateEl.textContent=label||({connecting:'Connecting',synced:'Synced',offline:'Offline',failed:'Sync failed'}[state]||state);}
 
 function makeHumanoid(){
   const group=new THREE.Group(),skin=material(0xdca77d),shirt=material(0x526f62),trousers=material(0x3d4850),leather=material(0x564332),hair=material(0x553824);
@@ -117,8 +120,9 @@ function build(data){
   for(let i=0;i<4;i++)addCloud(i);makePrecipitation();
   player=makeHumanoid();player.position.set(Number(data.session.position.x)||0,0,Number(data.session.position.z)||8);scene.add(player);
   camera.position.set(player.position.x+12,14,player.position.z+12);clock=new THREE.Clock();
-  $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory[key]||0);
+  $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
+  if(data.fromCache)showToast('Offline world loaded. Inventory is hidden until the server reconnects.');
   if(data.catchUp.steps)showToast(`Your world lived through ${data.catchUp.steps} ecology step${data.catchUp.steps===1?'':'s'} while you were away.`);
 }
 
@@ -177,16 +181,52 @@ function updateEnvironment(dt,time){
 
 function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(best)promptEl.textContent=`Inspect ${best.label}`;}
 function interact(){if(nearest)showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
-async function savePosition(){if(!running||saveBusy)return;saveBusy=true;try{await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'save_position',position:{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))}})});}catch{}finally{saveBusy=false;}}
+function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}
+async function sendQueuedPosition(action){
+  const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'save_position',position:action.position})}),data=await response.json();
+  if(!response.ok||!data.ok)throw Error(data.error||'position_sync_failed');
+  if(action.id)await clearQueuedPrivatePosition(activeClientId,action.updatedAt);
+  setSyncState(cacheAvailable?'synced':'failed');return true;
+}
+async function flushQueuedPosition(){
+  if(!activeClientId||!navigator.onLine)return false;
+  try{const action=await getQueuedPrivatePosition(activeClientId);if(!action){setSyncState(cacheAvailable?'synced':'failed');return true;}return await sendQueuedPosition(action);}catch{setSyncState(navigator.onLine?'failed':'offline');return false;}
+}
+async function savePosition(){
+  if(!running||saveBusy)return false;saveBusy=true;const position=currentPosition();let action={position,updatedAt:Date.now()};
+  try{action=await queuePrivatePosition(activeClientId,position);}catch{cacheAvailable=false;setSyncState('failed');}
+  if(!navigator.onLine){setSyncState('offline');saveBusy=false;return false;}
+  try{return await sendQueuedPosition(action);}catch{setSyncState(navigator.onLine?'failed':'offline');return false;}finally{saveBusy=false;}
+}
 function requestKey(action){return`${action}-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;}
 async function leave(){if(!running)return;returnTown.disabled=true;await savePosition();try{const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'return_public',idempotencyKey:requestKey('return'),position:{x:player.position.x,z:player.position.z}})}),data=await response.json();if(!data.ok)throw Error(data.error||'return_failed');sessionStorage.setItem('gptworld-public-spawn',JSON.stringify(data.position));location.assign('./index.html?from=private');}catch{showToast('Return failed. Your world remains saved; try again.');returnTown.disabled=false;}}
 function resize(){if(!renderer)return;const width=worldEl.clientWidth,height=worldEl.clientHeight;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
 function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}renderer.render(scene,camera);}
-async function load(){retry.hidden=true;const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId){loadingTitle.textContent='No registered traveler';loadingMessage.textContent='Enter the public town first so the server can identify your world owner.';return;}try{const response=await fetch(`${API}?clientId=${encodeURIComponent(clientId)}`,{cache:'no-store'}),data=await response.json();if(!data.ok)throw Error(data.error||'load_failed');build(data);}catch(error){loadingTitle.textContent='Your world could not open';loadingMessage.textContent=error.message==='living_worlds_migration_required'?'The Living Worlds database migration has not been applied.':'Your public progress is safe. Try loading the private world again.';retry.hidden=false;}}
+async function load(){
+  retry.hidden=true;activeClientId=localStorage.getItem(CLIENT_KEY)||'';
+  if(!activeClientId){loadingTitle.textContent='No registered traveler';loadingMessage.textContent='Enter the public town first so the server can identify your world owner.';return;}
+  setSyncState(navigator.onLine?'connecting':'offline');
+  try{
+    const response=await fetch(`${API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();
+    if(!response.ok||!data.ok){const error=Error(data.error||'load_failed');error.status=response.status;throw error;}
+    try{
+      const pending=await getQueuedPrivatePosition(activeClientId);if(pending)data.session.position=pending.position;
+      await cachePrivateWorld(data,activeClientId);
+    }catch{cacheAvailable=false;setSyncState('failed');}
+    build(data);await flushQueuedPosition();
+  }catch(error){
+    const mayUseCache=!error.status||error.status>=500;
+    if(mayUseCache){
+      try{const cached=await getCachedPrivateWorld(activeClientId),pending=await getQueuedPrivatePosition(activeClientId);if(cached){if(pending)cached.session.position=pending.position;build(cached);setSyncState('offline');return;}}catch{cacheAvailable=false;}
+    }
+    setSyncState(navigator.onLine?'failed':'offline');loadingTitle.textContent='Your world could not open';loadingMessage.textContent=error.message==='living_worlds_migration_required'?'The Living Worlds database migration has not been applied.':mayUseCache?'No saved copy is available on this device yet. Reconnect once to create it.':'Your public progress is safe. Try loading the private world again.';retry.hidden=false;
+  }
+}
 
 window.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)){keys.add(key);event.preventDefault();}if(key==='e'||key===' '){interact();event.preventDefault();}});
 window.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));window.addEventListener('resize',resize);
-window.addEventListener('pagehide',()=>{if(running)navigator.sendBeacon?.(API,new Blob([JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'save_position',position:{x:player.position.x,z:player.position.z}})],{type:'application/json'}));});
+window.addEventListener('online',()=>{setSyncState('connecting');flushQueuedPosition();});window.addEventListener('offline',()=>setSyncState('offline'));
+window.addEventListener('pagehide',()=>{if(running){const position=currentPosition();queuePrivatePosition(activeClientId,position).catch(()=>{});navigator.sendBeacon?.(API,new Blob([JSON.stringify({clientId:activeClientId,action:'save_position',position})],{type:'application/json'}));}});
 actionButton.addEventListener('click',interact);returnTown.addEventListener('click',leave);retry.addEventListener('click',load);
 
 const joystick=$('joystick'),joystickKnob=$('joystickKnob');
@@ -194,4 +234,5 @@ function updateJoystick(event){const bounds=joystick.getBoundingClientRect(),cen
 function resetJoystick(){joystickPointer=null;joystickX=joystickY=0;joystick.classList.remove('active');joystickKnob.style.transform='translate(-50%,-50%)';}
 joystick.addEventListener('pointerdown',event=>{event.preventDefault();joystickPointer=event.pointerId;joystick.setPointerCapture?.(event.pointerId);joystick.classList.add('active');updateJoystick(event);});joystick.addEventListener('pointermove',event=>{if(event.pointerId===joystickPointer)updateJoystick(event);});joystick.addEventListener('pointerup',event=>{if(event.pointerId===joystickPointer)resetJoystick();});joystick.addEventListener('pointercancel',resetJoystick);
 
+if('serviceWorker'in navigator)navigator.serviceWorker.register('./private-world-sw.js').catch(()=>{cacheAvailable=false;setSyncState('failed');});
 load();

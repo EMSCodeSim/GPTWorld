@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
+import {createPrivateWorldSnapshot,normalizeCachedPosition,snapshotToPrivateWorldPayload} from '../private-world-cache.mjs';
 import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
 test('each player receives a stable, distinct generation seed',()=>{
@@ -29,6 +30,29 @@ test('personal world begins undeveloped and wildlife faces its movement axis',as
   assert.doesNotMatch(client,/new THREE\.BoxGeometry\(terrain\.farmland\.width/);
   assert.match(client,/body\.scale\.set\(\.72,\.78,1\.45\)/);
   assert.match(client,/for\(const x of\[-\.22,\.22\]\)for\(const z of\[-\.4,\.4\]\)/);
+});
+
+test('local snapshot caches world visuals and position but never authoritative inventory',()=>{
+  const payload={
+    world:{id:9,name:'Test World',seed:7,terrain:{spawn:{x:0,z:8}},ecology:{version:2}},
+    session:{position:{x:4,z:-3}},
+    inventory:{wood:999,stone:999,herbs:999},
+    catchUp:{steps:4}
+  };
+  const snapshot=createPrivateWorldSnapshot(payload,'traveler-1',1234),cached=snapshotToPrivateWorldPayload(snapshot);
+  assert.equal(snapshot.inventory,undefined);
+  assert.equal(cached.inventory,null);
+  assert.deepEqual(cached.session.position,{x:4,z:-3});
+  assert.equal(cached.fromCache,true);
+  assert.deepEqual(normalizeCachedPosition({x:500,z:-500}),{x:33,z:-33});
+});
+
+test('private offline shell caches only the private-world experience',async()=>{
+  const worker=await readFile(new URL('../private-world-sw.js',import.meta.url),'utf8');
+  assert.match(worker,/private-world\.html/);
+  assert.match(worker,/private-world-cache\.mjs/);
+  assert.match(worker,/three@0\.180\.0/);
+  assert.doesNotMatch(worker,/index\.html/);
 });
 
 test('world ownership denies a different player',()=>{

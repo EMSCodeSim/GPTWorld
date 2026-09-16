@@ -1,0 +1,33 @@
+const CACHE_NAME='gptworld-private-shell-v1';
+const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
+const PRIVATE_SHELL=[
+  './private-world.html',
+  './private-world.js?v=living-worlds-4',
+  './private-world-cache.mjs?v=living-worlds-4',
+  './private-world.css?v=living-worlds-4',
+  './styles.css?v=living-worlds-4',
+  THREE_URL
+];
+
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(CACHE_NAME).then(cache=>Promise.allSettled(PRIVATE_SHELL.map(url=>cache.add(url)))).then(()=>self.skipWaiting()));
+});
+
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('gptworld-private-shell-')&&key!==CACHE_NAME).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
+});
+
+function isPrivateAsset(url){
+  if(url.href===THREE_URL)return true;
+  if(url.origin!==self.location.origin)return false;
+  return /\/(private-world(?:-cache)?\.(?:html|js|mjs|css)|styles\.css)$/.test(url.pathname);
+}
+
+self.addEventListener('fetch',event=>{
+  if(event.request.method!=='GET')return;
+  const url=new URL(event.request.url);
+  if(!isPrivateAsset(url))return;
+  event.respondWith(fetch(event.request).then(response=>{
+    const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));return response;
+  }).catch(()=>caches.match(event.request,{ignoreSearch:true}).then(cached=>cached||Response.error())));
+});
