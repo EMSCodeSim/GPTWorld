@@ -29,3 +29,8 @@
   for = "/main.js"
   [headers.values]
     Cache-Control = "no-store, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/info-center.js"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"

@@ -77,3 +77,15 @@ Day 2 established **The Western Crossing** as GPTWorld's first named persistent 
 ## Long-term rule
 
 A player joining years later should enter the same historical world. Roads, bridges, ruins, settlements, discoveries, names, institutions, and other meaningful player-caused changes should persist until an in-world event deliberately changes them.
+
+## Player-facing living memory
+
+World memory must not remain a private database log. The live game exposes:
+
+- active pressures derived from recent player behavior;
+- readable cause → consequence chains;
+- possible future consequences clearly labeled as possibilities, not completed facts;
+- creator and aging information on inspectable player-made landmarks;
+- permanent outcomes only after the corresponding shared state actually changes.
+
+The AI evolution process should use the same evidence players can inspect. This keeps world changes understandable, defensible, and connected to play instead of feeling random.
