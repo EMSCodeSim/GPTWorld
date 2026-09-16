@@ -89,3 +89,7 @@ World memory must not remain a private database log. The live game exposes:
 - permanent outcomes only after the corresponding shared state actually changes.
 
 The AI evolution process should use the same evidence players can inspect. This keeps world changes understandable, defensible, and connected to play instead of feeling random.
+
+### Visible consequence rule
+
+When shared state changes a place, the playable world should show that change. Town building levels must alter their exterior models, interiors, and interaction labels; future projects should follow the same pattern instead of existing only in menus.
