@@ -1,4 +1,4 @@
-name: One-shot Plant Seed Bank v1
+name: One-shot Plant Colonization Succession v1
 on:
   push:
     paths:
@@ -10,14 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add persistent plant seeds
-        run: python scripts/plant-seed-v1.py
+      - name: Add plant colonization and succession
+        run: python scripts/plant-colonization-succession-v1.py
       - name: Syntax check ecology
-        run: node --check netlify/functions/world.mjs
-      - name: Commit plant seed bank
+        run: |
+          node --check netlify/functions/world.mjs
+          node --check netlify/functions/_sim-core.mjs
+      - name: Commit plant succession
         run: |
           git config user.name "GPTWorld Ecology Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add netlify/functions/world.mjs
-          git commit -m "Add persistent plant seed bank v1"
+          git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
+          git commit -m "Add plant colonization and ecological succession v1"
           git push
