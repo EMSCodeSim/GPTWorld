@@ -1,4 +1,4 @@
-name: One-shot Persistent Food Web Events v1
+name: One-shot Tree Interaction Fix v1
 on:
   push:
     paths:
@@ -10,20 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Connect visible feeding to persistent world events
-        run: python scripts/persistent-food-web-events-v1.py
-      - name: Verify persistent ecology events and world entry
+      - name: Repair tree and plant interaction
+        run: python scripts/fix-tree-interaction-v1.py
+      - name: Verify tree interaction and world entry
         run: |
           node --check main.js
-          grep -q "recordEcologyEvent" main.js
-          grep -q "ecology_grazing" main.js
-          grep -q "ecology_predation" main.js
-          grep -q "function startGame" main.js
-          grep -q "persistent-food-web-1" index.html
-      - name: Commit persistent food web events
+          grep -q 'Inspect ${nearest.label}' main.js
+          grep -q 'interact again' main.js
+          grep -q 'plantInfo' main.js
+          grep -q 'function startGame' main.js
+          grep -q 'tree-interaction-fix-1' index.html
+      - name: Commit tree interaction repair
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Record visible feeding and predation in world history"
+          git commit -m "Repair tree inspection and separate gathering action"
           git push
