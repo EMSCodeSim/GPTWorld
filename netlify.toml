@@ -4,3 +4,18 @@
 
 [functions]
   node_bundler = "esbuild"
+
+[[headers]]
+  for = "/interior.html"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/interior.js"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/town.html"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"

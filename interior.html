@@ -18,7 +18,7 @@
     <div id="world" aria-label="Interactive 3D building interior"></div>
     <section class="topbar interior-topbar" aria-label="Building status">
       <div class="world-title"><div class="eyebrow">GPTWORLD · INTERIOR</div><h1 id="buildingName">Building</h1></div>
-      <div class="interior-links"><a id="exitWorld" href="./index.html">Exit to world</a><a href="./town.html">Town upgrades</a></div>
+      <div class="interior-links"><a id="exitWorld" href="/index.html?from=interior-v2" onclick="window.location.assign('/index.html?from=interior-v2');return false">Exit to world</a><a href="./town.html">Town upgrades</a></div>
     </section>
     <div id="prompt" class="prompt" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -29,6 +29,6 @@
     </section>
     <section id="loading" aria-live="polite"><div class="loading-card"><h2 id="loadingTitle">Opening the building…</h2><p id="loadingMessage">Checking the settlement’s shared upgrade level.</p><button id="retry" type="button" hidden>Retry</button><br><a href="./town.html">Return to town upgrades</a></div></section>
   </main>
-  <script type="module" src="./interior.js?v=interior-world-1"></script>
+  <script type="module" src="./interior.js?v=interior-world-2"></script>
 </body>
 </html>
