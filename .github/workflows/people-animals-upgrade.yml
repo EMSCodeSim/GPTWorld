@@ -1,4 +1,4 @@
-name: One-shot Plant Colonization Succession v1
+name: One-shot Animal Social Ecology v1
 on:
   push:
     paths:
@@ -10,17 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add plant colonization and succession
-        run: python scripts/plant-colonization-succession-v1.py
+      - name: Add herds packs shelters and breeding
+        run: python scripts/animal-social-breeding-v1.py
       - name: Syntax check ecology
         run: |
           node --check netlify/functions/world.mjs
           node --check netlify/functions/_sim-core.mjs
-      - name: Commit plant succession
+      - name: Commit animal social ecology
         run: |
           git config user.name "GPTWorld Ecology Bot"
           git config user.email "actions@users.noreply.github.com"
           git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
-          git commit -m "Add plant colonization and ecological succession v1"
+          git commit -m "Add herds packs shelters and breeding seasons v1"
           git push
-# retry after anchor fix
