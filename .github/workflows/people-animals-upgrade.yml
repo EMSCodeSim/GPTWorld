@@ -1,4 +1,4 @@
-name: One-shot Compact Info Weather UI
+name: One-shot Emergency Entry Repair
 on:
   push:
     paths:
@@ -6,22 +6,27 @@ on:
 permissions:
   contents: write
 jobs:
-  upgrade:
+  repair:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Remove progress and combine info weather
-        run: python scripts/remove-progress-combine-info.py
+          fetch-depth: 20
+      - name: Restore working engine and keep latest UX
+        run: python scripts/repair-entry-main-v1.py
       - name: Syntax check client
         run: |
           node --check main.js
           node --check info-center.js
-      - name: Commit compact UI
+      - name: Verify entry wiring
         run: |
-          git config user.name "GPTWorld UX Bot"
+          grep -q "function startGame" main.js
+          grep -q "enterWorldBtn.addEventListener('click',startGame)" main.js
+          grep -q "entry-repair-1" index.html
+      - name: Commit repair
+        run: |
+          git config user.name "GPTWorld Repair Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html info-center.js
-          git commit -m "Remove gather progress and combine info with weather"
+          git add main.js index.html
+          git commit -m "Restore world entry after client engine overwrite"
           git push
