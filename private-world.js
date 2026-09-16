@@ -81,24 +81,15 @@ function addHerbs(object){
 
 function addWildlife(object){
   const group=new THREE.Group(),fur=material(0x94734c),dark=material(0x4a3828);group.position.set(object.x,0,object.z);group.rotation.y=object.heading||0;
-  const body=new THREE.Mesh(new THREE.SphereGeometry(.58,12,9),fur);body.scale.set(1.45,.78,.72);body.position.y=.92;body.castShadow=true;group.add(body);
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.19,.25,.7,8),fur);neck.position.set(0,1.3,.43);neck.rotation.x=-.35;group.add(neck);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),fur);head.scale.set(.8,.8,1.15);head.position.set(0,1.62,.67);group.add(head);
-  const legs=[];for(const x of[-.4,.4])for(const z of[-.22,.22])legs.push(box(group,0x59422d,[.1,.72,.1],[x,.4,z]));
-  const tail=new THREE.Mesh(new THREE.ConeGeometry(.13,.5,7),dark);tail.position.set(0,1.05,-.78);tail.rotation.x=-1;group.add(tail);
-  for(const x of[-.11,.11]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.09,.32,6),fur);ear.position.set(x,1.91,.61);ear.rotation.z=x<0?.35:-.35;group.add(ear);}
+  const body=new THREE.Mesh(new THREE.SphereGeometry(.58,12,9),fur);body.scale.set(.72,.78,1.45);body.position.y=.92;body.castShadow=true;group.add(body);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.19,.25,.7,8),fur);neck.position.set(0,1.3,.58);neck.rotation.x=-.35;group.add(neck);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),fur);head.scale.set(.8,.8,1.15);head.position.set(0,1.62,.88);group.add(head);
+  const legs=[];for(const x of[-.22,.22])for(const z of[-.4,.4])legs.push(box(group,0x59422d,[.1,.72,.1],[x,.4,z]));
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(.13,.5,7),dark);tail.position.set(0,1.05,-.9);tail.rotation.x=-1;group.add(tail);
+  for(const x of[-.11,.11]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.09,.32,6),fur);ear.position.set(x,1.91,.82);ear.rotation.z=x<0?.35:-.35;group.add(ear);}
   group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:'grazing',legs,head,tail};
   scene.add(group);animals.push(group);
   interactables.push({label:'reed-runner',message:()=>{const b=group.userData.behavior;return `This reed-runner is ${b}. The local herd is ${currentEcology.wildlife} strong, with ${Math.round(currentEcology.forage*100)}% forage available.`;},object:group,radius:2.5});
-}
-
-function buildHomestead(){
-  const home=new THREE.Group();home.position.set(terrain.homestead.x,0,terrain.homestead.z);
-  box(home,0x8d7657,[4.5,2.8,4],[0,1.4,0]);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(3.6,1.8,4),material(0x4c3529));roof.position.y=3.65;roof.rotation.y=Math.PI/4;roof.castShadow=true;home.add(roof);
-  box(home,0x51372a,[.9,1.65,.12],[0,.83,2.06]);box(home,0xe5c27f,[.12,.12,.05],[.28,.84,2.14]);
-  scene.add(home);blockers.push({x:terrain.homestead.x,z:terrain.homestead.z,halfX:2.65,halfZ:2.4});
-  interactables.push({label:'homestead',message:()=>`Your persistent homestead. It is ${statusForWeather()} outside.`,object:home,radius:4.2});
 }
 
 function addCloud(index){
@@ -120,9 +111,8 @@ function build(data){
   sun=new THREE.DirectionalLight(0xffedc6,2.45);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
   ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),material(plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
   water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,36),material(0x4c8190,{roughness:.28,transparent:true,opacity:.88}));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
-  const farm=new THREE.Mesh(new THREE.BoxGeometry(terrain.farmland.width,.04,terrain.farmland.depth),material(0x806b42));farm.position.set(terrain.farmland.x,.03,terrain.farmland.z);scene.add(farm);
-  for(let row=-3;row<=3;row++){const line=box(scene,0x5f4b2e,[terrain.farmland.width-.5,.025,.08],[terrain.farmland.x,.06,terrain.farmland.z+row]);line.receiveShadow=true;}
-  buildHomestead();
+  // Personal worlds begin undeveloped. The homestead and fertile site are
+  // persisted as future build locations, but nothing is constructed or tilled.
   for(const object of terrain.objects){if(object.kind==='tree')addTree(object);else if(object.kind==='rock')addRock(object);else if(object.kind==='herbs')addHerbs(object);else if(object.kind==='wildlife')addWildlife(object);}
   for(let i=0;i<4;i++)addCloud(i);makePrecipitation();
   player=makeHumanoid();player.position.set(Number(data.session.position.x)||0,0,Number(data.session.position.z)||8);scene.add(player);

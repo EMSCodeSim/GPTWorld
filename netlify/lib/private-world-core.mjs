@@ -23,12 +23,13 @@ export function generatePrivateWorld(seed){
   for(let i=0;i<12;i++){const p=point(rand,9,29);objects.push({id:`herb-${i}`,kind:'herbs',x:p.x,z:p.z,scale:1});}
   for(let i=0;i<7;i++){const p=point(rand,15,30);objects.push({id:`deer-${i}`,kind:'wildlife',species:'reed-runner',x:p.x,z:p.z,heading:Number((rand()*Math.PI*2).toFixed(3))});}
   return{
-    version:1,
+    version:2,
     size:70,
     spawn:{x:0,z:8},
     homestead:{x:0,z:3},
+    structures:[],
     water:{kind:'pond',x:-19,z:-10,radius:6.5},
-    farmland:{x:13,z:9,width:10,depth:8,fertility:Number((.72+rand()*.2).toFixed(2))},
+    farmland:{x:13,z:9,width:10,depth:8,fertility:Number((.72+rand()*.2).toFixed(2)),prepared:false},
     clearing:{x:0,z:4,radius:10},
     objects
   };
