@@ -1,4 +1,4 @@
-name: One-shot Animal Social Ecology v1
+name: One-shot Interaction Identify Progress v1
 on:
   push:
     paths:
@@ -10,16 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add herds packs shelters and breeding
-        run: python scripts/animal-social-breeding-v1.py
-      - name: Syntax check ecology
+      - name: Upgrade interaction identification and collection feedback
+        run: python scripts/interact-identify-gather-progress-v1.py
+      - name: Syntax check client
+        run: node --check main.js
+      - name: Commit interaction UX
         run: |
-          node --check netlify/functions/world.mjs
-          node --check netlify/functions/_sim-core.mjs
-      - name: Commit animal social ecology
-        run: |
-          git config user.name "GPTWorld Ecology Bot"
+          git config user.name "GPTWorld UX Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
-          git commit -m "Add herds packs shelters and breeding seasons v1"
+          git add main.js index.html
+          git commit -m "Identify nearby world objects and show collection progress"
           git push
