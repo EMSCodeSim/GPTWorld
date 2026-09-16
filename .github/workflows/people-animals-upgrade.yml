@@ -1,4 +1,4 @@
-name: One-shot Gathering Motion v1
+name: One-shot NPC Life Sim v1
 on:
   push:
     paths:
@@ -10,19 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add physical gathering feedback
-        run: python scripts/gather-animation-v1.py
+      - name: Upgrade persistent NPC life
+        run: python scripts/npc-life-sim-v1.py
       - name: Syntax and entry checks
         run: |
           node --check main.js
+          node --check netlify/functions/living-systems.mjs
           grep -q "function startGame" main.js
           grep -q "enterWorldBtn.addEventListener" main.js
-          grep -q "animateGather" main.js
-          grep -q "gather-motion-1" index.html
-      - name: Commit gathering motion
+          grep -q "version:2" netlify/functions/living-systems.mjs
+          grep -q "npc-life-1" index.html
+      - name: Commit NPC Life Sim
         run: |
-          git config user.name "GPTWorld UX Bot"
+          git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html
-          git commit -m "Add physical gathering animations and resource motion"
+          git add main.js index.html netlify/functions/living-systems.mjs
+          git commit -m "Upgrade NPCs with persistent needs roles memory and decisions"
           git push
