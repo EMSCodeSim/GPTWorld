@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {advancePrivateEcology,generatePrivateWorld,normalizePosition,ownsWorld,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
+import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
 test('each player receives a stable, distinct generation seed',()=>{
   assert.equal(seedFromPlayerId(42),seedFromPlayerId(42));
@@ -47,4 +48,12 @@ test('foundation migration is additive and includes travel idempotency',async()=
   assert.match(sql,/primary key \(player_id, idempotency_key\)/);
   assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b/);
   assert.doesNotMatch(sql,/\btruncate\b/);
+});
+
+test('personal-world archway sits at the far end of the bridge and supports walk-through entry',()=>{
+  assert.equal(WORLD_GATEWAY.x,-30.8);
+  assert.equal(WORLD_GATEWAY.z,0);
+  assert.equal(isInsideWorldGateway(-30.8,0),true);
+  assert.equal(isInsideWorldGateway(-29.7,0),false);
+  assert.equal(isInsideWorldGateway(-30.8,1.4),false);
 });

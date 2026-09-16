@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --check main.js && node --check private-world.js && node --check interior.js && node --check netlify/functions/private-world.mjs && node --check netlify/lib/private-world-core.mjs"
+    "check": "node --check main.js && node --check world-gateway.mjs && node --check private-world.js && node --check interior.js && node --check netlify/functions/private-world.mjs && node --check netlify/lib/private-world-core.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"

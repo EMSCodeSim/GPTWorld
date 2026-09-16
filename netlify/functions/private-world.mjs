@@ -63,7 +63,7 @@ async function enterPrivate(sql,player,world,key,position){
 async function returnPublic(sql,player,key,position){
   const existing=await sql`SELECT response FROM world_travel_receipts WHERE player_id=${player.id} AND idempotency_key=${key} LIMIT 1`;
   if(existing.length)return existing[0].response;
-  const privatePosition=normalizePosition(position?.x,position?.z,{x:0,z:8}),gateway={x:8,z:18};
+  const privatePosition=normalizePosition(position?.x,position?.z,{x:0,z:8}),gateway={x:-29.2,z:0};
   const response={ok:true,worldType:'public',position:gateway};
   const rows=await sql`
     WITH session_change AS (
