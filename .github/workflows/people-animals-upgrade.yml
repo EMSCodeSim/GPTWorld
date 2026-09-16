@@ -1,4 +1,4 @@
-name: One-shot NPC Interaction v2
+name: One-shot Snow Accumulation v1
 on:
   push:
     paths:
@@ -10,20 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add contextual NPC interaction
-        run: python scripts/npc-interaction-v2.py
-      - name: Verify NPC interaction and world entry
+      - name: Add autonomous snow accumulation
+        run: python scripts/snow-accumulation-v1.py
+      - name: Verify snow system and world entry
         run: |
           node --check main.js
-          node --check netlify/functions/living-systems.mjs
-          grep -q "talkToNPC" main.js
-          grep -q "npc_interact" netlify/functions/living-systems.mjs
+          node --check netlify/functions/_sim-core.mjs
+          node --check netlify/lib/sim-core.mjs
+          grep -q "snowDepthCm" netlify/functions/_sim-core.mjs
+          grep -q "snowCover" netlify/functions/_sim-core.mjs
+          grep -q "snowGround" main.js
           grep -q "function startGame" main.js
-          grep -q "npc-interact-2" index.html
-      - name: Commit NPC interaction
+          grep -q "snow-accumulation-1" index.html
+      - name: Commit snow accumulation
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html netlify/functions/living-systems.mjs
-          git commit -m "Add NPC relationships contextual dialogue requests and work motion"
+          git add main.js index.html netlify/functions/_sim-core.mjs netlify/lib/sim-core.mjs
+          git commit -m "Add persistent autonomous snow accumulation and melt"
           git push
