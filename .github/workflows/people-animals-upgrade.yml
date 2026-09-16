@@ -1,4 +1,4 @@
-name: One-shot Interaction Identify Progress v1
+name: One-shot Compact Info Weather UI
 on:
   push:
     paths:
@@ -10,14 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Upgrade interaction identification and collection feedback
-        run: python scripts/interact-identify-gather-progress-v1.py
+        with:
+          fetch-depth: 2
+      - name: Remove progress and combine info weather
+        run: python scripts/remove-progress-combine-info.py
       - name: Syntax check client
-        run: node --check main.js
-      - name: Commit interaction UX
+        run: |
+          node --check main.js
+          node --check info-center.js
+      - name: Commit compact UI
         run: |
           git config user.name "GPTWorld UX Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html
-          git commit -m "Identify nearby world objects and show collection progress"
+          git add main.js index.html info-center.js
+          git commit -m "Remove gather progress and combine info with weather"
           git push
