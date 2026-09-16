@@ -1,4 +1,4 @@
-name: One-shot Disaster Ecology Impact v1
+name: One-shot Plant Seed Bank v1
 on:
   push:
     paths:
@@ -10,16 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Connect disasters to ecology
-        run: python scripts/disaster-ecology-impact-v1.py
-      - name: Syntax check disaster ecology functions
-        run: |
-          node --check netlify/functions/disaster-tick.mjs
-          node --check netlify/functions/_sim-core.mjs
-      - name: Commit disaster ecology upgrade
+      - name: Add persistent plant seeds
+        run: python scripts/plant-seed-v1.py
+      - name: Syntax check ecology
+        run: node --check netlify/functions/world.mjs
+      - name: Commit plant seed bank
         run: |
           git config user.name "GPTWorld Ecology Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add netlify/functions/disaster-tick.mjs netlify/functions/_sim-core.mjs
-          git commit -m "Let disasters physically reshape ecology v1"
+          git add netlify/functions/world.mjs
+          git commit -m "Add persistent plant seed bank v1"
           git push
