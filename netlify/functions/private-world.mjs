@@ -25,8 +25,9 @@ async function ensureWorld(sql,player){
 
 async function advanceWorld(sql,world){
   const advanced=advancePrivateEcology(world.ecology_state,world.last_simulated_at,new Date());
-  if(advanced.steps>0){
-    const rows=await sql`UPDATE player_worlds SET ecology_state=${JSON.stringify(advanced.state)}::jsonb,last_simulated_at=${advanced.simulatedUntil}::timestamptz,updated_at=now() WHERE id=${world.id} AND owner_player_id=${world.owner_player_id} RETURNING ecology_state,last_simulated_at,updated_at`;
+  if(advanced.steps>0||advanced.upgraded){
+    const nextSimulatedAt=advanced.steps>0?advanced.simulatedUntil:world.last_simulated_at;
+    const rows=await sql`UPDATE player_worlds SET ecology_state=${JSON.stringify(advanced.state)}::jsonb,last_simulated_at=${nextSimulatedAt}::timestamptz,updated_at=now() WHERE id=${world.id} AND owner_player_id=${world.owner_player_id} RETURNING ecology_state,last_simulated_at,updated_at`;
     Object.assign(world,rows[0]||{});
   }
   return advanced;

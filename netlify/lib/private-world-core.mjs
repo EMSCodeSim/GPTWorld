@@ -35,11 +35,28 @@ export function generatePrivateWorld(seed){
 }
 
 export function initialPrivateEcology(seed){
-  return{version:1,tick:0,season:'Spring',seasonDay:1,weather:'clear',treeCover:38,wildlife:7,soilMoisture:.64,seed:Number(seed)||1};
+  return{version:2,tick:0,worldHour:8,season:'Spring',seasonDay:1,weather:'clear',precipitationRate:0,temperatureC:13,wind:.22,treeCover:38,plantGrowth:.58,forage:.7,wildlife:7,soilMoisture:.64,drought:.18,snowCover:0,seed:Number(seed)||1};
 }
 
 export function advancePrivateEcology(input,lastSimulatedAt,now=new Date()){
   const state=structuredClone(input||initialPrivateEcology(1));
+  const upgraded=Number(state.version||1)<2;
+  state.version=2;
+  state.tick=Number(state.tick||0);
+  state.seed=Number(state.seed)||1;
+  state.season=state.season||'Spring';
+  state.seasonDay=Number(state.seasonDay||1);
+  state.worldHour=Number.isFinite(Number(state.worldHour))?Number(state.worldHour):8;
+  state.precipitationRate=Number(state.precipitationRate||0);
+  state.temperatureC=Number.isFinite(Number(state.temperatureC))?Number(state.temperatureC):13;
+  state.wind=Number.isFinite(Number(state.wind))?Number(state.wind):.22;
+  state.plantGrowth=Number.isFinite(Number(state.plantGrowth))?Number(state.plantGrowth):.58;
+  state.forage=Number.isFinite(Number(state.forage))?Number(state.forage):.7;
+  state.treeCover=Number.isFinite(Number(state.treeCover))?Number(state.treeCover):38;
+  state.wildlife=Number.isFinite(Number(state.wildlife))?Number(state.wildlife):7;
+  state.soilMoisture=Number.isFinite(Number(state.soilMoisture))?Number(state.soilMoisture):.64;
+  state.drought=Number.isFinite(Number(state.drought))?Number(state.drought):.18;
+  state.snowCover=Number(state.snowCover||0);
   const from=Date.parse(lastSimulatedAt||now);
   const elapsedMs=Math.max(0,now.getTime()-(Number.isFinite(from)?from:now.getTime()));
   const requestedSteps=Math.floor(elapsedMs/(6*60*60*1000));
@@ -48,13 +65,28 @@ export function advancePrivateEcology(input,lastSimulatedAt,now=new Date()){
   const seasons=['Spring','Summer','Autumn','Winter'];
   for(let i=0;i<steps;i++){
     state.tick=Number(state.tick||0)+1;
+    state.worldHour=(Number(state.worldHour||0)+6)%24;
     state.seasonDay=Number(state.seasonDay||1)+.25;
     if(state.seasonDay>30){state.seasonDay=.25;state.season=seasons[(seasons.indexOf(state.season)+1)%4]||'Spring';}
     const rainChance={Spring:.45,Summer:.25,Autumn:.38,Winter:.22}[state.season]??.3;
-    state.weather=rand()<rainChance?'rain':'clear';
-    state.soilMoisture=Number(clamp(Number(state.soilMoisture||.6)+(state.weather==='rain'?.035:-.012),.08,1).toFixed(3));
+    const weatherRoll=rand();
+    const seasonalBase={Spring:13,Summer:24,Autumn:14,Winter:2}[state.season]??13;
+    const diurnal=Math.sin((state.worldHour-7)/24*Math.PI*2)*5;
+    state.temperatureC=Number((seasonalBase+diurnal+(rand()-.5)*3).toFixed(1));
+    state.weather=weatherRoll<rainChance*.18?(state.temperatureC<=1?'snow':'heavy rain'):weatherRoll<rainChance?(state.temperatureC<=1?'snow':'rain'):'clear';
+    state.precipitationRate=state.weather==='heavy rain'?.85:state.weather==='rain'?.42:state.weather==='snow'?.32:0;
+    state.wind=Number(clamp(.08+rand()*.72,.05,1).toFixed(2));
+    const moistureGain=state.precipitationRate*.1,drying=Math.max(0,state.temperatureC-9)/190+state.wind*.014;
+    state.soilMoisture=Number(clamp(Number(state.soilMoisture||.6)+moistureGain-drying,.08,1).toFixed(3));
+    state.drought=Number(clamp((1-state.soilMoisture)*.78+Math.max(0,state.temperatureC-22)/38,.02,1).toFixed(3));
+    state.snowCover=Number(clamp(Number(state.snowCover||0)+(state.weather==='snow'?.18:0)-Math.max(0,state.temperatureC)*.025,0,1).toFixed(2));
+    const growthBias={Spring:.018,Summer:.01,Autumn:-.006,Winter:-.012}[state.season]??0;
+    state.plantGrowth=Number(clamp(Number(state.plantGrowth||.58)+growthBias+state.soilMoisture*.006-state.drought*.007,.25,1).toFixed(3));
+    state.forage=Number(clamp(state.plantGrowth*(.65+state.soilMoisture*.35)-state.snowCover*.18,.12,1).toFixed(3));
+    if(state.tick%4===0){const wildlifeDelta=state.forage>.55&&rand()>.62?1:state.forage<.3&&rand()>.45?-1:0;state.wildlife=Math.max(2,Number(state.wildlife||7)+wildlifeDelta);}
+    if(state.tick%8===0&&state.plantGrowth>.72&&rand()>.55)state.treeCover=Math.min(55,Number(state.treeCover||38)+1);
   }
-  return{state,steps,requestedSteps,capped:requestedSteps>steps,simulatedUntil:new Date((Number.isFinite(from)?from:now.getTime())+steps*6*60*60*1000).toISOString()};
+  return{state,steps,requestedSteps,capped:requestedSteps>steps,upgraded,simulatedUntil:new Date((Number.isFinite(from)?from:now.getTime())+steps*6*60*60*1000).toISOString()};
 }
 
 export function ownsWorld(requesterPlayerId,ownerPlayerId){return String(requesterPlayerId)===String(ownerPlayerId);}
