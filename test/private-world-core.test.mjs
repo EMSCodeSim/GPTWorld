@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {advancePrivateEcology,generatePrivateWorld,normalizePosition,ownsWorld,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
 import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
 test('each player receives a stable, distinct generation seed',()=>{
@@ -35,6 +35,30 @@ test('offline ecology is elapsed-time based and bounded',()=>{
   const yearsAgo=advancePrivateEcology(one.state,'2020-01-01T00:00:00Z',now);
   assert.equal(yearsAgo.steps,120);
   assert.equal(yearsAgo.capped,true);
+});
+
+test('living ecology produces deterministic weather, growth, and wildlife state',()=>{
+  const state=initialPrivateEcology(9123);
+  const from='2026-09-16T06:00:00Z',now=new Date('2026-09-16T18:00:00Z');
+  const first=advancePrivateEcology(state,from,now),again=advancePrivateEcology(state,from,now);
+  assert.deepEqual(first,again);
+  assert.equal(first.steps,2);
+  assert.equal(first.state.worldHour,20);
+  assert.match(first.state.weather,/^(clear|rain|heavy rain|snow)$/);
+  assert.ok(first.state.plantGrowth>=.25&&first.state.plantGrowth<=1);
+  assert.ok(first.state.soilMoisture>=.08&&first.state.soilMoisture<=1);
+  assert.ok(first.state.wildlife>=2);
+});
+
+test('legacy private ecology upgrades without advancing simulation time',()=>{
+  const now=new Date('2026-09-16T12:00:00Z');
+  const result=advancePrivateEcology({version:1,seed:44,tick:3,season:'Autumn'},now.toISOString(),now);
+  assert.equal(result.steps,0);
+  assert.equal(result.upgraded,true);
+  assert.equal(result.state.version,2);
+  assert.equal(result.state.worldHour,8);
+  assert.equal(result.state.wildlife,7);
+  assert.equal(result.state.soilMoisture,.64);
 });
 
 test('server position normalization prevents leaving world bounds',()=>{
