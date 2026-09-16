@@ -1,4 +1,4 @@
-name: One-shot Tree Interaction Fix v1
+name: One-shot Day 5 Trail Markers
 on:
   push:
     paths:
@@ -10,20 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Repair tree and plant interaction
-        run: python scripts/fix-tree-interaction-v1.py
-      - name: Verify tree interaction and world entry
+      - name: Implement server-authoritative trail markers
+        run: python scripts/day5-trail-markers.py
+      - name: Verify playable implementation
         run: |
           node --check main.js
-          grep -q 'Inspect ${nearest.label}' main.js
-          grep -q 'interact again' main.js
-          grep -q 'plantInfo' main.js
-          grep -q 'function startGame' main.js
-          grep -q 'tree-interaction-fix-1' index.html
-      - name: Commit tree interaction repair
+          node --check netlify/functions/world-v2.mjs
+          grep -q "place_trail_marker" netlify/functions/world-v2.mjs
+          grep -q "trail_marker_placed" netlify/functions/world-v2.mjs
+          grep -q "Place Trail Marker" index.html
+          grep -q "function startGame" main.js
+          grep -q "restoreSavedPlayer" world-sync.js
+          grep -q "action:'gather'" main.js
+      - name: Commit playable Day 5 implementation
         run: |
-          git config user.name "GPTWorld Systems Bot"
+          git config user.name "GPTWorld Evolution Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html
-          git commit -m "Repair tree inspection and separate gathering action"
+          git add main.js index.html netlify/functions/world-v2.mjs
+          git commit -m "Add server-authoritative player trail markers"
           git push
