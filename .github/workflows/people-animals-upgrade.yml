@@ -28,3 +28,4 @@ jobs:
           git add main.js index.html netlify/functions/resource-state.mjs
           git commit -m "Make depleted plant resources relocate instead of fixed respawn"
           git push
+# retry after upgrade-script syntax repair
