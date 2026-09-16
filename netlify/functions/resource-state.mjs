@@ -17,6 +17,17 @@ const RESOURCE_DEFAULTS = {
   herbs:{max:3,regrowMinutes:20}
 };
 
+// Biological resources colonize new habitat after depletion. Stone deposits are finite.
+const MOBILE_RESOURCES=new Set(['wood','herbs']);
+const habitatSeed=(text)=>{let h=2166136261;for(const ch of String(text)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return(h>>>0)/4294967295};
+function relocatedPosition(nodeId,generation,resource){
+  const a=habitatSeed(`${nodeId}:${generation}:a`)*Math.PI*2;
+  const r=5+habitatSeed(`${nodeId}:${generation}:r`)*18;
+  let x=Math.cos(a)*r+(resource==='herbs'?2:6),z=Math.sin(a)*r;
+  if(x>-30&&x<-18)x=-17+habitatSeed(`${nodeId}:${generation}:bank`)*5;
+  return{x:Number(Math.max(-31,Math.min(31,x)).toFixed(2)),z:Number(Math.max(-31,Math.min(31,z)).toFixed(2))};
+}
+
 const safeInt=(value,fallback,min,max)=>{
   const n=Math.round(Number(value));
   return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
@@ -61,8 +72,10 @@ async function resourceNodes(sql,config){
   for(const [id,cfg] of Object.entries(config)){
     const s=stored[id]||{};
     const regrowAt=s.regrowAt?Date.parse(s.regrowAt):0;
-    const regrown=regrowAt>0&&regrowAt<=now;
-    out[id]={resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null)};
+    const regrown=regrowAt>0&&regrowAt<=now&&MOBILE_RESOURCES.has(cfg.resource);
+    const generation=Number(s.generation||0)+(regrown?1:0);
+    const pos=regrown?relocatedPosition(id,generation,cfg.resource):{x:s.x??null,z:s.z??null};
+    out[id]={resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null),generation,x:pos.x,z:pos.z};
   }
   return out;
 }
@@ -115,7 +128,7 @@ export default async (req) => {
               'resource',${cfg.resource}::text,
               'max',${cfg.max}::int,
               'remaining',GREATEST(0,calc.before_count-${amount}::int),
-              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END
+              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 AND ${MOBILE_RESOURCES.has(cfg.resource)}::boolean THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END
             ),true
           ), updated_at=now()
           FROM calc WHERE ws.key='resource_nodes' AND calc.before_count>=${amount}::int
