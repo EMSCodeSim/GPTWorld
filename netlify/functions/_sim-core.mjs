@@ -53,6 +53,7 @@ export function ecologyRenderEntities(ecosystem,now=Date.now(),weather=null,obse
  // Persistent-looking seasonal game trails derived deterministically from current ecology and season.
  if(last?.type==='wildfire'){for(let i=0;i<8;i++)part(out,`eco-burn-scar-${i}`,-2+i*2.1,10+(i%2)*1.2,1.8,.03,1.3,'#3f392f',{part:'burn-scar',disaster:last.id});}
  if(last?.type==='flood'){for(let i=0;i<6;i++)part(out,`eco-flood-mark-${i}`,-20+i*.8,-5+i*2.3,.7,.04,1.4,'#526f73',{part:'flood-mark',disaster:last.id});}
+ const patches=Array.isArray(ecosystem?.plantPatches)?ecosystem.plantPatches:[];for(const p of patches.slice(-24)){const seed=hash01(p.id),a=habitat(p.habitat,seed),count=Math.max(1,Math.min(4,Math.ceil(Number(p.population||0)/250)));for(let n=0;n<count;n++)part(out,`eco-patch-${p.id}-${n}`,a.x+(n-1.5)*.7,a.z+((n%2)-.5)*.8,.45,.16,.45,p.stage==='pioneer'?'#7d8a4d':'#5f773f',{part:'plant-patch',species:p.speciesId,stage:p.stage,habitat:p.habitat});}
  const season=String(weather?.season||'Spring');
  for(const s of species.filter(x=>x.kind!=='plant'&&Number(x.population||0)>0)){
   const seed=hash01(s.id||s.name),a=habitat(s.habitat,seed),target=s.kind==='herbivore'?(season==='Winter'?{x:-8,z:-4}:season==='Summer'?{x:-15,z:2}:season==='Autumn'?{x:1,z:1}:{x:4,z:5}):(season==='Winter'?{x:12,z:-3}:{x:18,z:-5});
