@@ -1,40 +1,77 @@
-# GPTWorld — Simulations Inside the Game
+# GPTWorld — Autonomous World + GPT Game Developer
 
-GPTWorld is one persistent multiplayer game containing multiple autonomous simulations. No simulation owns the others. They exchange effects through shared server-authoritative world state and player actions.
+GPTWorld is one persistent multiplayer game with two deliberately separate layers:
 
-## 1. Ecology simulation
+1. **The World Engine runs the world autonomously.**
+2. **Daily GPT develops the playable game around the world.**
+
+The world must continue operating if GPT never runs again. GPT is not a runtime dependency for weather, ecology, disasters, NPC life, resources, settlement activity, or any other recurring simulation.
+
+## World Engine contract
+
+The World Engine owns physical and living state. Its systems use persisted state, deterministic rules, controlled randomness, elapsed/world time, and player actions. No autonomous simulation may require an OpenAI/GPT call to advance.
+
+### Ecology simulation
 State: `world_state.ecosystem`.
-Clock: `ecosystem-tick` independently checks hourly; ecology currently advances at most once per UTC date.
-Owns: species, populations, habitats, ecological climate adaptation, extinction/speciation history.
-Rendering: `world-v2` converts persisted ecology into visible plants and moving animal representations in the normal world render stream. Ecology visuals are not created by the daily GPT evolution.
-Player interaction: players can directly alter ecology through validated server actions such as planting habitat or clearing brush. These actions are logged.
+Owns plants, animals, populations, food chains, reproduction, predation, migration, habitats, succession, adaptation, extinction/speciation history and ecological consequences.
 
-## 2. Weather and seasons simulation
+### Weather and seasons simulation
 State: `world_state.weather_sim`.
-Clock: `weather-tick` hourly.
-Owns: world hour/day, season/season day, temperature, precipitation, wind, soil moisture and drought.
-Rule: narrative Day N never manually advances weather or seasons.
+Owns world hour/day, seasons, temperature, precipitation, wind, soil moisture, drought and weather transitions.
 
-## 3. Natural disaster simulation
+### Natural disaster simulation
 State: `world_state.disaster_sim`.
-Clock: `disaster-tick` hourly.
-Owns: wildfire, flood, severe-storm and disease risk; active disasters; disaster history; player mitigation/response.
-Inputs: weather/season state, ecology state and accumulated mitigation.
-Player interaction: players can reduce environmental risk and respond to active disasters. Responses are persistent and logged.
+Owns wildfire, flood, severe weather, disease risk, active disasters, mitigation and persistent disaster history.
 
-## 4. Daily GPT evolution
-State/history: `current_day`, Chronicle, DAY files, world state and events.
+### NPC / settlement simulation
+Owns NPC needs, routines, work, relationships, production/consumption, settlement shortages and later population/economic behavior. GPT may enhance NPC language, but NPC life must have a non-AI fallback and continue without GPT.
+
+### Resources and world state
+Server-authoritative systems own gathering, inventory, regeneration, construction inputs and other consequential shared state. Browser state is never authoritative for valuable world mutations.
+
+## Daily GPT contract — evolving game developer
+
+State/history: current world day, Chronicle, world events, player behavior, simulation summaries and existing game code.
 Clock: scheduled daily evolution at 02:00 America/Denver.
-Owns: one meaningful narrative/gameplay evolution per numbered world day.
-Daily GPT observes the autonomous simulations and player history but does not act as their timer. It may change their rules or connect them when justified, but it must preserve their independent clocks and persistent state.
 
-## 5. Players
-Players live inside all simulations rather than above them. Player actions may affect one or more simulations when the interaction makes physical/gameplay sense. Valuable mutations must be server-authoritative, validated and logged. Examples: habitat work affects ecology; brush clearing affects ecology and wildfire mitigation; disaster response affects active disaster outcomes; future construction may affect flood paths, habitat, shelter or resource pressure.
+Daily GPT is the evolving **game designer and developer**, not the simulation engine. It observes what the autonomous world and players actually produced, then adds or deepens playable systems when justified.
 
-## Cross-simulation rule
-Simulations may read outputs from other simulations but should remain independently recoverable. A failure in an optional simulation must not reset the narrative day, player identity, inventory or unrelated simulation state.
+Primary development areas include:
+- money, trade and economy gameplay
+- skills and progression
+- crafting, recipes, tools and equipment
+- building and construction
+- farming and domestication gameplay
+- professions and specialization
+- exploration and new playable areas
+- combat and survival mechanics
+- transportation
+- player organizations and cooperation
+- NPC interaction mechanics
+- interfaces and quality-of-life improvements
+- new gameplay systems that emerge logically from world/player history
 
-Example chain: dry weather raises drought -> ecology changes -> wildfire risk rises -> a disaster may begin -> players respond or ignore it -> persistent consequences become part of world history -> a later Daily GPT evolution may react to what actually happened.
+Daily GPT may write real game code and add new autonomous rules. Once a rule/system is created, the World Engine runs it without GPT. Example: GPT may introduce farming, but crop growth thereafter belongs to the autonomous simulation.
 
-## Current implementation note
-This architecture is infrastructure and does not advance the numbered world day. It was introduced while the narrative world remained on Day 4.
+## Hard separation rules
+
+1. GPT does not manufacture weather, animal population changes, plant growth, NPC hunger, disasters, resource regeneration or other recurring simulation outcomes.
+2. GPT does not overwrite simulation truth to justify a feature.
+3. GPT may create/change simulation **rules**, migrations, interfaces and connections, but recurring execution remains autonomous.
+4. New gameplay should preferably have an in-world cause in recorded history, available resources, player behavior or existing conditions.
+5. GPT must preserve persistent state and recorded history.
+6. If the GPT/API layer is unavailable, the world continues living and players can continue playing; only new GPT-created development pauses.
+7. Simulation infrastructure/maintenance does not advance the numbered narrative World Day.
+8. The numbered World Day records meaningful GPTWorld development/history; it is not the universal simulation clock.
+
+## Information flow
+
+`Autonomous World Sims → persisted state/events → Daily GPT observes → gameplay code/rules/features → autonomous World Engine runs new rules → players interact → new state/events`
+
+GPT interprets, connects and expands consequences. It does not replace the systems producing those consequences.
+
+## Example
+
+Weather creates a drought → ecology reduces available forage → animals migrate → NPC/player gathering patterns change → events record the consequences → Daily GPT notices the emerging pressure and may create irrigation, water-storage, farming or trade gameplay → those new mechanics thereafter run under autonomous rules.
+
+This architecture is infrastructure and does not itself advance the numbered world day.
