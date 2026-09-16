@@ -22,6 +22,21 @@ function baseRenderEntities(value){
   return [];
 }
 
+function decayTrailMarker(entity, nowMs){
+  if(!String(entity?.id||'').startsWith('trail-marker-')) return entity;
+  const createdAt=Date.parse(String(entity.createdAt||''));
+  if(!Number.isFinite(createdAt)) return entity;
+  const lifespanDays=Math.max(1,Number(entity.decayDays||14));
+  const ageDays=Math.max(0,(nowMs-createdAt)/86400000);
+  if(ageDays>=lifespanDays) return null;
+  const progress=Math.max(0,Math.min(1,ageDays/lifespanDays));
+  let stage='fresh',color='#765236',height=2.1,width=.22,depth=.22;
+  if(progress>=.8){stage='crumbling';color='#4f463a';height=1.12;width=.18;depth=.18}
+  else if(progress>=.55){stage='worn';color='#625342';height=1.55;width=.2;depth=.2}
+  else if(progress>=.3){stage='weathered';color='#6b5944';height=1.85;width=.21;depth=.21}
+  return {...entity,color,height,width,depth,decayStage:stage,decayProgress:Number(progress.toFixed(3))};
+}
+
 export default async (req) => {
   if (!process.env.DATABASE_URL) return json({ ok: false, error: 'database_not_configured' }, 503);
   const sql = neon(process.env.DATABASE_URL);
@@ -36,8 +51,12 @@ export default async (req) => {
         clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([])
       ]);
       const world = Object.fromEntries(worldRows.map(row => [row.key, row.value]));
-      const persistent=baseRenderEntities(world.render_entities).filter(e=>!String(e?.id||'').startsWith('eco-'));
-      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem,Date.now(),world.weather_sim,meRows[0]||null)];
+      const nowMs=Date.now();
+      const persistent=baseRenderEntities(world.render_entities)
+        .filter(e=>!String(e?.id||'').startsWith('eco-'))
+        .map(e=>decayTrailMarker(e,nowMs))
+        .filter(Boolean);
+      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
@@ -75,13 +94,13 @@ export default async (req) => {
               COALESCE(ws.value->'entities','[]'::jsonb) || jsonb_build_array(jsonb_build_object(
                 'id', 'trail-marker-' || ${playerId}::text || '-' || floor(extract(epoch from clock_timestamp())*1000)::bigint::text,
                 'type','object','x',${x},'z',${z},'width',0.22,'height',2.1,'depth',0.22,'color','#765236',
-                'label','Traveler trail marker','createdDay',5,'createdBy',${name}
+                'label','Traveler trail marker','createdDay',5,'createdBy',${name},'createdAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'decayDays',14
               )), updated_at = now()
             FROM current, deduct WHERE ws.key = 'render_entities'
             RETURNING ws.value, deduct.wood, deduct.stone, deduct.herbs
           ), logged AS (
             INSERT INTO world_events(player_id,event_type,payload)
-            SELECT ${playerId}, 'trail_marker_placed', jsonb_build_object('x',${x},'z',${z},'day',5,'cost',jsonb_build_object('wood',2,'stone',1)) FROM updated
+            SELECT ${playerId}, 'trail_marker_placed', jsonb_build_object('x',${x},'z',${z},'day',5,'cost',jsonb_build_object('wood',2,'stone',1),'decayDays',14) FROM updated
             RETURNING id
           ) SELECT value,wood,stone,herbs FROM updated
         `;
