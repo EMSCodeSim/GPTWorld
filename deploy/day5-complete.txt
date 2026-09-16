@@ -1,0 +1,3 @@
+Day 5 Trail Signs implementation and Chronicle are complete.
+Playable implementation: 031dde2c8ece02535a4a3b13ab0189ff20484940
+Chronicle: 61bac8c28fa465eab8ebd5a669cbeb39046aad11
