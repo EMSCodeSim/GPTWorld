@@ -14,7 +14,7 @@ GPTWorld is a living persistent-world experiment. The **World Engine lives on it
 8. Resources have origins; avoid infinite economies where practical.
 9. Important events become persistent history.
 10. Player-created settlements, businesses, roads, guilds, discoveries and monuments may become permanent.
-11. New players enter the existing shared world rather than a private copy.
+11. New players enter the existing shared public civilization and may travel to one owner-isolated living world; private worlds are persistent ecosystems connected by the same character, inventory, and economy rather than copies of the public town.
 12. Specialization should eventually prevent effortless mastery of every profession.
 13. No pay-to-win systems.
 14. Keep technology lightweight, understandable and recoverable.
@@ -73,6 +73,8 @@ GPTWorld is a living persistent-world experiment. The **World Engine lives on it
 55. Ecology creates consequences for gathering, hunting, settlement growth, agriculture, travel and future gameplay.
 56. Preserve ancestry/lineage when practical.
 57. Ecology has no predetermined final form.
+58. Public and private worlds use the same ecological principles, but only the public-world schedule may advance the public day.
+59. Private worlds catch up from persisted timestamps in deterministic, bounded steps; they are never kept alive as one continuously running process per player.
 
 ## Founding premise
 

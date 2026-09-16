@@ -7,6 +7,8 @@ GPTWorld is one persistent multiplayer game with two deliberately separate layer
 
 The world must continue operating if GPT never runs again. GPT is not a runtime dependency for weather, ecology, disasters, NPC life, resources, settlement activity, or any other recurring simulation.
 
+The shared public world and owner-isolated private living worlds use this same engine contract. Private worlds persist a generation seed, terrain changes, ecology state, and `last_simulated_at`; they advance on access through bounded elapsed-time catch-up rather than permanent per-player processes. Private simulation must never increment the public world's day.
+
 ## World Engine contract
 
 The World Engine owns physical and living state. Its systems use persisted state, deterministic rules, controlled randomness, elapsed/world time, and player actions. No autonomous simulation may require an OpenAI/GPT call to advance.

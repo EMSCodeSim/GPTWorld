@@ -31,6 +31,16 @@
     Cache-Control = "no-store, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/private-world.html"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/private-world.js"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/info-center.js"
   [headers.values]
     Cache-Control = "no-store, max-age=0, must-revalidate"
