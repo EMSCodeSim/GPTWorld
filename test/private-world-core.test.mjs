@@ -15,10 +15,20 @@ test('private terrain generation is deterministic and contains required biomes',
   assert.notDeepEqual(first.objects,other.objects);
   assert.ok(first.water);
   assert.ok(first.farmland.fertility>0);
+  assert.equal(first.farmland.prepared,false);
+  assert.deepEqual(first.structures,[]);
   assert.ok(first.clearing.radius>=8);
   assert.ok(first.objects.some(item=>item.kind==='tree'));
   assert.ok(first.objects.some(item=>item.kind==='rock'));
   assert.ok(first.objects.some(item=>item.kind==='wildlife'));
+});
+
+test('personal world begins undeveloped and wildlife faces its movement axis',async()=>{
+  const client=(await readFile(new URL('../private-world.js',import.meta.url),'utf8'));
+  assert.doesNotMatch(client,/buildHomestead\(\)/);
+  assert.doesNotMatch(client,/new THREE\.BoxGeometry\(terrain\.farmland\.width/);
+  assert.match(client,/body\.scale\.set\(\.72,\.78,1\.45\)/);
+  assert.match(client,/for\(const x of\[-\.22,\.22\]\)for\(const z of\[-\.4,\.4\]\)/);
 });
 
 test('world ownership denies a different player',()=>{
