@@ -74,6 +74,17 @@ export default async req=>{
 
     if(req.method==='POST'){
       const body=await req.json().catch(()=>({}));
+      if(body.action==='npc_interact'){
+        const npcName=String(body.npc||'').slice(0,60),traveler=String(body.traveler||'Traveler').slice(0,40);
+        const rows=await sql`SELECT value FROM world_state WHERE key='npc_life'`;const life=rows[0]?.value||{};const person=life.people?.[npcName];if(!person)return json({ok:false,error:'npc_not_found'},404);
+        const rel=person.knownTravelers?.[traveler]||{familiarity:0,helpfulActs:0};rel.familiarity=Math.min(100,Number(rel.familiarity||0)+4);person.knownTravelers={...(person.knownTravelers||{}),[traveler]:rel};
+        const level=rel.familiarity>=55?'trusted':rel.familiarity>=18?'familiar':'stranger',mem=(life.memories?.[npcName]||[]).filter(m=>m.traveler===traveler).slice(-2);
+        const needs=person.needs||{};let request=null;if(Number(needs.food||0)>.62)request={resource:'wood',reason:'settlement supplies are running thin'};if(person.role==='Healer'&&Number(needs.food||0)>.48)request={resource:'herbs',reason:'remedies need replenishing'};if(person.role==='Smith'&&Number(needs.food||0)>.48)request={resource:'stone',reason:'repairs need material'};
+        const greeting=level==='trusted'?`${npcName} greets you warmly.`:level==='familiar'?`${npcName} recognizes you.`:`${npcName} studies the new face.`;
+        const memory=mem.length?` I remember: ${mem[mem.length-1].text}`:'';const requestText=request?` We could use ${request.resource}; ${request.reason}.`:'';
+        life.people[npcName]=person;await sql`UPDATE world_state SET value=${JSON.stringify(life)}::jsonb,updated_at=now() WHERE key='npc_life'`;await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (NULL,'npc_interaction',${JSON.stringify({npc:npcName,traveler,relationship:level})}::jsonb)`;
+        return json({ok:true,npc:npcName,role:person.role,relationship:level,familiarity:rel.familiarity,greeting,memory,request,dialogue:`${greeting}${memory}${requestText}`});
+      }
       if(body.action!=='observe_travel')return json({ok:false,error:'invalid_action'},400);
       const x=clamp(Number(body.x||0),-40,40),z=clamp(Number(body.z||0),-40,40);
       const cx=Math.round(x/4),cz=Math.round(z/4),cell=`${cx},${cz}`;
