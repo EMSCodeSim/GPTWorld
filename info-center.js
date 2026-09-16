@@ -39,7 +39,7 @@ function ensureUI(){
   if(document.getElementById('infoCenter'))return;
   ensureStyles();
   const btn=document.createElement('button');
-  btn.id='infoCenterButton';btn.type='button';btn.textContent='ⓘ Info';btn.setAttribute('aria-expanded','false');
+  btn.id='infoCenterButton';btn.type='button';btn.textContent='ⓘ Info · Weather';btn.setAttribute('aria-expanded','false');
   document.body.appendChild(btn);
   const panel=document.createElement('section');
   panel.id='infoCenter';panel.setAttribute('aria-label','GPTWorld information center');
@@ -51,7 +51,10 @@ function ensureUI(){
   render();
 }
 
-function setOpen(v){infoOpen=v;document.getElementById('infoCenter')?.classList.toggle('open',v);const b=document.getElementById('infoCenterButton');if(b){b.setAttribute('aria-expanded',String(v));b.textContent=v?'Close info':'ⓘ Info';}if(v){refreshAll();render();}}
+
+function infoButtonLabel(){const w=living?.weather||{};const condition=String(w.condition||w.precipitation||'Weather');const temp=Number(w.temperatureC);return `ⓘ Info · ${condition}${Number.isFinite(temp)?` · ${temp.toFixed(0)}°C`:''}`;}
+function syncCombinedStatus(){const b=document.getElementById('infoCenterButton');if(b&&!infoOpen)b.textContent=infoButtonLabel();const legacy=document.getElementById('worldSimsButton');if(legacy)legacy.style.display='none';}
+function setOpen(v){infoOpen=v;document.getElementById('infoCenter')?.classList.toggle('open',v);const b=document.getElementById('infoCenterButton');if(b){b.setAttribute('aria-expanded',String(v));b.textContent=v?'Close info':infoButtonLabel();}if(v){refreshAll();render();}}
 
 function render(){
   ensureUI();
@@ -100,7 +103,7 @@ function openBridgeHistory(){
 }
 
 async function refreshAll(){
-  try{const r=await fetch(INFO_WORLD_API,{cache:'no-store'});const d=await r.json();if(d.ok)living=d;}catch{}
+  try{const r=await fetch(INFO_WORLD_API,{cache:'no-store'});const d=await r.json();if(d.ok)living=d;syncCombinedStatus();}catch{}
   try{const r=await fetch(INFO_MEMORY_API,{cache:'no-store'});const d=await r.json();if(d.ok)ecosystem=d.world?.ecosystem||d.ecosystem||null;}catch{}
   render();
 }
@@ -119,6 +122,6 @@ function manageBridge(){
 ensureUI();
 hideLegacyMenus();
 refreshAll();
-setInterval(()=>{hideLegacyMenus();manageBridge();if(infoOpen&&infoTab==='chronicle')render();},500);
+setInterval(()=>{hideLegacyMenus();syncCombinedStatus();manageBridge();if(infoOpen&&infoTab==='chronicle')render();},500);
 setInterval(refreshAll,60000);
 window.addEventListener('focus',refreshAll);
