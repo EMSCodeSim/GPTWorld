@@ -58,6 +58,37 @@ export default async (req) => {
       const playerId = players[0].id;
       await sql`INSERT INTO player_inventory (player_id, wood, stone, herbs, updated_at) VALUES (${playerId}, 0, 0, 0, now()) ON CONFLICT (player_id) DO NOTHING`;
 
+      if (body.action === 'place_trail_marker') {
+        const result = await sql`
+          WITH current AS (
+            SELECT value FROM world_state WHERE key = 'render_entities' FOR UPDATE
+          ), deduct AS (
+            UPDATE player_inventory
+            SET wood = wood - 2, stone = stone - 1, updated_at = now()
+            WHERE player_id = ${playerId} AND wood >= 2 AND stone >= 1
+            RETURNING wood, stone, herbs
+          ), updated AS (
+            UPDATE world_state ws
+            SET value = jsonb_set(
+              COALESCE(ws.value, '{"entities":[]}'::jsonb),
+              '{entities}',
+              COALESCE(ws.value->'entities','[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+                'id', 'trail-marker-' || ${playerId}::text || '-' || floor(extract(epoch from clock_timestamp())*1000)::bigint::text,
+                'type','object','x',${x},'z',${z},'width',0.22,'height',2.1,'depth',0.22,'color','#765236',
+                'label','Traveler trail marker','createdDay',5,'createdBy',${name}
+              )), updated_at = now()
+            FROM current, deduct WHERE ws.key = 'render_entities'
+            RETURNING ws.value, deduct.wood, deduct.stone, deduct.herbs
+          ), logged AS (
+            INSERT INTO world_events(player_id,event_type,payload)
+            SELECT ${playerId}, 'trail_marker_placed', jsonb_build_object('x',${x},'z',${z},'day',5,'cost',jsonb_build_object('wood',2,'stone',1)) FROM updated
+            RETURNING id
+          ) SELECT value,wood,stone,herbs FROM updated
+        `;
+        if (!result.length) return json({ ok:false, error:'not_enough_materials' },409);
+        return json({ ok:true, inventory:{wood:Number(result[0].wood||0),stone:Number(result[0].stone||0),herbs:Number(result[0].herbs||0)}, render_entities:result[0].value });
+      }
+
       if (body.action === 'contribute_bridge') {
         const giveWood = Math.min(20, cleanInt(body.wood, 20));
         const giveStone = Math.min(10, cleanInt(body.stone, 10));
