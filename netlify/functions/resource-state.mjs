@@ -33,7 +33,7 @@ const safeInt=(value,fallback,min,max)=>{
   return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
 };
 
-const forestStage=(pressure)=>pressure>=75?'critical':pressure>=50?'stressed':pressure>=25?'watched':'stable';
+const forestStage=(pressure)=>pressure>=70?'critical':pressure>=45?'stressed':pressure>=20?'watched':'stable';
 const forestPressureScore=(harvested,depletedSites,mitigation=0,expansion=0)=>Math.max(0,Math.min(100,harvested*2+depletedSites*8-mitigation+expansion*8));
 
 async function ensureForestPressure(sql){
@@ -57,7 +57,7 @@ async function recordForestHarvest(sql,playerId,nodeId,depleted){
     ), scored AS (
       SELECT *,LEAST(100,GREATEST(0,harvested*2+depleted_sites*8-mitigation+expansion*8))::int AS pressure FROM counted
     ), staged AS (
-      SELECT *,CASE WHEN pressure>=75 THEN 'critical' WHEN pressure>=50 THEN 'stressed' WHEN pressure>=25 THEN 'watched' ELSE 'stable' END AS new_stage FROM scored
+      SELECT *,CASE WHEN pressure>=70 THEN 'critical' WHEN pressure>=45 THEN 'stressed' WHEN pressure>=20 THEN 'watched' ELSE 'stable' END AS new_stage FROM scored
     ), updated AS (
       UPDATE world_state ws SET value=jsonb_build_object(
         'version',1,'harvested',staged.harvested,'depletedSites',staged.depleted_sites,'pressure',staged.pressure,

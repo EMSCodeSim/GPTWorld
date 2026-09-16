@@ -8,7 +8,7 @@ const CHOICES={
   continue_expansion:{label:'Continue expansion',mitigation:0,expansion:1,effect:'Building continues, accepting greater habitat pressure.'}
 };
 
-const stageFor=(pressure)=>pressure>=75?'critical':pressure>=50?'stressed':pressure>=25?'watched':'stable';
+const stageFor=(pressure)=>pressure>=70?'critical':pressure>=45?'stressed':pressure>=20?'watched':'stable';
 
 async function ensureState(sql){
   const initial={version:1,harvested:0,depletedSites:0,pressure:0,stage:'stable',response:null,responseVotes:{replant:0,managed_woodlot:0,restrict_harvest:0,continue_expansion:0},mitigation:0,expansion:0,milestone:0,lastEventAt:null,lastNodeId:null};
