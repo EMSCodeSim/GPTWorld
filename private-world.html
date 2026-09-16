@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+  <meta name="theme-color" content="#17231a" />
+  <title>GPTWorld — My World</title>
+  <link rel="stylesheet" href="./styles.css?v=living-worlds-1" />
+  <link rel="stylesheet" href="./private-world.css?v=living-worlds-1" />
+</head>
+<body>
+  <main id="app">
+    <div id="world" aria-label="Your interactive private world"></div>
+    <section class="topbar" aria-label="World status">
+      <div class="world-title"><div class="eyebrow">GPTWORLD · MY WORLD</div><h1 id="worldName">Living Homestead</h1></div>
+      <div class="status-strip"><span id="season">Spring</span><span id="weather">Clear</span></div>
+    </section>
+    <button id="returnTown" class="return-town" type="button">Return to Town</button>
+    <section class="panel inventory" aria-label="Inventory"><h2>Pack</h2><div class="inventory-row"><div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div><div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div><div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div></div></section>
+    <div id="prompt" class="prompt" hidden></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <section class="mobile-controls" aria-label="Movement controls"><div id="joystick" class="joystick" role="application" aria-label="Movement joystick"><div class="joystick-ring"></div><div id="joystickKnob" class="joystick-knob"></div></div><button id="actionButton" class="action" type="button"><span>✦</span><strong>Interact</strong></button></section>
+    <section id="loading" class="welcome" aria-modal="true" role="dialog"><div class="welcome-card"><div class="eyebrow">PRIVATE LIVING WORLD</div><h2 id="loadingTitle">Opening your world…</h2><p id="loadingMessage">Loading its persistent landscape and catching up bounded offline ecology.</p><button id="retry" type="button" hidden>Try again</button><a class="loading-return" href="./index.html">Return to Public Town</a></div></section>
+  </main>
+  <script type="module" src="./private-world.js?v=living-worlds-1"></script>
+</body>
+</html>

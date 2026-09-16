@@ -1,0 +1,4 @@
+.return-town{position:absolute;z-index:30;right:18px;top:76px;min-height:44px;border:1px solid rgba(210,179,106,.65);border-radius:999px;padding:10px 14px;background:rgba(14,31,20,.94);color:#f4e3b9;font-weight:800;box-shadow:0 5px 18px rgba(0,0,0,.3);touch-action:manipulation}
+.return-town:disabled{opacity:.55}
+.loading-return{display:block;margin-top:12px;color:#d2b36a;text-align:center}
+@media(max-width:800px),(pointer:coarse){.return-town{top:max(68px,calc(env(safe-area-inset-top) + 58px));right:max(10px,env(safe-area-inset-right));font-size:12px;padding:9px 12px}.inventory{pointer-events:none}.topbar .world-title{max-width:58vw}.topbar .status-strip{margin-top:40px}}
