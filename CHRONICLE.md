@@ -37,3 +37,11 @@ With the Western Crossing complete and the storehouse well supplied, travelers b
 A short survey trail and marker now extend beyond the river, leaving a visible record of the settlement's first deliberate mapping effort outside the original valley core. Newly mapped wood, stone, and medicinal herbs can now be gathered there through the same persistent server-authoritative resource system used elsewhere in the world.
 
 The expansion is intentionally modest: the settlement has not founded a new outpost or claimed a large territory. It has simply begun turning repeated travel and resource work into a persistent path toward whatever lies farther west.
+
+## Day 5 — Trail Signs
+
+The settlement's stores remained strong while travelers continued gathering and moving across the valley and western survey route.
+
+Travelers can now turn a small amount of their own wood and stone into a persistent trail marker at the place where they stand. The shared world validates the cost, records the placement, and renders the marker for future travelers.
+
+These signs are modest, but they change the relationship between travelers and the landscape: exploration can now leave a player-made physical memory rather than only a coordinate or event record.
