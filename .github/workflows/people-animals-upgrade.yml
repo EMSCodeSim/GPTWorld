@@ -1,4 +1,4 @@
-name: One-shot NPC Life Sim v1
+name: One-shot NPC Interaction v2
 on:
   push:
     paths:
@@ -10,20 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Upgrade persistent NPC life
-        run: python scripts/npc-life-sim-v1.py
-      - name: Syntax and entry checks
+      - name: Add contextual NPC interaction
+        run: python scripts/npc-interaction-v2.py
+      - name: Verify NPC interaction and world entry
         run: |
           node --check main.js
           node --check netlify/functions/living-systems.mjs
+          grep -q "talkToNPC" main.js
+          grep -q "npc_interact" netlify/functions/living-systems.mjs
           grep -q "function startGame" main.js
-          grep -q "enterWorldBtn.addEventListener" main.js
-          grep -q "version:2" netlify/functions/living-systems.mjs
-          grep -q "npc-life-1" index.html
-      - name: Commit NPC Life Sim
+          grep -q "npc-interact-2" index.html
+      - name: Commit NPC interaction
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html netlify/functions/living-systems.mjs
-          git commit -m "Upgrade NPCs with persistent needs roles memory and decisions"
+          git commit -m "Add NPC relationships contextual dialogue requests and work motion"
           git push
