@@ -7,7 +7,7 @@
   <title>GPTWorld · Building interior</title>
   <link rel="stylesheet" href="./styles.css?v=interior-world-1" />
   <style>
-    #app{background:#17130f}.interior-topbar{align-items:flex-start}.interior-links{display:flex;gap:8px;pointer-events:auto}.interior-links a{display:block;padding:8px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(10,15,12,.76);color:#efe2bd;text-decoration:none;font-size:12px;backdrop-filter:blur(10px)}
+    #app{background:#17130f}.topbar.interior-topbar{align-items:flex-start;pointer-events:auto}.interior-topbar .world-title{pointer-events:none}.interior-links{position:relative;z-index:30;display:flex;gap:8px;pointer-events:auto}.interior-links a{display:block;padding:8px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(10,15,12,.76);color:#efe2bd;text-decoration:none;font-size:12px;backdrop-filter:blur(10px);touch-action:manipulation}
     #loading{position:absolute;z-index:60;inset:0;display:grid;place-items:center;padding:22px;background:#101611}#loading[hidden]{display:none}.loading-card{width:min(390px,100%);padding:24px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:#171d19;text-align:center}.loading-card h2{font-family:Georgia,serif}.loading-card p{color:#b9b4a8;line-height:1.5}.loading-card button{border:0;border-radius:10px;padding:12px 16px;background:#d2b36a;color:#17120a;font-weight:800}.loading-card a{display:inline-block;margin-top:16px;color:#e5cd94}.loading-card [hidden]{display:none}
     .interior-hint{position:absolute;z-index:5;left:18px;bottom:18px;max-width:270px;padding:11px 13px;border:1px solid rgba(255,255,255,.12);border-radius:13px;background:rgba(14,19,16,.82);color:#b9b4a8;font-size:12px;line-height:1.4;backdrop-filter:blur(10px)}
     @media(max-width:800px),(pointer:coarse){.interior-links{display:grid;gap:4px}.interior-links a{padding:6px 8px;font-size:9px;text-align:center}.interior-hint{display:none}.interior-topbar .status-strip{display:none}.interior-topbar .world-title{max-width:55vw}.mobile-controls{display:flex}}
@@ -18,7 +18,7 @@
     <div id="world" aria-label="Interactive 3D building interior"></div>
     <section class="topbar interior-topbar" aria-label="Building status">
       <div class="world-title"><div class="eyebrow">GPTWORLD · INTERIOR</div><h1 id="buildingName">Building</h1></div>
-      <div class="interior-links"><a href="./">Exit to world</a><a href="./town.html">Town upgrades</a></div>
+      <div class="interior-links"><a id="exitWorld" href="./index.html">Exit to world</a><a href="./town.html">Town upgrades</a></div>
     </section>
     <div id="prompt" class="prompt" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
