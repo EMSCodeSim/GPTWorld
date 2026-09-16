@@ -93,3 +93,7 @@ The AI evolution process should use the same evidence players can inspect. This 
 ### Visible consequence rule
 
 When shared state changes a place, the playable world should show that change. Town building levels must alter their exterior models, interiors, and interaction labels; future projects should follow the same pattern instead of existing only in menus.
+
+### Forest pressure chain
+
+Wood harvesting now accumulates in the persistent `forest_pressure` state. Depleted trees remain as visible stumps, renewable trees establish as smaller saplings in new habitat, and animals shift toward refuge as pressure rises. At watched, stressed, or critical pressure, travelers can support replanting, a managed woodlot, harvest restrictions, or continued expansion. Each traveler gets one recorded voice per pressure milestone. The chosen response changes the pressure immediately, enters `world_events`, appears in Living Memory, and becomes something Mara, Tovan, and Edda can remember.

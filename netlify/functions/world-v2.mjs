@@ -56,7 +56,7 @@ export default async (req) => {
         .filter(e=>!String(e?.id||'').startsWith('eco-'))
         .map(e=>decayTrailMarker(e,nowMs))
         .filter(Boolean);
-      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null)];
+      world.render_entities=[...persistent,...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 

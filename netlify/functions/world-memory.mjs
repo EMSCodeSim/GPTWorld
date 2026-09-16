@@ -8,7 +8,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 const meaningfulTypes = new Set([
   'resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed',
   'bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced',
-  'weather_changed','settlement_consumption','world_aging_milestone'
+  'weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen'
 ]);
 
 function eventStory(event){
@@ -25,6 +25,8 @@ function eventStory(event){
   if(type==='settlement_consumption')return{...base,title:'The settlement consumed supplies',what:`The settlement used ${Number(p.consumed?.wood||0)} wood, ${Number(p.consumed?.stone||0)} stone, and ${Number(p.consumed?.herbs||0)} herbs.`,why:'Buildings and residents require continuing support.',next:`Settlement condition is ${p.status||'being assessed'} (${Number(p.score||0)}/100).`};
   if(type==='world_aging_milestone')return{...base,title:'Time left a visible mark',what:String(p.note||'The settlement aged.'),why:'The world continues changing even when no traveler is present.',next:'Wear, regrowth, and patina will accumulate instead of resetting.'};
   if(type==='weather_changed')return{...base,title:'Weather changed',what:`Conditions shifted to ${p.condition||'new weather'}.`,why:'The live weather simulation continued advancing.',next:'Moisture, temperature, and wind can affect ecology and disaster risk.'};
+  if(type==='forest_pressure_changed')return{...base,title:`Forest pressure became ${p.stage||'visible'}`,what:`Repeated cutting moved forest pressure from ${p.from||'stable'} to ${p.stage||'a new stage'} (${Number(p.pressure||0)}%).`,why:'Harvesting accumulated into a shared ecological consequence.',next:'Wildlife will shift and residents can now choose how the settlement responds.'};
+  if(type==='forest_response_chosen')return{...base,title:'A forest response entered history',what:`${actor} supported ${String(p.label||p.choice||'a forest response').toLowerCase()}.`,why:'The settlement had to choose between timber growth and habitat recovery.',next:String(p.effect||'The decision now influences forest pressure and future regrowth.')};
   return{...base,title:type.replaceAll('_',' '),what:`${actor} caused a recorded world event.`,why:'The event was preserved in the shared world ledger.',next:'Future evolution can use this event as evidence.'};
 }
 
@@ -32,7 +34,9 @@ function worldPressures(events,world){
   const gathered={wood:0,stone:0,herbs:0},depleted={wood:0,stone:0,herbs:0};let upgrades=0,markers=0;
   for(const event of events){const p=event.payload||{};if(event.event_type==='resource_gathered'){const resource=String(p.resource||'');if(resource in gathered){gathered[resource]+=Number(p.amount||1);if(Number(p.remaining||0)<=0)depleted[resource]++;}}else if(event.event_type==='town_building_upgraded')upgrades++;else if(event.event_type==='trail_marker_placed')markers++;}
   const pressures=[];
-  if(gathered.wood)pressures.push({id:'forest-use',label:'Forest use',strength:Math.min(100,gathered.wood*12+depleted.wood*22),evidence:`${gathered.wood} wood gathered; ${depleted.wood} recent depletion${depleted.wood===1?'':'s'}.`,possible_consequence:depleted.wood?'New trees may establish away from exhausted sites, shifting habitat.':'Continued cutting could begin changing forest cover.'});
+  const forest=world?.forest_pressure;
+  if(forest)pressures.push({id:'forest-use',label:`Forest pressure · ${forest.stage||'stable'}`,strength:Number(forest.pressure||0),evidence:`${Number(forest.harvested||0)} wood gathered; ${Number(forest.depletedSites||0)} sites exhausted.${forest.responseLabel?` Response: ${forest.responseLabel}.`:''}`,possible_consequence:Number(forest.pressure||0)>=25?'Animals are relocating as cover changes. The settlement’s response will become permanent history.':'Continued cutting could begin changing forest cover.'});
+  else if(gathered.wood)pressures.push({id:'forest-use',label:'Forest use',strength:Math.min(100,gathered.wood*12+depleted.wood*22),evidence:`${gathered.wood} wood gathered; ${depleted.wood} recent depletion${depleted.wood===1?'':'s'}.`,possible_consequence:depleted.wood?'New trees may establish away from exhausted sites, shifting habitat.':'Continued cutting could begin changing forest cover.'});
   if(gathered.stone)pressures.push({id:'stone-use',label:'Stone extraction',strength:Math.min(100,gathered.stone*16+depleted.stone*28),evidence:`${gathered.stone} stone gathered; ${depleted.stone} deposit${depleted.stone===1?'':'s'} exhausted.`,possible_consequence:depleted.stone?'Finite deposits may force exploration for new stone sites.':'Known deposits are under increasing pressure.'});
   if(gathered.herbs)pressures.push({id:'herb-use',label:'Medicinal plant use',strength:Math.min(100,gathered.herbs*14+depleted.herbs*20),evidence:`${gathered.herbs} herbs gathered; ${depleted.herbs} patch depletion${depleted.herbs===1?'':'s'}.`,possible_consequence:'Harvest pressure and weather may change where herbs recolonize.'});
   if(upgrades)pressures.push({id:'settlement-growth',label:'Settlement growth',strength:Math.min(100,35+upgrades*25),evidence:`${upgrades} building upgrade${upgrades===1?'':'s'} recorded recently.`,possible_consequence:'A larger settlement will consume more supplies and develop a stronger identity.'});
@@ -49,7 +53,7 @@ export default async (req) => {
   try {
     const [worldRows, recentEvents, activityRows, populationRows] = await Promise.all([
       sql`SELECT key, value, updated_at FROM world_state ORDER BY key`,
-      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id WHERE we.event_type IN ('resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed','bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced','weather_changed','settlement_consumption','world_aging_milestone') ORDER BY we.created_at DESC LIMIT 50`,
+      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id WHERE we.event_type IN ('resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed','bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced','weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen') ORDER BY we.created_at DESC LIMIT 50`,
       sql`SELECT event_type, count(*)::int AS count, max(created_at) AS last_seen_at FROM world_events WHERE created_at > now() - interval '24 hours' GROUP BY event_type ORDER BY count(*) DESC, event_type ASC`,
       sql`SELECT count(*)::int AS known_players, count(*) FILTER (WHERE last_seen_at > now() - interval '24 hours')::int AS active_24h, count(*) FILTER (WHERE last_seen_at > now() - interval '90 seconds')::int AS online_now FROM players`
     ]);
@@ -83,6 +87,7 @@ export default async (req) => {
       recent_events: recentEvents,
       living_memory: {
         promise: 'Player actions become permanent evidence that future world evolution can use.',
+        forest: ordinaryState.forest_pressure || null,
         pressures: worldPressures(memoryEvents,ordinaryState),
         stories: memoryEvents.slice(0,24).map(eventStory)
       },

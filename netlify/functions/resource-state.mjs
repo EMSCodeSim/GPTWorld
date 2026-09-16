@@ -33,6 +33,48 @@ const safeInt=(value,fallback,min,max)=>{
   return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
 };
 
+const forestStage=(pressure)=>pressure>=75?'critical':pressure>=50?'stressed':pressure>=25?'watched':'stable';
+const forestPressureScore=(harvested,depletedSites,mitigation=0,expansion=0)=>Math.max(0,Math.min(100,harvested*2+depletedSites*8-mitigation+expansion*8));
+
+async function ensureForestPressure(sql){
+  const history=await sql`SELECT count(*)::int AS harvested, count(*) FILTER (WHERE COALESCE((payload->>'remaining')::int,1)<=0)::int AS depleted FROM world_events WHERE event_type='resource_gathered' AND payload->>'resource'='wood'`;
+  const harvested=Number(history[0]?.harvested||0),depletedSites=Number(history[0]?.depleted||0),pressure=forestPressureScore(harvested,depletedSites);
+  const initial={version:1,harvested,depletedSites,pressure,stage:forestStage(pressure),response:null,responseVotes:{replant:0,managed_woodlot:0,restrict_harvest:0,continue_expansion:0},mitigation:0,expansion:0,milestone:0,lastEventAt:null,lastNodeId:null};
+  await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('forest_pressure',${JSON.stringify(initial)}::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+}
+
+async function recordForestHarvest(sql,playerId,nodeId,depleted){
+  await ensureForestPressure(sql);
+  const rows=await sql`
+    WITH current AS (SELECT value FROM world_state WHERE key='forest_pressure' FOR UPDATE),
+    counted AS (
+      SELECT value,COALESCE((value->>'harvested')::int,0)+1 AS harvested,
+        COALESCE((value->>'depletedSites')::int,0)+${depleted?1:0}::int AS depleted_sites,
+        COALESCE((value->>'mitigation')::int,0) AS mitigation,
+        COALESCE((value->>'expansion')::int,0) AS expansion,
+        COALESCE(value->>'stage','stable') AS old_stage
+      FROM current
+    ), scored AS (
+      SELECT *,LEAST(100,GREATEST(0,harvested*2+depleted_sites*8-mitigation+expansion*8))::int AS pressure FROM counted
+    ), staged AS (
+      SELECT *,CASE WHEN pressure>=75 THEN 'critical' WHEN pressure>=50 THEN 'stressed' WHEN pressure>=25 THEN 'watched' ELSE 'stable' END AS new_stage FROM scored
+    ), updated AS (
+      UPDATE world_state ws SET value=jsonb_build_object(
+        'version',1,'harvested',staged.harvested,'depletedSites',staged.depleted_sites,'pressure',staged.pressure,
+        'stage',staged.new_stage,'response',staged.value->'response','responseVotes',COALESCE(staged.value->'responseVotes','{}'::jsonb),
+        'mitigation',staged.mitigation,'expansion',staged.expansion,
+        'milestone',COALESCE((staged.value->>'milestone')::int,0)+CASE WHEN staged.new_stage<>staged.old_stage THEN 1 ELSE 0 END,
+        'lastEventAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'lastNodeId',${nodeId}::text
+      ),updated_at=now() FROM staged WHERE ws.key='forest_pressure'
+      RETURNING ws.value,staged.old_stage,staged.new_stage
+    ) SELECT value,old_stage,new_stage FROM updated`;
+  const row=rows[0];
+  if(row&&row.old_stage!==row.new_stage){
+    await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (${playerId},'forest_pressure_changed',jsonb_build_object('from',${row.old_stage},'stage',${row.new_stage},'pressure',COALESCE(((${row.value}::jsonb)->>'pressure')::int,0),'milestone',COALESCE(((${row.value}::jsonb)->>'milestone')::int,0),'nodeId',${nodeId}))`;
+  }
+  return row?.value||null;
+}
+
 function renderList(value){
   if(Array.isArray(value))return value;
   if(Array.isArray(value?.entities))return value.entities;
@@ -76,6 +118,9 @@ async function resourceNodes(sql,config){
     const generation=Number(s.generation||0)+(regrown?1:0);
     const pos=regrown?relocatedPosition(id,generation,cfg.resource):{x:s.x??null,z:s.z??null};
     out[id]={resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null),generation,x:pos.x,z:pos.z};
+    if(regrown){
+      await sql`UPDATE world_state SET value=jsonb_set(value,ARRAY[${id}::text],${JSON.stringify(out[id])}::jsonb,true),updated_at=now() WHERE key='resource_nodes' AND NULLIF(value->${id}->>'regrowAt','') IS NOT NULL AND (value->${id}->>'regrowAt')::timestamptz<=now()`;
+    }
   }
   return out;
 }
@@ -85,6 +130,7 @@ export default async (req) => {
   const sql=neon(process.env.DATABASE_URL);
   try{
     const config=await nodeConfig(sql);
+    await ensureForestPressure(sql);
     if(req.method==='GET'){
       const url=new URL(req.url);
       const clientId=String(url.searchParams.get('clientId')||'').trim().slice(0,80);
@@ -110,6 +156,7 @@ export default async (req) => {
       if(resource!==cfg.resource)return json({ok:false,error:'resource_node_mismatch'},400);
       const amount=1;
       await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+      await resourceNodes(sql,config);
       const result=await sql`
         WITH current AS (
           SELECT value FROM world_state WHERE key='resource_nodes' FOR UPDATE
@@ -128,7 +175,9 @@ export default async (req) => {
               'resource',${cfg.resource}::text,
               'max',${cfg.max}::int,
               'remaining',GREATEST(0,calc.before_count-${amount}::int),
-              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 AND ${MOBILE_RESOURCES.has(cfg.resource)}::boolean THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END
+              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 AND ${MOBILE_RESOURCES.has(cfg.resource)}::boolean THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END,
+              'generation',COALESCE((calc.value->${nodeId}->>'generation')::int,0),
+              'x',calc.value->${nodeId}->'x','z',calc.value->${nodeId}->'z'
             ),true
           ), updated_at=now()
           FROM calc WHERE ws.key='resource_nodes' AND calc.before_count>=${amount}::int
@@ -155,9 +204,10 @@ export default async (req) => {
         return json({ok:false,error:'resource_depleted',node,nodeId},409);
       }
       const remaining=Number(result[0].remaining||0);
+      const forestPressure=cfg.resource==='wood'?await recordForestHarvest(sql,playerId,nodeId,remaining<=0):null;
       const inventory=await getInventory(sql,playerId);
       const nodes=await resourceNodes(sql,config);
-      return json({ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes});
+      return json({ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes,forestPressure});
     }
     return json({ok:false,error:'method_not_allowed'},405);
   }catch(error){
