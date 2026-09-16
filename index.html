@@ -6,8 +6,16 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — The First Settlement</title>
   <link rel="stylesheet" href="./styles.css?v=mobile-live-1" />
-  <style>#livingDayNight>*{display:none!important}#bridgeProject{display:none!important}
-</style>
+  <style>
+    #livingDayNight>*{display:none!important}#bridgeProject{display:none!important}
+    #trailMarkerBtn{display:block;width:100%;margin:10px 0;padding:8px 5px;border:1px solid rgba(210,179,106,.55);border-radius:8px;background:rgba(46,40,23,.9);color:#f3efe5;font-size:11px;font-weight:700;white-space:nowrap}
+    #trailMarkerBtn:disabled{opacity:.55}
+    @media(max-width:800px),(pointer:coarse){
+      .inventory{width:max-content;max-width:calc(100vw - 32px);pointer-events:none}
+      #trailMarkerBtn{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);margin:0;padding:10px 12px;border-radius:999px;background:rgba(14,19,16,.94);pointer-events:auto;touch-action:manipulation;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+      .inventory-row{display:flex;align-items:center;justify-content:center;gap:12px}
+    }
+  </style>
 </head>
 <body>
   <main id="app">
@@ -23,29 +31,5 @@
     <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle"><div class="welcome-card"><div class="eyebrow">GPTWORLD · A WORLD THAT KEEPS CHANGING</div><h2 id="welcomeTitle">Enter the living world.</h2><p>GPTWorld does not reset when you leave. Weather and seasons continue, plants and animals live inside their own simulation, disasters can reshape the land, and the settlement changes through what travelers do.</p><p>Each world day, GPT can observe what happened and evolve the world or gameplay. Your gathering, exploration, construction and other choices become part of the shared history future travelers inherit.</p><div id="returningTraveler" hidden><strong>Welcome back.</strong><p>Choose one of your travelers on this device:</p><div id="knownNames" class="known-names"></div><button id="newTraveler" type="button" class="secondary">Create another traveler</button></div><div id="newTravelerForm"><label>Create your traveler<input id="playerName" maxlength="20" autocomplete="nickname" value="" placeholder="Traveler name" /></label><div id="nameError" role="alert" hidden></div></div><button id="enterWorld" type="button">Enter GPTWorld</button><small>Names must be appropriate. On phones, use the joystick to move and Interact near people, animals, resources and world features.</small></div></section>
   </main>
   <script type="module" src="./main.js?v=tree-interaction-fix-1"></script>
-  <script type="module" src="./world-sync.js?v=bridge-walk-2"></script>
-  <script type="module" src="./resource-sync.js?v=single-mp-2"></script>
-  <script type="module" src="./ecosystem.js?v=server-sim-1"></script>
-  <script type="module" src="./sim-status.js?v=multi-sim-1"></script>
-  <script type="module" src="./day3.js?v=3.3"></script>
-  <script type="module" src="./chronicle-sync.js?v=1"></script>
-  <script type="module" src="./living-systems.js?v=3"></script>
-  <!-- Multiplayer is rendered only inside main.js as true Three.js world avatars. -->
-  <script type="module" src="./info-center.js?v=1"></script>
-  <script type="module" src="./runtime-health.js?v=1"></script>
-  <script>
-    (()=>{
-      const NAME_KEY='gptworld-known-names';
-      const saved=()=>{try{return JSON.parse(localStorage.getItem(NAME_KEY)||'[]').filter(Boolean)}catch{return[]}};
-      const legacy=()=>{try{return JSON.parse(localStorage.getItem('gptworld-day1')||'null')?.playerName||''}catch{return''}};
-      const init=()=>{
-        let names=saved(); const old=legacy(); if(old&&old!=='Traveler'&&!names.includes(old)){names.unshift(old);localStorage.setItem(NAME_KEY,JSON.stringify(names.slice(0,6)))}
-        const returning=document.getElementById('returningTraveler'),box=document.getElementById('knownNames'),form=document.getElementById('newTravelerForm'),input=document.getElementById('playerName'),fresh=document.getElementById('newTraveler');
-        if(names.length){returning.hidden=false;form.hidden=true;names.slice(0,6).forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='known-name';b.textContent=name;b.addEventListener('click',()=>{input.value=name;box.querySelectorAll('button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')});box.appendChild(b)});box.firstElementChild?.click()}
-        fresh?.addEventListener('click',()=>{form.hidden=false;input.value='';input.focus()});
-      };
-      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-    })();
-  </script>
 </body>
 </html>
