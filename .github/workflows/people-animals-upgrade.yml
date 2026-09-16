@@ -1,4 +1,4 @@
-name: One-shot Plant Interaction Info v1
+name: One-shot Visible Herbivore Feeding v1
 on:
   push:
     paths:
@@ -10,22 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add plant information to Interact
-        run: python scripts/plant-interact-info-v1.py
-      - name: Verify plant interaction and world entry
+      - name: Add visible herbivore feeding
+        run: python scripts/visible-herbivore-feeding-v1.py
+      - name: Verify feeding behavior and world entry
         run: |
           node --check main.js
-          grep -q "plantInfo" main.js
-          grep -q "Habitat:" main.js
-          grep -q "evergreen tree" main.js
-          grep -q "wild herb patch" main.js
-          grep -q "function applyResourceRelocations(nodes={}){for" main.js
+          grep -q "nearestPlantForCreature" main.js
+          grep -q "updateHerbivoreFeeding" main.js
+          grep -q "seeking food" main.js
+          grep -q "grazes on" main.js
           grep -q "function startGame" main.js
-          grep -q "plant-interact-info-1" index.html
-      - name: Commit plant interaction information
+          grep -q "herbivore-feeding-1" index.html
+      - name: Commit visible herbivore feeding
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Show plant ecology and uses through Interact"
+          git commit -m "Make herbivores seek and visibly graze plants"
           git push
