@@ -1,4 +1,4 @@
-name: One-shot Emergency Entry Repair
+name: One-shot Gathering Motion v1
 on:
   push:
     paths:
@@ -6,27 +6,23 @@ on:
 permissions:
   contents: write
 jobs:
-  repair:
+  upgrade:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 20
-      - name: Restore working engine and keep latest UX
-        run: python scripts/repair-entry-main-v1.py
-      - name: Syntax check client
+      - name: Add physical gathering feedback
+        run: python scripts/gather-animation-v1.py
+      - name: Syntax and entry checks
         run: |
           node --check main.js
-          node --check info-center.js
-      - name: Verify entry wiring
-        run: |
           grep -q "function startGame" main.js
           grep -q "enterWorldBtn.addEventListener" main.js
-          grep -q "entry-repair-2" index.html
-      - name: Commit repair
+          grep -q "animateGather" main.js
+          grep -q "gather-motion-1" index.html
+      - name: Commit gathering motion
         run: |
-          git config user.name "GPTWorld Repair Bot"
+          git config user.name "GPTWorld UX Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Restore world entry after client engine overwrite"
+          git commit -m "Add physical gathering animations and resource motion"
           git push
