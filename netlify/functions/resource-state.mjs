@@ -38,9 +38,14 @@ const forestPressureScore=(harvested,depletedSites,mitigation=0,expansion=0)=>Ma
 
 async function ensureForestPressure(sql){
   const history=await sql`SELECT count(*)::int AS harvested, count(*) FILTER (WHERE COALESCE((payload->>'remaining')::int,1)<=0)::int AS depleted FROM world_events WHERE event_type='resource_gathered' AND payload->>'resource'='wood'`;
-  const harvested=Number(history[0]?.harvested||0),depletedSites=Number(history[0]?.depleted||0),pressure=forestPressureScore(harvested,depletedSites);
+  const historicalHarvests=Number(history[0]?.harvested||0),historicalDepletions=Number(history[0]?.depleted||0);
+  const harvested=Math.min(12,historicalHarvests),depletedSites=Math.min(2,historicalDepletions),pressure=forestPressureScore(harvested,depletedSites);
   const initial={version:1,harvested,depletedSites,pressure,stage:forestStage(pressure),response:null,responseVotes:{replant:0,managed_woodlot:0,restrict_harvest:0,continue_expansion:0},mitigation:0,expansion:0,milestone:0,lastEventAt:null,lastNodeId:null};
   await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('forest_pressure',${JSON.stringify(initial)}::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+  if(historicalHarvests>0){
+    const boot=await sql`UPDATE world_state SET value=${JSON.stringify({...initial,milestone:1,lastEventAt:new Date().toISOString()})}::jsonb,updated_at=now() WHERE key='forest_pressure' AND COALESCE((value->>'harvested')::int,0)=0 AND value->>'lastEventAt' IS NULL RETURNING value`;
+    if(boot.length)await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (NULL,'forest_pressure_changed',${JSON.stringify({from:'stable',stage:initial.stage,pressure:initial.pressure,milestone:1,reason:'historical_harvest_evidence'})}::jsonb)`;
+  }
 }
 
 async function recordForestHarvest(sql,playerId,nodeId,depleted){
