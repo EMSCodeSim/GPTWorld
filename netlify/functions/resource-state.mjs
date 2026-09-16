@@ -70,7 +70,8 @@ async function recordForestHarvest(sql,playerId,nodeId,depleted){
     ) SELECT value,old_stage,new_stage FROM updated`;
   const row=rows[0];
   if(row&&row.old_stage!==row.new_stage){
-    await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (${playerId},'forest_pressure_changed',jsonb_build_object('from',${row.old_stage},'stage',${row.new_stage},'pressure',COALESCE(((${row.value}::jsonb)->>'pressure')::int,0),'milestone',COALESCE(((${row.value}::jsonb)->>'milestone')::int,0),'nodeId',${nodeId}))`;
+    const payload={from:row.old_stage,stage:row.new_stage,pressure:Number(row.value?.pressure||0),milestone:Number(row.value?.milestone||0),nodeId};
+    await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (${playerId},'forest_pressure_changed',${JSON.stringify(payload)}::jsonb)`;
   }
   return row?.value||null;
 }
