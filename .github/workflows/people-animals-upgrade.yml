@@ -1,4 +1,4 @@
-name: One-shot Visible Herbivore Feeding v1
+name: One-shot Visible Animal Food Web v1
 on:
   push:
     paths:
@@ -10,21 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add visible herbivore feeding
-        run: python scripts/visible-herbivore-feeding-v1.py
-      - name: Verify feeding behavior and world entry
+      - name: Add visible animal food web
+        run: python scripts/visible-food-web-v1.py
+      - name: Verify food web and world entry
         run: |
           node --check main.js
-          grep -q "nearestPlantForCreature" main.js
-          grep -q "updateHerbivoreFeeding" main.js
-          grep -q "seeking food" main.js
-          grep -q "grazes on" main.js
+          grep -q "nearestPreyForCreature" main.js
+          grep -q "updatePredatorFeeding" main.js
+          grep -q "updateFoodWebBehavior" main.js
+          grep -q "caught" main.js
           grep -q "function startGame" main.js
-          grep -q "herbivore-feeding-1" index.html
-      - name: Commit visible herbivore feeding
+          grep -q "visible-food-web-1" index.html
+      - name: Commit visible animal food web
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Make herbivores seek and visibly graze plants"
+          git commit -m "Make predators hunt prey in the visible world"
           git push
