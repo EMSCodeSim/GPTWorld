@@ -1,4 +1,4 @@
-name: One-shot Visible Animal Food Web v1
+name: One-shot Persistent Food Web Events v1
 on:
   push:
     paths:
@@ -10,21 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add visible animal food web
-        run: python scripts/visible-food-web-v1.py
-      - name: Verify food web and world entry
+      - name: Connect visible feeding to persistent world events
+        run: python scripts/persistent-food-web-events-v1.py
+      - name: Verify persistent ecology events and world entry
         run: |
           node --check main.js
-          grep -q "nearestPreyForCreature" main.js
-          grep -q "updatePredatorFeeding" main.js
-          grep -q "updateFoodWebBehavior" main.js
-          grep -q "caught" main.js
+          grep -q "recordEcologyEvent" main.js
+          grep -q "ecology_grazing" main.js
+          grep -q "ecology_predation" main.js
           grep -q "function startGame" main.js
-          grep -q "visible-food-web-1" index.html
-      - name: Commit visible animal food web
+          grep -q "persistent-food-web-1" index.html
+      - name: Commit persistent food web events
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
           git add main.js index.html
-          git commit -m "Make predators hunt prey in the visible world"
+          git commit -m "Record visible feeding and predation in world history"
           git push
