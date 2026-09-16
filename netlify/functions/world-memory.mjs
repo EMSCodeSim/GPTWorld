@@ -49,7 +49,7 @@ export default async (req) => {
   try {
     const [worldRows, recentEvents, activityRows, populationRows] = await Promise.all([
       sql`SELECT key, value, updated_at FROM world_state ORDER BY key`,
-      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id ORDER BY we.created_at DESC LIMIT 50`,
+      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id WHERE we.event_type IN ('resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed','bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced','weather_changed','settlement_consumption','world_aging_milestone') ORDER BY we.created_at DESC LIMIT 50`,
       sql`SELECT event_type, count(*)::int AS count, max(created_at) AS last_seen_at FROM world_events WHERE created_at > now() - interval '24 hours' GROUP BY event_type ORDER BY count(*) DESC, event_type ASC`,
       sql`SELECT count(*)::int AS known_players, count(*) FILTER (WHERE last_seen_at > now() - interval '24 hours')::int AS active_24h, count(*) FILTER (WHERE last_seen_at > now() - interval '90 seconds')::int AS online_now FROM players`
     ]);
