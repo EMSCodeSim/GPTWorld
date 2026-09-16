@@ -1,4 +1,4 @@
-name: One-shot Resource Redistribution v1
+name: One-shot Plant Interaction Info v1
 on:
   push:
     paths:
@@ -10,22 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add habitat resource redistribution
-        run: python scripts/mobile-resource-redistribution-v1.py
-      - name: Verify resource redistribution and world entry
+      - name: Add plant information to Interact
+        run: python scripts/plant-interact-info-v1.py
+      - name: Verify plant interaction and world entry
         run: |
           node --check main.js
-          node --check netlify/functions/resource-state.mjs
-          grep -q "MOBILE_RESOURCES" netlify/functions/resource-state.mjs
-          grep -q "relocatedPosition" netlify/functions/resource-state.mjs
-          grep -q "applyResourceRelocations" main.js
+          grep -q "plantInfo" main.js
+          grep -q "Habitat:" main.js
+          grep -q "evergreen tree" main.js
+          grep -q "wild herb patch" main.js
+          grep -q "function applyResourceRelocations(nodes={}){for" main.js
           grep -q "function startGame" main.js
-          grep -q "resource-redistribution-1" index.html
-      - name: Commit resource redistribution
+          grep -q "plant-interact-info-1" index.html
+      - name: Commit plant interaction information
         run: |
           git config user.name "GPTWorld Systems Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add main.js index.html netlify/functions/resource-state.mjs
-          git commit -m "Make depleted plant resources relocate instead of fixed respawn"
+          git add main.js index.html
+          git commit -m "Show plant ecology and uses through Interact"
           git push
-# retry after upgrade-script syntax repair
