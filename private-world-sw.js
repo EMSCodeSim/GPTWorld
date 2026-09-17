@@ -1,10 +1,10 @@
-const CACHE_NAME='gptworld-private-shell-v2';
+const CACHE_NAME='gptworld-private-shell-v3';
 const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 const PRIVATE_SHELL=[
   './private-world.html',
-  './private-world.js?v=living-worlds-5',
+  './private-world.js?v=living-worlds-6',
   './private-world-cache.mjs?v=living-worlds-5',
-  './private-world.css?v=living-worlds-5',
+  './private-world.css?v=living-worlds-6',
   './styles.css?v=living-worlds-5',
   THREE_URL
 ];

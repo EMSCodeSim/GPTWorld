@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 
 const API='/.netlify/functions/private-world';
+const CRAFTING_API='/.netlify/functions/crafting';
 const CLIENT_KEY='gptworld-client-id';
 const $=id=>document.getElementById(id);
 const worldEl=$('world'),loading=$('loading'),loadingTitle=$('loadingTitle'),loadingMessage=$('loadingMessage');
@@ -9,10 +10,11 @@ const retry=$('retry'),returnTown=$('returnTown'),promptEl=$('prompt'),toastEl=$
 const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather'),temperature:$('temperature')};
 const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
 const syncStateEl=$('syncState');
+const craftingPanel=$('craftingPanel'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null;
+let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,craftBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
@@ -159,8 +161,33 @@ function updateStatus(){
 }
 
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
+function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
+function canAfford(recipe){return Object.entries(recipe.inputs).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);}
+function renderCrafting(){
+  if(!craftingData)return;
+  craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skill.key[0].toUpperCase()+skill.key.slice(1);progress.textContent=`${skill.value.toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
+  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{const card=document.createElement('article');card.className='recipe-card';const title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');title.textContent=recipe.name;description.textContent=recipe.description;meta.className='recipe-meta';cost.textContent=resourceText(recipe.inputs);chance.textContent=`${Math.round(recipe.chance*100)}% success`;button.type='button';button.textContent=canAfford(recipe)?'Craft item':'Need materials';button.disabled=craftBusy||!canAfford(recipe);button.addEventListener('click',()=>craftRecipe(recipe));meta.append(cost,chance);card.append(title,description,meta,button);return card;}));
+  craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{const row=document.createElement('div');row.className='crafted-item';const title=document.createElement('strong'),detail=document.createElement('small');title.textContent=`${item.quality} ${item.name}`;detail.textContent=`${item.profession} · ${item.durability}/${item.maxDurability} durability · made by ${item.maker}`;row.append(title,detail);return row;}):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your first crafted item will appear here.'})]));
+}
+async function loadCrafting(){
+  if(!navigator.onLine){showToast('Reconnect to open your authoritative crafting ledger.');return false;}
+  try{const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');craftingData=data;renderCrafting();return true;}catch(error){showToast(error.message==='crafting_migration_required'?'Crafting database update is required.':'Crafting could not load.');return false;}
+}
+async function openCrafting(){if(await loadCrafting()){craftingPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();}}
+function hideCrafting(){craftingPanel.hidden=true;}
+async function craftRecipe(recipe){
+  if(craftBusy||!canAfford(recipe))return;craftBusy=true;renderCrafting();
+  try{
+    const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,recipeKey:recipe.key,idempotencyKey:requestKey(`craft-${recipe.key}`)})}),data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'craft_failed');
+    showToast(data.success?`Crafted ${data.quality} ${recipe.name}. ${data.skill.gain?`+${data.skill.gain.toFixed(2)} ${data.skill.key}.`:''}`:`The attempt failed. Some materials were lost${data.skill.gain?`, but ${data.skill.key} improved`:''}.`);
+    await loadCrafting();for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(craftingData.inventory?.[key]||0);
+  }catch(error){showToast(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='private_world_required'?'Craft inside your personal world.':'Crafting failed. Try again.');}
+  finally{craftBusy=false;renderCrafting();}
+}
 function collides(x,z){return blockers.some(block=>Math.abs(x-block.x)<block.halfX&&Math.abs(z-block.z)<block.halfZ);}
 function updatePlayer(dt,time){
+  if(!craftingPanel.hidden){animatePerson(player,false,time);return;}
   desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;
   const strength=Math.min(1,desired.length());if(strength){desired.normalize().multiplyScalar(5.2*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z);}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));
   const nextX=clamp(player.position.x+velocity.x*dt,-33,33),nextZ=clamp(player.position.z+velocity.z*dt,-33,33);if(!collides(nextX,player.position.z))player.position.x=nextX;if(!collides(player.position.x,nextZ))player.position.z=nextZ;
@@ -252,11 +279,13 @@ async function load(){
   }
 }
 
-window.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)){keys.add(key);event.preventDefault();}if(key==='e'||key===' '){interact();event.preventDefault();}});
+window.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(key==='escape'&&!craftingPanel.hidden){hideCrafting();event.preventDefault();return;}if(!craftingPanel.hidden)return;if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)){keys.add(key);event.preventDefault();}if(key==='e'||key===' '){interact();event.preventDefault();}});
 window.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));window.addEventListener('resize',resize);
 window.addEventListener('online',()=>{setSyncState('connecting');flushQueuedPosition();});window.addEventListener('offline',()=>setSyncState('offline'));
+for(const gesture of['gesturestart','gesturechange','gestureend'])document.addEventListener(gesture,event=>event.preventDefault(),{passive:false});
 window.addEventListener('pagehide',()=>{if(running){const position=currentPosition();queuePrivatePosition(activeClientId,position).catch(()=>{});navigator.sendBeacon?.(API,new Blob([JSON.stringify({clientId:activeClientId,action:'save_position',position})],{type:'application/json'}));}});
 actionButton.addEventListener('click',interact);returnTown.addEventListener('click',leave);retry.addEventListener('click',load);
+craftButton.addEventListener('click',openCrafting);closeCrafting.addEventListener('click',hideCrafting);craftingPanel.addEventListener('click',event=>{if(event.target===craftingPanel)hideCrafting();});
 
 const joystick=$('joystick'),joystickKnob=$('joystickKnob');
 function updateJoystick(event){const bounds=joystick.getBoundingClientRect(),centerX=bounds.left+bounds.width/2,centerY=bounds.top+bounds.height/2,max=bounds.width*.32;let dx=event.clientX-centerX,dy=event.clientY-centerY,distance=Math.hypot(dx,dy);if(distance>max){dx=dx/distance*max;dy=dy/distance*max;}joystickX=dx/max;joystickY=dy/max;if(Math.hypot(joystickX,joystickY)<.12)joystickX=joystickY=0;joystickKnob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;}

@@ -30,3 +30,13 @@ Phase 1 establishes world ownership, deterministic generation, storage, isolatio
 - Migration order: apply `001_living_worlds_foundation.sql`, then `002_private_world_gathering.sql` using a direct Neon connection.
 
 Private construction, farming, hunting, history inspection, and the marketplace remain future Phase 2–4 work.
+
+## Phase 2 progress — profession crafting
+
+- Personal worlds include a mobile Field Crafting ledger with Carpentry, Masonry, and Herbalism.
+- Initial recipes turn gathered wood, stone, and herbs into durable, maker-marked possessions.
+- Success odds improve through practice; outcomes can be standard, fine, or exceptional quality.
+- Failed attempts consume only part of the required materials and may still improve the profession.
+- Every craft is owner-checked, idempotent, server-authoritative, and recorded in private-world history.
+- Crafted items persist independently with their maker, quality, durability, profession, and creation time.
+- Apply `003_private_world_crafting.sql` after the first two Living Worlds migrations.
