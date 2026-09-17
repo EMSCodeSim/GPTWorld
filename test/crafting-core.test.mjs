@@ -17,7 +17,8 @@ test('craft outcomes are reproducible and improve with skill',()=>{
   assert.deepEqual(first,again);
   assert.ok(craftingChance(70,14)>craftingChance(0,14));
   assert.ok(first.chance>=.18&&first.chance<=.98);
-  assert.ok(first.skillGain>=0&&first.skillGain<=.6);
+  assert.ok(first.skillGain>=.1&&first.skillGain<=.4);
+  assert.equal(resolveCraftAttempt({skillValue:100,difficulty:14,key:'master'}).skillGain,0);
 });
 
 test('failed attempts consume only part of the recipe and quality affects durability',()=>{
@@ -53,8 +54,11 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   ]);
   assert.match(html,/id="craftButton"/);
   assert.match(html,/id="craftingPanel"/);
+  assert.match(html,/id="craftingResult"/);
   assert.match(html,/user-scalable=no/);
   assert.match(client,/function renderCrafting/);
+  assert.match(client,/function showCraftingResult/);
+  assert.match(client,/function showCraftingError/);
   assert.match(client,/gesturestart/);
   assert.match(client,/action:'gather_resource'/);
 });
