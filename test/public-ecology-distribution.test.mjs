@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ecologyHabitatZones,ecologyRenderEntities} from '../netlify/functions/_sim-core.mjs';
+import {animalLandRoute,ecologyHabitatZones,ecologyRenderEntities} from '../netlify/functions/_sim-core.mjs';
 
 const ecosystem={
   species:[
@@ -67,4 +67,15 @@ test('public animals follow long roaming routes while remaining outside town bui
     const animals=ecologyRenderEntities(ecosystem,frame*800,weather).filter(entity=>entity.part==='creature');
     assert.ok(animals.every(entity=>Math.hypot(entity.x,entity.z)>=11.45));
   }
+});
+
+test('land animals stay on the map and cross the river only on the bridge',()=>{
+  for(let frame=0;frame<=660;frame+=3){
+    const animals=ecologyRenderEntities(ecosystem,frame*800,weather).filter(entity=>entity.part==='creature');
+    assert.ok(animals.every(entity=>Math.abs(entity.x)<=31.2&&Math.abs(entity.z)<=31.2));
+    assert.ok(animals.every(entity=>!(entity.x>-29&&entity.x<-19)||Math.abs(entity.z)<=1.45));
+  }
+  const samples=Array.from({length:101},(_,index)=>animalLandRoute({x:-31,z:18},{x:12,z:-20},index/100,'bridge-test'));
+  assert.ok(samples.some(point=>point.x>-29&&point.x<-19&&Math.abs(point.z)<=1.45));
+  assert.ok(samples.every(point=>!(point.x>-29&&point.x<-19)||Math.abs(point.z)<=1.45));
 });

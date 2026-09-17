@@ -32,6 +32,14 @@ test('personal world begins undeveloped and wildlife faces its movement axis',as
   assert.match(client,/for\(const x of\[-\.22,\.22\]\)for\(const z of\[-\.4,\.4\]\)/);
 });
 
+test('personal-world land animals avoid the lake and world edges',async()=>{
+  const client=await readFile(new URL('../private-world.js',import.meta.url),'utf8');
+  assert.match(client,/function animalLandPosition\(current,candidate\)/);
+  assert.match(client,/Number\(lake\.radius\|\|0\)\+\.65/);
+  assert.match(client,/Number\(terrain\?\.size\|\|68\)\/2-1\.2/);
+  assert.match(client,/water-shore/);
+});
+
 test('personal terrain produces persistent gatherable resource nodes',()=>{
   const terrain=generatePrivateWorld(321),resources=privateResourceSeeds(terrain);
   assert.equal(resources.length,38+14+12);
