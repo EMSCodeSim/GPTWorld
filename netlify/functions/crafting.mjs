@@ -28,16 +28,50 @@ async function payload(sql,actor){
   await ensureSkills(sql,actor.id);
   const [skills,items]=await Promise.all([
     sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} ORDER BY skill_key`,
-    sql`SELECT id,item_key,display_name,profession,quality,durability,max_durability,maker_name,crafted_at FROM player_crafted_items WHERE player_id=${actor.id} ORDER BY crafted_at DESC LIMIT 60`
+    sql`SELECT id,item_key,display_name,profession,quality,durability,max_durability,maker_name,crafted_at,placed_x,placed_z,placed_rotation,placed_at FROM player_crafted_items WHERE player_id=${actor.id} ORDER BY crafted_at DESC LIMIT 60`
   ]);
   const skillMap=new Map(skills.map(skill=>[skill.skill_key,Number(skill.skill_value)]));
   return{
     ok:true,
     recipes:CRAFTING_RECIPES.map(recipe=>({...recipe,chance:craftingChance(skillMap.get(recipe.skill)||0,recipe.difficulty)})),
     skills:skills.map(skill=>({key:skill.skill_key,value:Number(skill.skill_value),attempts:Number(skill.attempts)})),
-    items:items.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,profession:item.profession,quality:item.quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),maker:item.maker_name,craftedAt:item.crafted_at})),
+    items:items.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,profession:item.profession,quality:item.quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),maker:item.maker_name,craftedAt:item.crafted_at,placed:item.placed_at?{x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at}:null})),
     inventory:{wood:Number(actor.wood||0),stone:Number(actor.stone||0),herbs:Number(actor.herbs||0)}
   };
+}
+
+async function moveItem(sql,actor,itemId,key,action,position={}){
+  const prior=await sql`SELECT response FROM crafted_item_action_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
+  if(prior.length)return prior[0].response;
+  const x=Math.max(-32,Math.min(32,Number(position.x)||0)),z=Math.max(-32,Math.min(32,Number(position.z)||0)),rotation=Number(position.rotation)||0;
+  const rows=action==='place_item'?await sql`
+    WITH moved AS (
+      UPDATE player_crafted_items item SET placed_x=${x},placed_z=${z},placed_rotation=${rotation},placed_at=now()
+      FROM player_world_sessions session
+      WHERE item.id=${itemId} AND item.player_id=${actor.id} AND item.world_id=session.private_world_id
+        AND session.player_id=${actor.id} AND session.current_world_type='private' AND item.placed_at IS NULL
+        AND sqrt(power(session.private_x-${x},2)+power(session.private_z-${z},2))<=7
+      RETURNING item.id,item.item_key,item.display_name,item.quality,item.placed_x,item.placed_z,item.placed_rotation,item.placed_at
+    ), receipt AS (
+      INSERT INTO crafted_item_action_receipts(player_id,idempotency_key,action,response)
+      SELECT ${actor.id},${key},${action},jsonb_build_object('ok',true,'action',${action}::text,'item',jsonb_build_object('id',id::text,'key',item_key,'name',display_name,'quality',quality,'placed',jsonb_build_object('x',placed_x,'z',placed_z,'rotation',placed_rotation,'placedAt',placed_at))) FROM moved
+      ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING response
+    ) SELECT response FROM receipt
+  `:await sql`
+    WITH moved AS (
+      UPDATE player_crafted_items item SET placed_x=NULL,placed_z=NULL,placed_rotation=NULL,placed_at=NULL
+      FROM player_world_sessions session
+      WHERE item.id=${itemId} AND item.player_id=${actor.id} AND item.world_id=session.private_world_id
+        AND session.player_id=${actor.id} AND session.current_world_type='private' AND item.placed_at IS NOT NULL
+        AND sqrt(power(session.private_x-item.placed_x,2)+power(session.private_z-item.placed_z,2))<=5
+      RETURNING item.id,item.item_key,item.display_name,item.quality
+    ), receipt AS (
+      INSERT INTO crafted_item_action_receipts(player_id,idempotency_key,action,response)
+      SELECT ${actor.id},${key},${action},jsonb_build_object('ok',true,'action',${action}::text,'item',jsonb_build_object('id',id::text,'key',item_key,'name',display_name,'quality',quality,'placed',NULL)) FROM moved
+      ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING response
+    ) SELECT response FROM receipt
+  `;
+  return rows[0]?.response||{ok:false,error:action==='place_item'?'item_cannot_be_placed':'item_cannot_be_picked_up'};
 }
 
 async function craft(sql,actor,recipe,key){
@@ -115,7 +149,9 @@ export default async req=>{
     const actor=await context(sql,clientId);if(!actor)return reply({ok:false,error:'player_not_registered'},409);
     if(req.method==='GET')return reply(await payload(sql,actor));
     if(req.method!=='POST')return reply({ok:false,error:'method_not_allowed'},405);
-    const recipe=craftingRecipe(body.recipeKey),key=clean(body.idempotencyKey,100);
+    const action=clean(body.action,30),key=clean(body.idempotencyKey,100);
+    if((action==='place_item'||action==='pickup_item')&&key){const result=await moveItem(sql,actor,clean(body.itemId,30),key,action,body.position);return reply(result,result.ok?200:409);}
+    const recipe=craftingRecipe(body.recipeKey);
     if(!recipe)return reply({ok:false,error:'invalid_recipe'},400);if(!key)return reply({ok:false,error:'idempotency_key_required'},400);
     const result=await craft(sql,actor,recipe,key);return reply(result,result.ok?200:['action_in_progress','inventory_changed','private_world_required'].includes(result.error)?409:400);
   }catch(error){

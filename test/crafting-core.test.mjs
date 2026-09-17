@@ -41,6 +41,14 @@ test('crafting migration is additive and preserves player ownership',async()=>{
   assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b|\btruncate\b/);
 });
 
+test('crafted item placement migration is additive and persistent',async()=>{
+  const sql=(await readFile(new URL('../migrations/004_crafted_item_placement.sql',import.meta.url),'utf8')).toLowerCase();
+  assert.match(sql,/add column if not exists placed_x/);
+  assert.match(sql,/add column if not exists placed_at/);
+  assert.match(sql,/crafted_item_action_receipts/);
+  assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b|\btruncate\b/);
+});
+
 test('crafting endpoint requires private ownership and atomically changes materials',async()=>{
   const server=await readFile(new URL('../netlify/functions/crafting.mjs',import.meta.url),'utf8');
   assert.match(server,/current_world_type='private'/);
@@ -50,6 +58,8 @@ test('crafting endpoint requires private ownership and atomically changes materi
   assert.match(server,/item_crafted/);
   assert.match(server,/\$\{recipe\.key\}::text/);
   assert.match(server,/crafting_transaction_failed/);
+  assert.match(server,/place_item/);
+  assert.match(server,/pickup_item/);
 });
 
 test('private-world client exposes a mobile crafting ledger',async()=>{
@@ -64,6 +74,10 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   assert.match(client,/function renderCrafting/);
   assert.match(client,/function showCraftingResult/);
   assert.match(client,/function showCraftingError/);
+  assert.match(client,/assets\/crafting/);
+  assert.match(client,/className='recipe-icon'/);
+  assert.match(client,/function placeCraftedItem/);
+  assert.match(client,/function pickupCraftedItem/);
   assert.match(client,/gesturestart/);
   assert.match(client,/action:'gather_resource'/);
 });

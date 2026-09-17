@@ -54,9 +54,12 @@ async function ensureResources(sql,world){
 }
 
 async function worldPayload(sql,player,world,catchUp,resources){
-  const sessions=await sql`SELECT current_world_type,private_x,private_z FROM player_world_sessions WHERE player_id=${player.id} LIMIT 1`;
+  const [sessions,placedItems]=await Promise.all([
+    sql`SELECT current_world_type,private_x,private_z FROM player_world_sessions WHERE player_id=${player.id} LIMIT 1`,
+    sql`SELECT id,item_key,display_name,quality,placed_x,placed_z,placed_rotation,placed_at FROM player_crafted_items WHERE player_id=${player.id} AND world_id=${world.id} AND placed_at IS NOT NULL ORDER BY placed_at`
+  ]);
   const session=sessions[0]||{current_world_type:'public',private_x:world.terrain_state?.spawn?.x||0,private_z:world.terrain_state?.spawn?.z||8};
-  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology:world.ecology_state,resources,lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:{x:Number(session.private_x),z:Number(session.private_z)}},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
+  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology:world.ecology_state,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:{x:Number(session.private_x),z:Number(session.private_z)}},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
 }
 
 async function gatherResource(sql,player,world,key,nodeId){
