@@ -8,7 +8,7 @@ edit('netlify/functions/world.mjs',[
 const path='netlify/functions/_sim-core.mjs';let code=fs.readFileSync(path,'utf8');
 const start=" for(const s of species.filter(item=>item.kind==='plant'&&Number(item.population||0)>0)){";
 const end=' const predatorPreview=[];';
-if(!code.includes('plantId:individual?.id')){
+if(!code.includes('part.plantId=individual?.id')){
  const a=code.indexOf(start,code.indexOf('export function ecologyRenderEntities('));const b=code.indexOf(end,a);
  if(a<0||b<0||b<=a)throw Error('Cannot locate plant renderer boundaries');
  const block=` for(const s of species.filter(item=>item.kind==='plant'&&Number(item.population||0)>0)){const pop=Math.max(0,Number(s.population||0)),life=s.lifeCycle||{},health=clamp(1-Number(life.waterStress||0)*.45-Number(life.grazingPressure||0)*.3,.2,1),individuals=Array.isArray(ecosystem?.plantIndividuals)?ecosystem.plantIndividuals.filter(p=>p.speciesId===s.id):[],count=individuals.length||Math.max(1,Math.min(28,Math.round(Math.sqrt(pop)/6*health)));
@@ -17,4 +17,10 @@ if(!code.includes('plantId:individual?.id')){
 `;
  code=code.slice(0,a)+block+code.slice(b);fs.writeFileSync(path,code);
 }
+for(const [file,marker] of [
+ ['netlify/functions/resource-state.mjs','gatherIndividualPlant'],
+ ['netlify/functions/private-world.mjs','resourceLifecycle'],
+ ['main.js','plant_dead'],
+ ['lib/plant-lifecycle.mjs','harvestPlant']
+]){if(!fs.readFileSync(file,'utf8').includes(marker))throw Error(`Missing Plants & Trees 2.0 integration: ${file}`);}
 console.log('Plant lifecycle and visual growth integration applied');

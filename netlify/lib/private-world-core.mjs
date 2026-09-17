@@ -54,12 +54,14 @@ export function privateResourceSeeds(terrain){
 }
 
 export function privateResourceView(rows){
-  return (rows||[]).map(row=>({
+  return (rows||[]).map(row=>{
+    const view={
     nodeId:String(row.node_id??row.nodeId),resource:String(row.resource_type??row.resourceType),
     x:Number(row.x),z:Number(row.z),maxAmount:Number(row.max_amount??row.maxAmount),
     remaining:Number(row.remaining),regrowAt:row.regrow_at??row.regrowAt??null,
     generation:Number(row.generation||1)
-  }));
+    };if((row.metadata||{}).plant)view.plant=row.metadata.plant;if((row.metadata||{}).replacementAt)view.replacementAt=row.metadata.replacementAt;return view;
+  });
 }
 
 export function initialPrivateEcology(seed){

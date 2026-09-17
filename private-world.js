@@ -81,8 +81,8 @@ function plantPalette(){
 
 function applyResourceVisual(nodeId){
   const state=resourceStates.get(nodeId),visual=resourceVisuals.get(nodeId);if(!state||!visual)return;
-  const ratio=clamp(Number(state.remaining||0)/Math.max(1,Number(state.maxAmount||1)),0,1),kind=visual.userData.resourceKind;
-  const scale=ratio>0?.58+ratio*.42:kind==='rock'?.28:.2,base=visual.userData.resourceBaseScale;visual.scale.copy(base).multiplyScalar(scale);
+  const ratio=clamp(Number(state.remaining||0)/Math.max(1,Number(state.maxAmount||1)),0,1),kind=visual.userData.resourceKind,stage=String(state.plant?.stage||'mature');
+  const stageScale={seed:.12,sprout:.28,young:.57,mature:1,old:1.12,dead:.25}[stage]||1,scale=kind==='rock'?(ratio>0?.58+ratio*.42:.28):stageScale,base=visual.userData.resourceBaseScale;visual.scale.copy(base).multiplyScalar(scale);
   visual.traverse(child=>{if(!child.isMesh)return;child.material.transparent=ratio<=0;child.material.opacity=ratio<=0?.34:1;});
 }
 
@@ -418,7 +418,8 @@ function updateEnvironment(dt,time){
   }
 }
 
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Use ${best.label}`:node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
+function plantDescription(item,node){const plant=node?.plant;if(!plant)return node?.remaining>0?`${item.label} · ${node.remaining}/${node.maxAmount} available`:`${item.label} is depleted`;const stage=String(plant.stage||'mature'),health=Math.round(Number(plant.health??100)),available=Math.floor(Number(plant.resources??node.remaining??0)),reason=stage==='dead'?'Dead. A new plant may establish here later.':available<=0?'Depleted and recovering.':'Ready to harvest.';return `${item.label} · ${stage} · health ${health}% · ${available}/${node.maxAmount} available. ${reason}`;}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Use ${best.label}`:node?`Inspect ${best.label} · ${node.remaining}/${node.maxAmount}`:`Inspect ${best.label}`;}
 async function gather(item){
   const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
   if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
@@ -434,7 +435,7 @@ async function gather(item){
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
-function interact(){if(!nearest)return;if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function interact(){if(!nearest)return;if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
 function openPlacedCraftFromTap(event){
   if(!running||!craftTapStart||!craftingPanel.hidden||!craftedUsePanel.hidden)return;const distance=Math.hypot(event.clientX-craftTapStart.x,event.clientY-craftTapStart.y);craftTapStart=null;if(distance>12)return;
   const bounds=renderer.domElement.getBoundingClientRect();craftPointer.set((event.clientX-bounds.left)/bounds.width*2-1,-((event.clientY-bounds.top)/bounds.height)*2+1);craftRaycaster.setFromCamera(craftPointer,camera);
