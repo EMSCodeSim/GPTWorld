@@ -47,7 +47,7 @@ export default async (req) => {
       const clientId = String(url.searchParams.get('clientId') || '').trim().slice(0, 80);
       const [worldRows, onlineRows, meRows] = await Promise.all([
         sql`SELECT key, value FROM world_state ORDER BY key`,
-        sql`SELECT client_id, display_name, x, z, last_seen_at FROM players WHERE last_seen_at > now() - interval '90 seconds' ORDER BY last_seen_at DESC LIMIT 50`,
+        sql`SELECT CASE WHEN client_id=${clientId} THEN client_id ELSE 'public-'||id::text END AS client_id,display_name,x,z,last_seen_at FROM players WHERE last_seen_at > now() - interval '90 seconds' ORDER BY last_seen_at DESC LIMIT 50`,
         clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([])
       ]);
       const world = Object.fromEntries(worldRows.map(row => [row.key, row.value]));
@@ -69,11 +69,10 @@ export default async (req) => {
       const x = Math.max(-33, Math.min(33, finite(body.x, 0)));
       const z = Math.max(-33, Math.min(33, finite(body.z, 12)));
       const players = await sql`
-        INSERT INTO players (client_id, display_name, x, z, last_seen_at)
-        VALUES (${clientId}, ${name}, ${x}, ${z}, now())
-        ON CONFLICT (client_id) DO UPDATE SET display_name = EXCLUDED.display_name, x = EXCLUDED.x, z = EXCLUDED.z, last_seen_at = now()
-        RETURNING id
+        UPDATE players SET display_name=${name},x=${x},z=${z},last_seen_at=now()
+        WHERE client_id=${clientId} RETURNING id
       `;
+      if(!players.length)return json({ok:false,error:'player_not_registered'},409);
       const playerId = players[0].id;
       await sql`INSERT INTO player_inventory (player_id, wood, stone, herbs, updated_at) VALUES (${playerId}, 0, 0, 0, now()) ON CONFLICT (player_id) DO NOTHING`;
 
