@@ -14,10 +14,11 @@ const craftingPanel=$('craftingPanel'),craftingResult=$('craftingResult'),crafti
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,craftBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
+let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
+const placedCrafts=new Map();
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const color=value=>new THREE.Color(value);
@@ -114,6 +115,18 @@ function addCloud(index){
   const group=new THREE.Group();for(let i=0;i<5;i++){const puff=new THREE.Mesh(new THREE.SphereGeometry(2.2+i*.12,10,7),new THREE.MeshStandardMaterial({color:0xd9e1df,transparent:true,opacity:.72,depthWrite:false}));puff.scale.y=.55;puff.position.set((i-2)*1.65,(i%2)*.45,0);group.add(puff);}group.position.set(-28+index*18,18+index%2*2,-20+(index%3)*18);scene.add(group);clouds.push(group);
 }
 
+function addPlacedCraft(item){
+  if(placedCrafts.has(String(item.id)))return;
+  const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
+  sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;scene.add(sprite);placedCrafts.set(String(item.id),sprite);
+  interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
+}
+function removePlacedCraft(itemId){
+  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();placedCrafts.delete(id);
+  const index=interactables.findIndex(item=>item.placedItemId===id);if(index>=0)interactables.splice(index,1);
+}
+
 function makePrecipitation(){
   const count=420,positions=new Float32Array(count*3);
   for(let i=0;i<count;i++){positions[i*3]=(hash01(`rain-x-${i}`)-.5)*42;positions[i*3+1]=2+hash01(`rain-y-${i}`)*22;positions[i*3+2]=(hash01(`rain-z-${i}`)-.5)*42;}
@@ -135,6 +148,7 @@ function build(data){
   for(const object of terrain.objects){if(object.kind==='tree')addTree(object);else if(object.kind==='rock')addRock(object);else if(object.kind==='herbs')addHerbs(object);else if(object.kind==='wildlife')addWildlife(object);}
   for(let i=0;i<4;i++)addCloud(i);makePrecipitation();
   player=makeHumanoid();player.position.set(Number(data.session.position.x)||0,0,Number(data.session.position.z)||8);scene.add(player);
+  for(const item of data.world.placedItems||[])addPlacedCraft(item);
   camera.position.set(player.position.x+12,14,player.position.z+12);clock=new THREE.Clock();
   $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
@@ -162,6 +176,7 @@ function updateStatus(){
 
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
+function craftingIcon(key){return `./assets/crafting/${encodeURIComponent(key)}.webp`;}
 function canAfford(recipe){return Object.entries(recipe.inputs).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);}
 function showCraftingResult(data,recipe){
   const title=document.createElement('strong'),detail=document.createElement('span'),before=Number(data.skill.before),after=Number(data.skill.value),gain=Math.max(0,after-before);
@@ -177,8 +192,8 @@ function showCraftingError(message){
 function renderCrafting(){
   if(!craftingData)return;
   craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skill.key[0].toUpperCase()+skill.key.slice(1);progress.textContent=`${skill.value.toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
-  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{const card=document.createElement('article');card.className='recipe-card';const title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');title.textContent=recipe.name;description.textContent=recipe.description;meta.className='recipe-meta';cost.textContent=resourceText(recipe.inputs);chance.textContent=`${Math.round(recipe.chance*100)}% success`;button.type='button';button.textContent=canAfford(recipe)?'Craft item':'Need materials';button.disabled=craftBusy||!canAfford(recipe);button.addEventListener('click',()=>craftRecipe(recipe));meta.append(cost,chance);card.append(title,description,meta,button);return card;}));
-  craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{const row=document.createElement('div');row.className='crafted-item';const title=document.createElement('strong'),detail=document.createElement('small');title.textContent=`${item.quality} ${item.name}`;detail.textContent=`${item.profession} · ${item.durability}/${item.maxDurability} durability · made by ${item.maker}`;row.append(title,detail);return row;}):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your first crafted item will appear here.'})]));
+  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{const card=document.createElement('article');card.className='recipe-card';const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');image.className='recipe-icon';image.src=craftingIcon(recipe.key);image.alt='';image.loading='lazy';title.textContent=recipe.name;description.textContent=recipe.description;meta.className='recipe-meta';cost.textContent=resourceText(recipe.inputs);chance.textContent=`${Math.round(recipe.chance*100)}% success`;button.type='button';button.textContent=canAfford(recipe)?'Craft item':'Need materials';button.disabled=craftBusy||!canAfford(recipe);button.addEventListener('click',()=>craftRecipe(recipe));meta.append(cost,chance);content.append(title,description,meta,button);card.append(image,content);return card;}));
+  craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{const row=document.createElement('div');row.className='crafted-item';const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),button=document.createElement('button');image.src=craftingIcon(item.key);image.alt='';image.loading='lazy';title.textContent=`${item.quality} ${item.name}`;detail.textContent=item.placed?'Placed in your world · approach it to pick it up':`${item.profession} · ${item.durability}/${item.maxDurability} durability`;button.type='button';button.textContent=item.placed?'Placed':'Place';button.disabled=itemBusy||Boolean(item.placed);button.addEventListener('click',()=>placeCraftedItem(item));content.append(title,detail);row.append(image,content,button);return row;}):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your bag is empty. Crafted items will appear here.'})]));
 }
 async function loadCrafting(){
   if(!navigator.onLine){showToast('Reconnect to open your authoritative crafting ledger.');return false;}
@@ -195,6 +210,15 @@ async function craftRecipe(recipe){
     await loadCrafting();for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(craftingData.inventory?.[key]||0);
   }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='private_world_required'?'Craft inside your personal world.':'Please try again. No success was recorded.');}
   finally{craftBusy=false;renderCrafting();}
+}
+async function placeCraftedItem(item){
+  if(itemBusy||item.placed)return;itemBusy=true;renderCrafting();await savePosition();
+  const position={x:clamp(player.position.x+Math.sin(player.rotation.y)*2.6,-32,32),z:clamp(player.position.z+Math.cos(player.rotation.y)*2.6,-32,32),rotation:player.rotation.y};
+  try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'place_item',itemId:item.id,position,idempotencyKey:requestKey(`place-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'place_failed');const placed={...data.item,...data.item.placed};addPlacedCraft(placed);if(loadedPayload?.world){loadedPayload.world.placedItems=[...(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id)),placed];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}await loadCrafting();showCraftingError(`${item.name} was placed nearby. Close your bag to see it.`);craftingResult.dataset.outcome='success';craftingResult.firstElementChild.textContent=`Placed — ${item.name}`;}catch{showCraftingError('Move to a clear nearby spot and try placing the item again.');}finally{itemBusy=false;renderCrafting();}
+}
+async function pickupCraftedItem(item){
+  if(itemBusy)return;itemBusy=true;actionButton.disabled=true;await savePosition();
+  try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'pickup_item',itemId:item.id,idempotencyKey:requestKey(`pickup-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'pickup_failed');removePlacedCraft(item.id);if(loadedPayload?.world){loadedPayload.world.placedItems=(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id));cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}showToast(`${item.name} returned to your bag.`);if(craftingData)await loadCrafting();}catch{showToast('Move closer to the item and try again.');}finally{itemBusy=false;actionButton.disabled=false;}
 }
 function collides(x,z){return blockers.some(block=>Math.abs(x-block.x)<block.halfX&&Math.abs(z-block.z)<block.halfZ);}
 function updatePlayer(dt,time){
@@ -231,7 +255,7 @@ function updateEnvironment(dt,time){
   water.position.y=.02+Math.sin(time*.0015)*.025;
 }
 
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Pick up ${best.label}`:node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
 async function gather(item){
   const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
   if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
@@ -247,7 +271,7 @@ async function gather(item){
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
-function interact(){if(!nearest)return;if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function interact(){if(!nearest)return;if(nearest.placedItemId){pickupCraftedItem(nearest.object.userData.item);return;}if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
 function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}
 async function sendQueuedPosition(action){
   const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'save_position',position:action.position})}),data=await response.json();
