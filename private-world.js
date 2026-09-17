@@ -349,6 +349,16 @@ function updatePlayer(dt,time){
   animatePerson(player,strength>.05,time);cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.65,player.position.z);
 }
 
+function animalLandPosition(current,candidate){
+  const half=Math.max(4,Number(terrain?.size||68)/2-1.2),x=clamp(candidate.x,-half,half),z=clamp(candidate.z,-half,half);
+  const lake=terrain?.water;if(!lake)return{x,z};
+  const dx=x-Number(lake.x||0),dz=z-Number(lake.z||0),distance=Math.hypot(dx,dz),shore=Number(lake.radius||0)+.65;
+  if(distance>=shore)return{x,z};
+  const oldDx=current.x-Number(lake.x||0),oldDz=current.z-Number(lake.z||0),oldDistance=Math.hypot(oldDx,oldDz);
+  const directionX=oldDistance>.01?oldDx/oldDistance:(distance>.01?dx/distance:1),directionZ=oldDistance>.01?oldDz/oldDistance:(distance>.01?dz/distance:0);
+  return{x:clamp(Number(lake.x||0)+directionX*shore,-half,half),z:clamp(Number(lake.z||0)+directionZ*shore,-half,half)};
+}
+
 function updateAnimals(dt,time){
   const drought=Number(currentEcology.drought||0),forage=Number(currentEcology.forage||.6);
   for(const animal of animals){
@@ -358,12 +368,12 @@ function updateAnimals(dt,time){
     else if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
     else if(!data.serverDriven&&time>data.nextTurn){
       const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
-      if(seekWater){data.behavior='seeking water';data.target.set(terrain.water.x+(hash01(`${data.phase}:wx`)-.5)*6,0,terrain.water.z+(hash01(`${data.phase}:wz`)-.5)*6);}
+      if(seekWater){const angle=hash01(`${data.phase}:water-shore`)*Math.PI*2,radius=Number(terrain.water.radius||0)+.9;data.behavior='seeking water';data.target.set(terrain.water.x+Math.cos(angle)*radius,0,terrain.water.z+Math.sin(angle)*radius);}
       else if(forage>.42){data.behavior='grazing';const angle=hash01(`${Math.floor(time/5000)}:${data.phase}`)*Math.PI*2;data.target.copy(data.home).add(new THREE.Vector3(Math.cos(angle)*7,0,Math.sin(angle)*7));}
       else{data.behavior='foraging';const angle=hash01(`${Math.floor(time/6500)}:${data.phase}:f`)*Math.PI*2;data.target.set(Math.cos(angle)*24,0,Math.sin(angle)*24);}
       data.nextTurn=time+4200+hash01(`${time}:${data.phase}`)*4200;
     }
-    const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();animal.position.addScaledVector(offset,dt*data.speed*(data.behavior==='fleeing'?2.3:1));animal.rotation.y=Math.atan2(offset.x,offset.z);}
+    const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();const distance=dt*data.speed*(data.behavior==='fleeing'?2.3:1),candidate={x:animal.position.x+offset.x*distance,z:animal.position.z+offset.z*distance},land=animalLandPosition(animal.position,candidate);animal.position.x=land.x;animal.position.z=land.z;animal.rotation.y=Math.atan2(offset.x,offset.z);}
     const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
   }
 }
