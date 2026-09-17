@@ -4,6 +4,19 @@ import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQu
 const API='/.netlify/functions/private-world';
 const CRAFTING_API='/.netlify/functions/crafting';
 const CLIENT_KEY='gptworld-client-id';
+const SHARED_CLOCK_KEY='gptworld-shared-clock';
+function formatSharedClock(minutes){const m=((Math.floor(minutes)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
+function syncClockFromPublic(){
+  try{
+    const sample=JSON.parse(localStorage.getItem(SHARED_CLOCK_KEY)||'null');
+    if(!sample||!Number.isFinite(Number(sample.minutes)))return;
+    const rate=Number.isFinite(Number(sample.rate))&&Number(sample.rate)>0?Number(sample.rate):1;
+    const minutes=Number(sample.minutes)+Math.max(0,Date.now()-Number(sample.at||Date.now()))/1000*rate;
+    if(statusEls.clock)statusEls.clock.textContent=formatSharedClock(minutes);
+  }catch{}
+}
+setInterval(syncClockFromPublic,250);
+
 const $=id=>document.getElementById(id);
 const worldEl=$('world'),loading=$('loading'),loadingTitle=$('loadingTitle'),loadingMessage=$('loadingMessage');
 const retry=$('retry'),returnTown=$('returnTown'),promptEl=$('prompt'),toastEl=$('toast'),actionButton=$('actionButton');

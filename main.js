@@ -10,6 +10,23 @@ const CLIENT_KEY='gptworld-client-id';
 const STORAGE_KEY='gptworld-day1';
 const BACKUP_KEY='gptworld-device-backup';
 const REGISTRATION_KEY='gptworld-registration-key';
+const SHARED_CLOCK_KEY='gptworld-shared-clock';
+let sharedClockPrevious=null;
+function publishSharedWorldClock(){
+  try{
+    const now=Date.now(),minutes=Number(elapsedWorldMinutes||0);
+    let rate=Number(sharedClockPrevious?.rate||0);
+    if(sharedClockPrevious&&now>sharedClockPrevious.at){
+      const measured=(minutes-sharedClockPrevious.minutes)/((now-sharedClockPrevious.at)/1000);
+      if(Number.isFinite(measured)&&measured>0&&measured<120)rate=measured;
+    }
+    const sample={minutes,at:now,rate:Number.isFinite(rate)&&rate>0?rate:1};
+    localStorage.setItem(SHARED_CLOCK_KEY,JSON.stringify(sample));
+    sharedClockPrevious=sample;
+  }catch{}
+}
+setInterval(publishSharedWorldClock,750);
+
 const worldEl=document.getElementById('world'),welcomeEl=document.getElementById('welcome'),playerNameEl=document.getElementById('playerName'),enterWorldBtn=document.getElementById('enterWorld'),promptEl=document.getElementById('prompt'),toastEl=document.getElementById('toast'),clockEl=document.getElementById('clock'),onlineEl=document.getElementById('online'),actionButton=document.getElementById('actionButton'),chronicleEntries=document.getElementById('chronicleEntries'),toggleChronicle=document.getElementById('toggleChronicle');
 const deviceStatusEl=document.getElementById('deviceStatus'),recoveryNotice=document.getElementById('recoveryNotice'),recoveryCodeEl=document.getElementById('recoveryCode'),copyRecoveryCode=document.getElementById('copyRecoveryCode'),recoverTraveler=document.getElementById('recoverTraveler'),recoveryForm=document.getElementById('recoveryForm'),recoveryCodeInput=document.getElementById('recoveryCodeInput'),submitRecovery=document.getElementById('submitRecovery');
 const resourceEls={wood:document.getElementById('woodCount'),stone:document.getElementById('stoneCount'),herbs:document.getElementById('herbCount')};
