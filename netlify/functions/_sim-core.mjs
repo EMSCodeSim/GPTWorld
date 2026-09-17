@@ -90,16 +90,9 @@ export function ecologyRenderEntities(ecosystem,now=Date.now(),weather=null,obse
  }
  const eatenPlants=new Set(herbivoreRecords.map(record=>record.consumedPlant).filter(Boolean));out.push(...plantParts.filter(entity=>!eatenPlants.has(entity.clusterId)));
  for(const record of animals){if(record.s.kind==='herbivore'&&killedPrey.has(record.id))continue;const heading=Math.atan2(record.nz-record.z,record.nx-record.x),body=.65+clamp(Number(record.s.traits?.size||.4),0,1)*.8,before=out.length;animalParts(out,record.s,record.i,record.x,record.z,body,heading,record.behavior);const entity=out[before];if(entity){entity.foodWeb=true;entity.foodTarget=record.target?.id||record.target||null;entity.consumedPlant=record.consumedPlant||null;entity.preyKilled=record.s.kind==='predator'&&record.behavior==='feeding';}}
- // Persistent-looking seasonal game trails derived deterministically from current ecology and season.
  if(last?.type==='wildfire'){for(let i=0;i<8;i++)part(out,`eco-burn-scar-${i}`,-2+i*2.1,10+(i%2)*1.2,1.8,.03,1.3,'#3f392f',{part:'burn-scar',disaster:last.id});}
  if(last?.type==='flood'){for(let i=0;i<6;i++)part(out,`eco-flood-mark-${i}`,-20+i*.8,-5+i*2.3,.7,.04,1.4,'#526f73',{part:'flood-mark',disaster:last.id});}
  const patches=Array.isArray(ecosystem?.plantPatches)?ecosystem.plantPatches:[];for(const p of patches.slice(-24)){const count=Math.max(1,Math.min(4,Math.ceil(Number(p.population||0)/250))),speciesName=species.find(s=>s.id===p.speciesId)?.name||String(p.speciesId||'new plant patch').replaceAll('-',' ');for(let n=0;n<count;n++){const a=habitatPoint(p.habitat,`${p.id}:patch:${n}`,.72),color=p.speciesId==='rivergrass'?'#83a653':'#597b3f';part(out,`eco-patch-${p.id}-${n}`,a.x,a.z,.72,.28,.72,color,{part:'plant-patch',species:p.speciesId,speciesName,stage:p.stage,habitat:p.habitat});}}
- const groups=Array.isArray(ecosystem?.animalGroups)?ecosystem.animalGroups:[];for(const g of groups){const a=habitatPoint(g.habitat,`${g.id}:home`,.42),pred=g.type==='pack';part(out,`eco-home-${g.id}`,a.x,a.z,pred?1.1:1.35,pred?.35:.12,pred?1.1:1.35,pred?'#51443a':'#7b6849',{part:g.shelterType,species:g.speciesId,group:g.type,groups:g.groups,young:g.young||0});}
- const season=String(weather?.season||'Spring');
- for(const s of species.filter(x=>x.kind!=='plant'&&Number(x.population||0)>0)){
-  const seed=hash01(s.id||s.name),zones=ecologyHabitatZones(s.habitat,seed),a=zones[0],target=zones[({Spring:1,Summer:2,Autumn:3,Winter:4}[season]??1)%zones.length];
-  for(let n=1;n<=3;n++){const q=n/4,x=a.x+(target.x-a.x)*q,z=a.z+(target.z-a.z)*q;part(out,`eco-trail-${s.id}-${n}`,x,z,1.4,.025,.5,'#776b52',{species:s.id,part:'trail',season});}
- }
  return out;
 }
 

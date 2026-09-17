@@ -79,3 +79,13 @@ test('land animals stay on the map and cross the river only on the bridge',()=>{
   assert.ok(samples.some(point=>point.x>-29&&point.x<-19&&Math.abs(point.z)<=1.45));
   assert.ok(samples.every(point=>!(point.x>-29&&point.x<-19)||Math.abs(point.z)<=1.45));
 });
+
+test('placeholder ecology trails and shelter blocks are not rendered',()=>{
+  const withAnimalHomes={...ecosystem,animalGroups:[
+    {id:'grazer-herd',speciesId:'meadow-grazer',type:'herd',shelterType:'nesting ground',habitat:'grassland'},
+    {id:'stalker-pack',speciesId:'ridge-stalker',type:'pack',shelterType:'den',habitat:'ridge'}
+  ]};
+  const entities=ecologyRenderEntities(withAnimalHomes,0,weather);
+  assert.ok(entities.every(entity=>!String(entity.id).startsWith('eco-trail-')));
+  assert.ok(entities.every(entity=>!String(entity.id).startsWith('eco-home-')));
+});
