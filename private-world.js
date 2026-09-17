@@ -21,6 +21,8 @@ const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
 const placedCrafts=new Map();
 const livingEntityObjects=new Map();
+const craftRaycaster=new THREE.Raycaster(),craftPointer=new THREE.Vector2();
+let craftTapStart=null;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const color=value=>new THREE.Color(value);
@@ -148,7 +150,9 @@ function addCloud(index){
 }
 
 function makeCampfireFlame(item){
-  const group=new THREE.Group();group.position.set(item.x,0,item.z);group.visible=false;
+  // Crafted sprites are bottom-anchored. Lift the flame to the center of the
+  // illustrated stone ring instead of leaving it at the sprite's ground point.
+  const group=new THREE.Group();group.position.set(item.x,1,item.z);group.visible=false;
   const flameMaterial=(value,opacity)=>new THREE.MeshBasicMaterial({color:value,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
   const flame=(radius,height,value,opacity,x,y,z,phase)=>{const mesh=new THREE.Mesh(new THREE.ConeGeometry(radius,height,7),flameMaterial(value,opacity));mesh.position.set(x,y,z);mesh.userData={baseX:x,baseY:y,phase};group.add(mesh);return mesh;};
   const flames=[
@@ -166,17 +170,31 @@ function makeCampfireFlame(item){
   group.userData={flames,embers,emberSeeds,emberBase:positions.slice(),light,phase:hash01(`${item.id}:fire-phase`)*Math.PI*2};scene.add(group);return group;
 }
 
+function makeCrateStorageLabel(item){
+  const canvas=document.createElement('canvas');canvas.width=320;canvas.height=82;
+  const texture=new THREE.CanvasTexture(canvas),label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
+  label.scale.set(2.9,.74,1);label.position.set(item.x,3.05,item.z);label.userData={canvas,texture};scene.add(label);return label;
+}
+
+function refreshCrateStorageLabel(sprite,item){
+  if(item.key!=='wooden-crate')return;const storage=item.storage||{wood:0,stone:0,herbs:0,capacity:60},used=Number(storage.wood||0)+Number(storage.stone||0)+Number(storage.herbs||0);
+  const label=sprite.userData.storageLabel||(sprite.userData.storageLabel=makeCrateStorageLabel(item)),canvas=label.userData.canvas,context=canvas.getContext('2d');
+  context.clearRect(0,0,canvas.width,canvas.height);label.visible=used>0;if(!used)return;
+  context.fillStyle='rgba(17,31,21,.9)';context.fillRect(4,4,312,74);context.strokeStyle='#d2b36a';context.lineWidth=5;context.strokeRect(4,4,312,74);
+  context.fillStyle='#f4e3b9';context.font='700 30px system-ui,sans-serif';context.textAlign='center';context.textBaseline='middle';context.fillText(`Stored ${used} / ${Number(storage.capacity||60)}`,160,42);label.userData.texture.needsUpdate=true;
+}
+
 function addPlacedCraft(item){
   if(placedCrafts.has(String(item.id)))return;
   const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
   sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;
   if(item.key==='campfire-kit'){const fireGroup=makeCampfireFlame(item);sprite.userData.fireGroup=fireGroup;sprite.userData.fireLight=fireGroup.userData.light;}
-  scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);
+  scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);refreshCrateStorageLabel(sprite,item);
   interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
 }
 function removePlacedCraft(itemId){
-  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}placedCrafts.delete(id);
+  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}if(sprite.userData.storageLabel){scene.remove(sprite.userData.storageLabel);sprite.userData.storageLabel.material.map?.dispose();sprite.userData.storageLabel.material.dispose();}placedCrafts.delete(id);
   const index=interactables.findIndex(item=>item.placedItemId===id);if(index>=0)interactables.splice(index,1);
 }
 
@@ -233,7 +251,7 @@ function showToast(message){toastEl.textContent=message;toastEl.classList.add('s
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 function craftingIcon(key){return `./assets/crafting/${encodeURIComponent(key)}.webp`;}
 function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&currentEcology?.weather!=='heavy rain';}
-function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}}
+function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}refreshCrateStorageLabel(sprite,item);}
 function updatePlacedItemState(itemId,changes){
   const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
   if(loadedPayload?.world){const saved=(loadedPayload.world.placedItems||[]).find(entry=>String(entry.id)===String(itemId));if(saved)Object.assign(saved,changes);cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}return item;
@@ -265,7 +283,7 @@ async function openCrafting(){
   await loadCrafting();
 }
 function hideCrafting(){craftingPanel.hidden=true;}
-function itemButton(label,handler,className=''){const button=document.createElement('button');button.type='button';button.textContent=label;button.className=className;button.disabled=itemBusy;button.addEventListener('click',handler);return button;}
+function itemButton(label,handler,className='',unavailable=false){const button=document.createElement('button');button.type='button';button.textContent=label;button.className=className;button.disabled=itemBusy||unavailable;button.addEventListener('click',handler);return button;}
 function renderCraftedUse(item){
   craftedUseTitle.textContent=item.name;craftedUseIcon.src=craftingIcon(item.key);craftedUseControls.replaceChildren();
   if(item.key==='campfire-kit'){
@@ -275,8 +293,12 @@ function renderCraftedUse(item){
     if(remaining>0)craftedUseControls.append(itemButton('Extinguish fire',()=>useCraftedItem(item,'extinguish_campfire')));
   }else if(item.key==='wooden-crate'){
     const storage=item.storage||{wood:0,stone:0,herbs:0,capacity:60},used=storage.wood+storage.stone+storage.herbs;
-    craftedUseStatus.textContent=`Personal storage: ${used}/${storage.capacity}. Deposits and withdrawals update your pack immediately.`;
-    for(const [resource,icon] of Object.entries({wood:'🪵',stone:'🪨',herbs:'🌿'})){const row=document.createElement('div'),label=document.createElement('span');row.className='crate-resource';label.textContent=`${icon} ${resource[0].toUpperCase()+resource.slice(1)} · ${storage[resource]}`;row.append(label,itemButton('+1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:1})),itemButton('+5',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:5})),itemButton('−1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:1})),itemButton('−5',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:5})));craftedUseControls.append(row);}
+    craftedUseStatus.textContent=`Crate storage: ${used}/${storage.capacity}. Store materials from your pack or take them back whenever you are standing nearby.`;
+    for(const [resource,icon] of Object.entries({wood:'🪵',stone:'🪨',herbs:'🌿'})){
+      const stored=Number(storage[resource]||0),pack=Math.max(0,Number(inventoryEls[resource]?.textContent)||0),space=Math.max(0,Number(storage.capacity||60)-used),storeAll=Math.min(pack,space),row=document.createElement('section'),heading=document.createElement('div'),actions=document.createElement('div');
+      row.className='crate-resource';heading.className='crate-resource-heading';actions.className='crate-actions';heading.innerHTML=`<strong>${icon} ${resource[0].toUpperCase()+resource.slice(1)}</strong><span>Pack ${pack} · Crate ${stored}</span>`;
+      actions.append(itemButton('Store 1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:1}),'primary',pack<1||space<1),itemButton(`Store all (${storeAll})`,()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:storeAll}),'primary',storeAll<1),itemButton('Take 1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:1}),'',stored<1),itemButton(`Take all (${stored})`,()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:stored}),'',stored<1));row.append(heading,actions);craftedUseControls.append(row);
+    }
   }else craftedUseStatus.textContent='This crafted item is placed in your world.';
   craftedUseControls.append(itemButton('Return item to bag',()=>pickupCraftedItem(item),'danger'));
 }
@@ -285,7 +307,7 @@ function hideCraftedUse(){craftedUsePanel.hidden=true;}
 async function useCraftedItem(item,action,extra={}){
   if(itemBusy||!navigator.onLine)return;itemBusy=true;renderCraftedUse(item);await savePosition();
   try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action,itemId:item.id,idempotencyKey:requestKey(`${action}-${item.id}`),...extra})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'item_use_failed');
-    if(data.inventory)for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory[key]||0);
+    if(data.inventory){for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory[key]||0);if(loadedPayload)loadedPayload.inventory={...data.inventory};}
     const updated=updatePlacedItemState(item.id,{metadata:data.metadata||item.metadata,storage:data.storage||item.storage});renderCraftedUse(updated||item);
     showToast(action==='crate_transfer'?`${data.direction==='deposit'?'Stored':'Withdrew'} ${data.amount} ${data.resource}.`:action==='light_campfire'?'Campfire lit. The nearby area is now warm and protected.':'Campfire extinguished.');
   }catch(error){showToast(error.message==='campfire_cannot_be_lit'?(currentEcology?.weather==='heavy rain'?'Heavy rain prevents this campfire from lighting.':'You need one wood and must stand near the campfire.'):error.message==='crate_transfer_failed'?'Not enough material, crate space, or distance is too great.':'The item could not be used. Try again.');}
@@ -382,6 +404,11 @@ async function gather(item){
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
 function interact(){if(!nearest)return;if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function openPlacedCraftFromTap(event){
+  if(!running||!craftTapStart||!craftingPanel.hidden||!craftedUsePanel.hidden)return;const distance=Math.hypot(event.clientX-craftTapStart.x,event.clientY-craftTapStart.y);craftTapStart=null;if(distance>12)return;
+  const bounds=renderer.domElement.getBoundingClientRect();craftPointer.set((event.clientX-bounds.left)/bounds.width*2-1,-((event.clientY-bounds.top)/bounds.height)*2+1);craftRaycaster.setFromCamera(craftPointer,camera);
+  const hit=craftRaycaster.intersectObjects([...placedCrafts.values()],false)[0];if(!hit)return;const sprite=hit.object,item=sprite.userData.item;if(player.position.distanceTo(sprite.position)>5){showToast(`Move closer to use ${item.name}.`);return;}openCraftedUse(item);
+}
 function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}
 async function sendQueuedPosition(action){
   const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'save_position',position:action.position})}),data=await response.json();
@@ -429,6 +456,7 @@ window.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));win
 window.addEventListener('online',()=>{setSyncState('connecting');flushQueuedPosition();});window.addEventListener('offline',()=>setSyncState('offline'));
 for(const gesture of['gesturestart','gesturechange','gestureend'])document.addEventListener(gesture,event=>event.preventDefault(),{passive:false});
 window.addEventListener('pagehide',()=>{if(running){const position=currentPosition();queuePrivatePosition(activeClientId,position).catch(()=>{});navigator.sendBeacon?.(API,new Blob([JSON.stringify({clientId:activeClientId,action:'save_position',position})],{type:'application/json'}));}});
+worldEl.addEventListener('pointerdown',event=>{if(event.target===renderer?.domElement)craftTapStart={x:event.clientX,y:event.clientY};});worldEl.addEventListener('pointerup',openPlacedCraftFromTap);worldEl.addEventListener('pointercancel',()=>{craftTapStart=null;});
 actionButton.addEventListener('click',interact);returnTown.addEventListener('click',leave);retry.addEventListener('click',load);
 craftButton.addEventListener('click',openCrafting);closeCrafting.addEventListener('click',hideCrafting);craftingPanel.addEventListener('click',event=>{if(event.target===craftingPanel)hideCrafting();});
 closeCraftedUse.addEventListener('click',hideCraftedUse);craftedUsePanel.addEventListener('click',event=>{if(event.target===craftedUsePanel)hideCraftedUse();});

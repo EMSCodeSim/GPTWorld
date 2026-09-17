@@ -8,7 +8,7 @@ export const CRAFTING_SKILLS=Object.freeze([
 
 export const CRAFTING_RECIPES=Object.freeze([
   {key:'campfire-kit',name:'Campfire Kit',description:'A portable fire ring and kindling bundle.',skill:'carpentry',difficulty:0,station:'Field Crafting',inputs:{wood:3,stone:2,herbs:0},durability:40},
-  {key:'wooden-crate',name:'Wooden Crate',description:'Personal storage ready for a future homestead.',skill:'carpentry',difficulty:12,station:'Field Crafting',inputs:{wood:8,stone:0,herbs:0},durability:65},
+  {key:'wooden-crate',name:'Wooden Crate',description:'Place it in your world to store and retrieve wood, stone, and herbs.',skill:'carpentry',difficulty:12,station:'Field Crafting',inputs:{wood:8,stone:0,herbs:0},durability:65},
   {key:'stone-hammer',name:'Stone Hammer',description:'A basic construction and stoneworking tool.',skill:'masonry',difficulty:4,station:'Field Crafting',inputs:{wood:2,stone:4,herbs:0},durability:55},
   {key:'stone-hearth',name:'Stone Hearth Kit',description:'Fitted stones for a cabin or outdoor kitchen.',skill:'masonry',difficulty:18,station:'Field Crafting',inputs:{wood:2,stone:10,herbs:0},durability:85},
   {key:'healing-poultice',name:'Healing Poultice',description:'A prepared bundle of restorative wild herbs.',skill:'herbalism',difficulty:0,station:'Field Crafting',inputs:{wood:0,stone:0,herbs:3},durability:1},
