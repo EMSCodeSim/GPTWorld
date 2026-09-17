@@ -1,4 +1,6 @@
 import { neon } from '@neondatabase/serverless';
+import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
+import {ecologyRenderEntities} from './_sim-core.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -10,6 +12,13 @@ const DEFAULT_NODE_CONFIG = {
   'rock-0':{resource:'stone',max:4,regrowMinutes:90},'rock-1':{resource:'stone',max:4,regrowMinutes:90},'rock-2':{resource:'stone',max:4,regrowMinutes:90},'rock-3':{resource:'stone',max:4,regrowMinutes:90},'rock-4':{resource:'stone',max:4,regrowMinutes:90},
   'herb-0':{resource:'herbs',max:3,regrowMinutes:20},'herb-1':{resource:'herbs',max:3,regrowMinutes:20},'herb-2':{resource:'herbs',max:3,regrowMinutes:20},'herb-3':{resource:'herbs',max:3,regrowMinutes:20},'herb-4':{resource:'herbs',max:3,regrowMinutes:20}
 };
+
+const TREE_POSITIONS=[[18,-13],[20,-7],[19,4],[23,10],[16,15],[10,18],[3,19],[-5,18],[-12,15],[-16,8],[-17,-1],[-15,-12],[-9,-17],[1,-18],[12,-17],[27,-17],[28,-7],[28,3],[27,15],[-29,-18],[-31,-8],[-30,7],[-29,18]];
+const ROCK_POSITIONS=[[15,9],[-12,10],[20,-2],[-15,-6],[9,14]];
+const HERB_POSITIONS=[[7,14],[-10,13],[17,-10],[-13,-3],[13,11]];
+TREE_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`tree-${i}`],{x,z}));
+ROCK_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`rock-${i}`],{x,z}));
+HERB_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`herb-${i}`],{x,z}));
 
 const RESOURCE_DEFAULTS = {
   wood:{max:6,regrowMinutes:60},
@@ -111,6 +120,37 @@ async function getInventory(sql, playerId) {
   return { wood:Number(row.wood||0), stone:Number(row.stone||0), herbs:Number(row.herbs||0), updated_at:row.updated_at||null };
 }
 
+async function gatherIndividualPlant(sql,player,key,plantId){
+  const prior=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${player.id} AND idempotency_key=${key} LIMIT 1`;
+  if(prior.length)return prior[0].response;
+  const claim=await sql`INSERT INTO public_resource_action_receipts(player_id,idempotency_key,node_id,response) VALUES(${player.id},${key},${plantId},'{"ok":false,"error":"action_in_progress"}'::jsonb) ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id`;
+  if(!claim.length){const raced=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${player.id} AND idempotency_key=${key} LIMIT 1`;return raced[0]?.response||{ok:false,error:'action_in_progress'};}
+  const stateRows=await sql`SELECT key,value FROM world_state WHERE key IN ('ecosystem','weather_sim','forest_pressure')`;
+  const state=Object.fromEntries(stateRows.map(row=>[row.key,row.value])),ecosystem=state.ecosystem||{},index=(ecosystem.plantIndividuals||[]).findIndex(plant=>String(plant.id)===plantId);
+  if(index<0){const response={ok:false,error:'plant_not_found'};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${player.id} AND idempotency_key=${key}`;return response;}
+  const raw=ecosystem.plantIndividuals[index],plant=normalizePlant(raw,{id:plantId,speciesId:raw.speciesId,year:Number(ecosystem.simulatedYear||0),slot:raw.slot,maxResources:1,legacyMature:true});
+  const parts=ecologyRenderEntities({...ecosystem,plantIndividuals:[plant]},Date.now(),state.weather_sim,player,state.forest_pressure).filter(entity=>entity.plantId===plantId);
+  const anchor=parts.find(entity=>entity.part==='blade'||entity.part==='stem')||parts[0],distance=anchor?Math.hypot(Number(player.x)-Number(anchor.x),Number(player.z)-Number(anchor.z)):Infinity;
+  if(!Number.isFinite(distance)||distance>4.5){const response={ok:false,error:'resource_out_of_range'};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${player.id} AND idempotency_key=${key}`;return response;}
+  const harvested=harvestPlant(plant,{amount:1,year:Number(ecosystem.simulatedYear||0),playerId:player.id});
+  if(!harvested.ok){const response={ok:false,error:harvested.error,node:{nodeId:plantId,resource:'herbs',plant,remaining:Math.floor(plant.resources),max:plant.maxResources}};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${player.id} AND idempotency_key=${key}`;return response;}
+  const rows=await sql`
+    WITH current AS (SELECT value FROM world_state WHERE key='ecosystem' FOR UPDATE), target AS (
+      SELECT value,ord-1 AS idx,individual FROM current,jsonb_array_elements(COALESCE(value->'plantIndividuals','[]'::jsonb)) WITH ORDINALITY AS items(individual,ord)
+      WHERE individual->>'id'=${plantId} AND COALESCE((individual->>'resources')::numeric,0)=${Number(raw.resources||0)}::numeric
+    ), changed AS (
+      UPDATE world_state ws SET value=jsonb_set(target.value,ARRAY['plantIndividuals',target.idx::text],${JSON.stringify(harvested.plant)}::jsonb,false),updated_at=now()
+      FROM target WHERE ws.key='ecosystem' RETURNING ws.value
+    ), inventory AS (
+      INSERT INTO player_inventory(player_id,wood,stone,herbs,updated_at) SELECT ${player.id},0,0,1,now() FROM changed
+      ON CONFLICT(player_id) DO UPDATE SET herbs=player_inventory.herbs+1,updated_at=now() RETURNING wood,stone,herbs
+    ), logged AS (
+      INSERT INTO world_events(player_id,event_type,payload) SELECT ${player.id},'plant_harvested',jsonb_build_object('plantId',${plantId},'speciesId',${plant.speciesId},'amount',1,'remaining',${harvested.plant.resources}) FROM inventory RETURNING id
+    ) SELECT wood,stone,herbs FROM inventory,logged`;
+  const response=rows.length?{ok:true,gathered:{resource:'herbs',amount:1,nodeId:plantId},remaining:Math.floor(harvested.plant.resources),node:{nodeId:plantId,resource:'herbs',plant:harvested.plant,remaining:Math.floor(harvested.plant.resources),max:harvested.plant.maxResources},inventory:{wood:Number(rows[0].wood||0),stone:Number(rows[0].stone||0),herbs:Number(rows[0].herbs||0)}}:{ok:false,error:'plant_depleted'};
+  await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${player.id} AND idempotency_key=${key}`;return response;
+}
+
 async function resourceNodes(sql,config){
   await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
   const rows=await sql`SELECT value FROM world_state WHERE key='resource_nodes' LIMIT 1`;
@@ -120,13 +160,12 @@ async function resourceNodes(sql,config){
   for(const [id,cfg] of Object.entries(config)){
     const s=stored[id]||{};
     const regrowAt=s.regrowAt?Date.parse(s.regrowAt):0;
-    const regrown=regrowAt>0&&regrowAt<=now&&MOBILE_RESOURCES.has(cfg.resource);
+    const regrown=regrowAt>0&&regrowAt<=now&&!MOBILE_RESOURCES.has(cfg.resource);
     const generation=Number(s.generation||0)+(regrown?1:0);
     const pos=regrown?relocatedPosition(id,generation,cfg.resource):{x:s.x??null,z:s.z??null};
-    out[id]={resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null),generation,x:pos.x,z:pos.z};
-    if(regrown){
-      await sql`UPDATE world_state SET value=jsonb_set(value,ARRAY[${id}::text],${JSON.stringify(out[id])}::jsonb,true),updated_at=now() WHERE key='resource_nodes' AND NULLIF(value->${id}->>'regrowAt','') IS NOT NULL AND (value->${id}->>'regrowAt')::timestamptz<=now()`;
-    }
+    const base={...s,resource:cfg.resource,max:cfg.max,remaining:regrown?cfg.max:Number.isFinite(Number(s.remaining))?Number(s.remaining):cfg.max,regrowAt:regrown?null:(s.regrowAt||null),generation,x:pos.x??cfg.x??null,z:pos.z??cfg.z??null};
+    out[id]=resourceLifecycle(base,{nodeId:id,resource:cfg.resource,max:cfg.max,generation,now:new Date(),legacyMature:true});
+    if(JSON.stringify(s)!==JSON.stringify(out[id]))await sql`UPDATE world_state SET value=jsonb_set(value,ARRAY[${id}::text],${JSON.stringify(out[id])}::jsonb,true),updated_at=now() WHERE key='resource_nodes' AND value->${id} IS NOT DISTINCT FROM ${stored[id]?JSON.stringify(s):null}::jsonb`;
   }
   return out;
 }
@@ -141,7 +180,7 @@ export default async (req) => {
       const url=new URL(req.url);
       const clientId=String(url.searchParams.get('clientId')||'').trim().slice(0,80);
       if(!clientId)return json({ok:false,error:'client_id_required'},400);
-      const players=await sql`SELECT id FROM players WHERE client_id=${clientId} LIMIT 1`;
+      const players=await sql`SELECT id,x,z FROM players WHERE client_id=${clientId} LIMIT 1`;
       const nodes=await resourceNodes(sql,config);
       if(!players.length)return json({ok:true,inventory:null,nodes});
       return json({ok:true,inventory:await getInventory(sql,players[0].id),nodes});
@@ -151,18 +190,30 @@ export default async (req) => {
       const body=await req.json();
       const clientId=String(body.clientId||'').trim().slice(0,80);
       if(!clientId)return json({ok:false,error:'client_id_required'},400);
-      const players=await sql`SELECT id FROM players WHERE client_id=${clientId} LIMIT 1`;
+      const players=await sql`SELECT id,x,z FROM players WHERE client_id=${clientId} LIMIT 1`;
       if(!players.length)return json({ok:false,error:'player_not_registered'},409);
       if(body.action!=='gather')return json({ok:false,error:'server_authoritative_inventory'},409);
       const playerId=players[0].id;
-      const nodeId=String(body.nodeId||'').trim().slice(0,40);
+      const nodeId=String(body.nodeId||'').trim().slice(0,80);
+      const key=String(body.idempotencyKey||'').trim().slice(0,120);
+      if(!key)return json({ok:false,error:'idempotency_key_required'},400);
+      if(nodeId.startsWith('plant-')){const response=await gatherIndividualPlant(sql,players[0],key,nodeId);return json(response,response.ok?200:response.error==='resource_out_of_range'?403:409);}
       const cfg=config[nodeId];
       if(!cfg)return json({ok:false,error:'invalid_resource_node'},400);
       const resource=String(body.resource||'').trim().toLowerCase();
       if(resource!==cfg.resource)return json({ok:false,error:'resource_node_mismatch'},400);
       const amount=1;
+      const prior=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${playerId} AND idempotency_key=${key} LIMIT 1`;
+      if(prior.length)return json(prior[0].response,prior[0].response?.ok?200:409);
+      const claim=await sql`INSERT INTO public_resource_action_receipts(player_id,idempotency_key,node_id,response) VALUES(${playerId},${key},${nodeId},'{"ok":false,"error":"action_in_progress"}'::jsonb) ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id`;
+      if(!claim.length){const raced=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${playerId} AND idempotency_key=${key} LIMIT 1`;return json(raced[0]?.response||{ok:false,error:'action_in_progress'},raced[0]?.response?.ok?200:409);}
       await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
-      await resourceNodes(sql,config);
+      const prepared=await resourceNodes(sql,config),current=prepared[nodeId];
+      const px=Number(players[0].x),pz=Number(players[0].z),distance=Math.hypot(px-Number(current?.x),pz-Number(current?.z));
+      if(!Number.isFinite(distance)||distance>3.4){const response={ok:false,error:'resource_out_of_range'};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;return json(response,403);}
+      const harvested=cfg.resource==='stone'?null:harvestPlant(current.plant,{amount,year:0,playerId});
+      if(harvested&&!harvested.ok){const response={ok:false,error:harvested.error,node:current,nodeId};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;return json(response,409);}
+      const nextPlant=harvested?.plant||null;if(nextPlant?.stage==='dead')current.replacementAt=new Date(Date.now()+24*60*60*1000).toISOString();
       const result=await sql`
         WITH current AS (
           SELECT value FROM world_state WHERE key='resource_nodes' FOR UPDATE
@@ -180,14 +231,18 @@ export default async (req) => {
             jsonb_build_object(
               'resource',${cfg.resource}::text,
               'max',${cfg.max}::int,
-              'remaining',GREATEST(0,calc.before_count-${amount}::int),
-              'regrowAt',CASE WHEN calc.before_count-${amount}::int<=0 AND ${MOBILE_RESOURCES.has(cfg.resource)}::boolean THEN to_jsonb(now()+(${cfg.regrowMinutes}::int||' minutes')::interval) ELSE 'null'::jsonb END,
+              'remaining',CASE WHEN ${nextPlant?true:false}::boolean THEN floor(${Number(nextPlant?.resources||0)}::numeric)::int ELSE GREATEST(0,calc.before_count-${amount}::int) END,
+              'regrowAt','null'::jsonb,
               'generation',COALESCE((calc.value->${nodeId}->>'generation')::int,0),
-              'x',calc.value->${nodeId}->'x','z',calc.value->${nodeId}->'z'
+              'x',calc.value->${nodeId}->'x','z',calc.value->${nodeId}->'z',
+              'plant',CASE WHEN ${nextPlant?true:false}::boolean THEN ${JSON.stringify(nextPlant)}::jsonb ELSE calc.value->${nodeId}->'plant' END,
+              'replacementAt',CASE WHEN ${Boolean(nextPlant?.stage==='dead')}::boolean THEN to_jsonb(${current.replacementAt||null}::text) ELSE calc.value->${nodeId}->'replacementAt' END,
+              'lastGrowthAt',to_jsonb(now())
             ),true
           ), updated_at=now()
           FROM calc WHERE ws.key='resource_nodes' AND calc.before_count>=${amount}::int
-          RETURNING GREATEST(0,calc.before_count-${amount}::int) AS remaining
+            AND (${cfg.resource==='stone'}::boolean OR COALESCE((calc.value->${nodeId}->'plant'->>'resources')::numeric,-1)=${Number(current.plant?.resources??-1)}::numeric)
+          RETURNING CASE WHEN ${nextPlant?true:false}::boolean THEN floor(${Number(nextPlant?.resources||0)}::numeric)::int ELSE GREATEST(0,calc.before_count-${amount}::int) END AS remaining
         ), inv AS (
           INSERT INTO player_inventory (player_id,wood,stone,herbs,updated_at)
           SELECT ${playerId}::bigint,${cfg.resource==='wood'?1:0}::int,${cfg.resource==='stone'?1:0}::int,${cfg.resource==='herbs'?1:0}::int,now()
@@ -207,13 +262,16 @@ export default async (req) => {
       if(!result.length){
         const nodes=await resourceNodes(sql,config);
         const node=nodes[nodeId];
-        return json({ok:false,error:'resource_depleted',node,nodeId},409);
+        const response={ok:false,error:Number(node?.remaining)>0?'resource_changed':'resource_depleted',node,nodeId};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;
+        return json(response,409);
       }
       const remaining=Number(result[0].remaining||0);
       const forestPressure=cfg.resource==='wood'?await recordForestHarvest(sql,playerId,nodeId,remaining<=0):null;
       const inventory=await getInventory(sql,playerId);
       const nodes=await resourceNodes(sql,config);
-      return json({ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes,forestPressure});
+      const response={ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes,forestPressure};
+      await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;
+      return json(response);
     }
     return json({ok:false,error:'method_not_allowed'},405);
   }catch(error){
