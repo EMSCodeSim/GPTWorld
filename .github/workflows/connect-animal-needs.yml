@@ -1,0 +1,36 @@
+name: Integrate animal survival
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/connect-animal-needs.mjs'
+      - '.github/workflows/connect-animal-needs.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Integrate survival and inspection metadata
+        run: node scripts/connect-animal-needs.mjs
+      - name: Check JavaScript syntax
+        run: |
+          node --check netlify/functions/world.mjs
+          node --check netlify/functions/_sim-core.mjs
+          node --check lib/animal-needs.mjs
+      - name: Run tests
+        run: npm test --if-present
+      - name: Commit integrated code
+        run: |
+          git config user.name 'gptworld-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add netlify/functions/world.mjs netlify/functions/_sim-core.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Connect animal needs to persistent ecology and inspection entities'
+            git push
+          fi
