@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { advanceAnimalSpecies } from '../../lib/animal-needs.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -253,7 +254,7 @@ function evolveOneYear(state) {
       next.recentEvents.push({ year, type: 'extinction', text: `${s.name} disappears from the living record.` });
     } else survivors.push(s);
   }
-  next.species = survivors;
+  next.species = advanceAnimalSpecies(survivors, next.climate, 1);
 
   const candidates = survivors.filter(s => s.population > (s.kind === 'plant' ? 6200 : s.kind === 'herbivore' ? 500 : 65));
   if (candidates.length && year >= 8 && year % 7 === 0 && survivors.length < 18) {
