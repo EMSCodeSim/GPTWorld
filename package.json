@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --check main.js && node --check world-gateway.mjs && node --check private-world-shell.js && node --check private-world.js && node --check private-world-cache.mjs && node --check private-world-sw.js && node --check interior.js && node --check netlify/functions/_sim-core.mjs && node --check netlify/functions/private-world.mjs && node --check netlify/functions/crafting.mjs && node --check netlify/lib/private-world-core.mjs && node --check netlify/lib/crafting-core.mjs"
+    "check": "node --check main.js && node --check world-gateway.mjs && node --check private-world-shell.js && node --check private-world.js && node --check private-world-cache.mjs && node --check private-world-sw.js && node --check interior.js && node --check netlify/functions/_sim-core.mjs && node --check netlify/functions/private-world.mjs && node --check netlify/functions/crafting.mjs && node --check netlify/functions/device-session.mjs && node --check netlify/lib/private-world-core.mjs && node --check netlify/lib/crafting-core.mjs && node --check netlify/lib/device-session-core.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"
