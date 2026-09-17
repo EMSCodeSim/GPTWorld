@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { advanceIndividuals } from '../../lib/individual-wildlife.mjs';
+import { advancePlantIndividuals, harvestIndividualPlant } from '../../lib/individual-plants.mjs';
 import { advanceAnimalSpecies } from '../../lib/animal-needs.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -322,6 +323,7 @@ function evolveOneYear(state) {
   applyAnimalSocialAndBreeding(next, year);
   advanceWildlifeAges(next, year);
   advanceIndividuals(next, year);
+  advancePlantIndividuals(next, year);
   return next;
 }
 
@@ -337,6 +339,7 @@ async function ensureAndAdvanceEcosystem(sql) {
   applyMigrationAndTerritories(state);
   applyAnimalSocialAndBreeding(state);
   state.wildlifeJournal ||= [];
+  if (!Array.isArray(state.plantIndividuals)) { advancePlantIndividuals(state, Number(state.simulatedYear||0)); await sql`UPDATE world_state SET value = ${JSON.stringify(state)}::jsonb, updated_at=now() WHERE key='ecosystem'`; }
   const today = new Date().toISOString().slice(0, 10);
   if (state.lastRealDate !== today) {
     state = evolveOneYear(state);
