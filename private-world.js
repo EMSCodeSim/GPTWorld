@@ -11,6 +11,7 @@ const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather')
 const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
 const syncStateEl=$('syncState');
 const craftingPanel=$('craftingPanel'),craftingResult=$('craftingResult'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
+const craftedUsePanel=$('craftedUsePanel'),craftedUseTitle=$('craftedUseTitle'),craftedUseIcon=$('craftedUseIcon'),craftedUseStatus=$('craftedUseStatus'),craftedUseControls=$('craftedUseControls'),closeCraftedUse=$('closeCraftedUse');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
@@ -119,7 +120,9 @@ function addPlacedCraft(item){
   if(placedCrafts.has(String(item.id)))return;
   const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
-  sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;scene.add(sprite);placedCrafts.set(String(item.id),sprite);
+  sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;
+  if(item.key==='campfire-kit'){const light=new THREE.PointLight(0xffa43a,0,10,2);light.position.set(0,1.25,0);light.castShadow=false;sprite.add(light);sprite.userData.fireLight=light;}
+  scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);
   interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
 }
 function removePlacedCraft(itemId){
@@ -177,6 +180,12 @@ function updateStatus(){
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 function craftingIcon(key){return `./assets/crafting/${encodeURIComponent(key)}.webp`;}
+function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&currentEcology?.weather!=='heavy rain';}
+function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}}
+function updatePlacedItemState(itemId,changes){
+  const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
+  if(loadedPayload?.world){const saved=(loadedPayload.world.placedItems||[]).find(entry=>String(entry.id)===String(itemId));if(saved)Object.assign(saved,changes);cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}return item;
+}
 function canAfford(recipe){return Object.entries(recipe.inputs).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);}
 function showCraftingResult(data,recipe){
   const title=document.createElement('strong'),detail=document.createElement('span'),before=Number(data.skill.before),after=Number(data.skill.value),gain=Math.max(0,after-before);
@@ -204,6 +213,32 @@ async function openCrafting(){
   await loadCrafting();
 }
 function hideCrafting(){craftingPanel.hidden=true;}
+function itemButton(label,handler,className=''){const button=document.createElement('button');button.type='button';button.textContent=label;button.className=className;button.disabled=itemBusy;button.addEventListener('click',handler);return button;}
+function renderCraftedUse(item){
+  craftedUseTitle.textContent=item.name;craftedUseIcon.src=craftingIcon(item.key);craftedUseControls.replaceChildren();
+  if(item.key==='campfire-kit'){
+    const remaining=Math.max(0,Date.parse(item.metadata?.campfire?.litUntil||0)-Date.now()),burning=campfireBurning(item),rain=currentEcology?.weather==='heavy rain';
+    craftedUseStatus.textContent=rain&&remaining>0?'Heavy rain suppresses the flame. Its warmth and wildlife protection will return if fuel remains.':burning?`Burning for about ${Math.max(1,Math.ceil(remaining/60000))} more minutes. Warmth, light, and wildlife protection are active nearby.`:'The campfire is cold. Add one wood to create two hours of light, warmth, and wildlife protection.';
+    craftedUseControls.append(itemButton(burning?'Add 1 wood · extend fire':'Add 1 wood · light fire',()=>useCraftedItem(item,'light_campfire'),'primary'));
+    if(remaining>0)craftedUseControls.append(itemButton('Extinguish fire',()=>useCraftedItem(item,'extinguish_campfire')));
+  }else if(item.key==='wooden-crate'){
+    const storage=item.storage||{wood:0,stone:0,herbs:0,capacity:60},used=storage.wood+storage.stone+storage.herbs;
+    craftedUseStatus.textContent=`Personal storage: ${used}/${storage.capacity}. Deposits and withdrawals update your pack immediately.`;
+    for(const [resource,icon] of Object.entries({wood:'🪵',stone:'🪨',herbs:'🌿'})){const row=document.createElement('div'),label=document.createElement('span');row.className='crate-resource';label.textContent=`${icon} ${resource[0].toUpperCase()+resource.slice(1)} · ${storage[resource]}`;row.append(label,itemButton('+1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:1})),itemButton('+5',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'deposit',amount:5})),itemButton('−1',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:1})),itemButton('−5',()=>useCraftedItem(item,'crate_transfer',{resource,direction:'withdraw',amount:5})));craftedUseControls.append(row);}
+  }else craftedUseStatus.textContent='This crafted item is placed in your world.';
+  craftedUseControls.append(itemButton('Return item to bag',()=>pickupCraftedItem(item),'danger'));
+}
+function openCraftedUse(item){craftedUsePanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();renderCraftedUse(item);}
+function hideCraftedUse(){craftedUsePanel.hidden=true;}
+async function useCraftedItem(item,action,extra={}){
+  if(itemBusy||!navigator.onLine)return;itemBusy=true;renderCraftedUse(item);await savePosition();
+  try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action,itemId:item.id,idempotencyKey:requestKey(`${action}-${item.id}`),...extra})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'item_use_failed');
+    if(data.inventory)for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory[key]||0);
+    const updated=updatePlacedItemState(item.id,{metadata:data.metadata||item.metadata,storage:data.storage||item.storage});renderCraftedUse(updated||item);
+    showToast(action==='crate_transfer'?`${data.direction==='deposit'?'Stored':'Withdrew'} ${data.amount} ${data.resource}.`:action==='light_campfire'?'Campfire lit. The nearby area is now warm and protected.':'Campfire extinguished.');
+  }catch(error){showToast(error.message==='campfire_cannot_be_lit'?(currentEcology?.weather==='heavy rain'?'Heavy rain prevents this campfire from lighting.':'You need one wood and must stand near the campfire.'):error.message==='crate_transfer_failed'?'Not enough material, crate space, or distance is too great.':'The item could not be used. Try again.');}
+  finally{itemBusy=false;renderCraftedUse(item);}
+}
 async function craftRecipe(recipe){
   if(craftBusy||!canAfford(recipe))return;craftBusy=true;renderCrafting();
   try{
@@ -221,11 +256,11 @@ async function placeCraftedItem(item){
 }
 async function pickupCraftedItem(item){
   if(itemBusy)return;itemBusy=true;actionButton.disabled=true;await savePosition();
-  try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'pickup_item',itemId:item.id,idempotencyKey:requestKey(`pickup-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'pickup_failed');removePlacedCraft(item.id);if(loadedPayload?.world){loadedPayload.world.placedItems=(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id));cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}showToast(`${item.name} returned to your bag.`);if(craftingData)await loadCrafting();}catch{showToast('Move closer to the item and try again.');}finally{itemBusy=false;actionButton.disabled=false;}
+  try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'pickup_item',itemId:item.id,idempotencyKey:requestKey(`pickup-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'pickup_failed');removePlacedCraft(item.id);hideCraftedUse();if(loadedPayload?.world){loadedPayload.world.placedItems=(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id));cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}showToast(`${item.name} returned to your bag.`);if(craftingData)await loadCrafting();}catch{showToast(item.key==='wooden-crate'?'Empty the crate and stand nearby before returning it to your bag.':'Move closer to the item and try again.');}finally{itemBusy=false;actionButton.disabled=false;if(!craftedUsePanel.hidden)renderCraftedUse(item);}
 }
 function collides(x,z){return blockers.some(block=>Math.abs(x-block.x)<block.halfX&&Math.abs(z-block.z)<block.halfZ);}
 function updatePlayer(dt,time){
-  if(!craftingPanel.hidden){animatePerson(player,false,time);return;}
+  if(!craftingPanel.hidden||!craftedUsePanel.hidden){animatePerson(player,false,time);return;}
   desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;
   const strength=Math.min(1,desired.length());if(strength){desired.normalize().multiplyScalar(5.2*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z);}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));
   const nextX=clamp(player.position.x+velocity.x*dt,-33,33),nextZ=clamp(player.position.z+velocity.z*dt,-33,33);if(!collides(nextX,player.position.z))player.position.x=nextX;if(!collides(player.position.x,nextZ))player.position.z=nextZ;
@@ -236,7 +271,9 @@ function updateAnimals(dt,time){
   const drought=Number(currentEcology.drought||0),forage=Number(currentEcology.forage||.6);
   for(const animal of animals){
     const data=animal.userData,distanceToPlayer=animal.position.distanceTo(player.position);
-    if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
+    let nearbyFire=null,fireDistance=Infinity;for(const sprite of placedCrafts.values()){if(!campfireBurning(sprite.userData.item))continue;const distance=animal.position.distanceTo(sprite.position);if(distance<7&&distance<fireDistance){nearbyFire=sprite;fireDistance=distance;}}
+    if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
+    else if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
     else if(time>data.nextTurn){
       const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
       if(seekWater){data.behavior='seeking water';data.target.set(terrain.water.x+(hash01(`${data.phase}:wx`)-.5)*6,0,terrain.water.z+(hash01(`${data.phase}:wz`)-.5)*6);}
@@ -256,9 +293,10 @@ function updateEnvironment(dt,time){
   for(const plant of plants)plant.rotation.z=Math.sin(time*.0018+plant.userData.phase)*.012*Number(currentEcology.wind||.2);
   if(precipitation.visible){const positions=precipitation.geometry.attributes.position.array,snow=currentEcology.weather==='snow';precipitation.position.x=player.position.x;precipitation.position.z=player.position.z;for(let i=0;i<positions.length/3;i++){positions[i*3+1]-=dt*(snow?2.2:13)*(currentEcology.weather==='heavy rain'?1.4:1);positions[i*3]+=snow?Math.sin(time*.001+i)*dt*.3:0;if(positions[i*3+1]<0)positions[i*3+1]=22;}precipitation.geometry.attributes.position.needsUpdate=true;}
   water.position.y=.02+Math.sin(time*.0015)*.025;
+  for(const sprite of placedCrafts.values())if(sprite.userData.fireLight){refreshPlacedCraft(sprite.userData.item);if(sprite.userData.fireLight.intensity)sprite.userData.fireLight.intensity=3.7+Math.sin(time*.018)*.55;}
 }
 
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Pick up ${best.label}`:node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Use ${best.label}`:node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
 async function gather(item){
   const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
   if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
@@ -274,7 +312,7 @@ async function gather(item){
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
-function interact(){if(!nearest)return;if(nearest.placedItemId){pickupCraftedItem(nearest.object.userData.item);return;}if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function interact(){if(!nearest)return;if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
 function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}
 async function sendQueuedPosition(action){
   const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'save_position',position:action.position})}),data=await response.json();
@@ -317,13 +355,14 @@ async function load(){
   }
 }
 
-window.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(key==='escape'&&!craftingPanel.hidden){hideCrafting();event.preventDefault();return;}if(!craftingPanel.hidden)return;if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)){keys.add(key);event.preventDefault();}if(key==='e'||key===' '){interact();event.preventDefault();}});
+window.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(key==='escape'&&!craftedUsePanel.hidden){hideCraftedUse();event.preventDefault();return;}if(key==='escape'&&!craftingPanel.hidden){hideCrafting();event.preventDefault();return;}if(!craftingPanel.hidden||!craftedUsePanel.hidden)return;if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)){keys.add(key);event.preventDefault();}if(key==='e'||key===' '){interact();event.preventDefault();}});
 window.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));window.addEventListener('resize',resize);
 window.addEventListener('online',()=>{setSyncState('connecting');flushQueuedPosition();});window.addEventListener('offline',()=>setSyncState('offline'));
 for(const gesture of['gesturestart','gesturechange','gestureend'])document.addEventListener(gesture,event=>event.preventDefault(),{passive:false});
 window.addEventListener('pagehide',()=>{if(running){const position=currentPosition();queuePrivatePosition(activeClientId,position).catch(()=>{});navigator.sendBeacon?.(API,new Blob([JSON.stringify({clientId:activeClientId,action:'save_position',position})],{type:'application/json'}));}});
 actionButton.addEventListener('click',interact);returnTown.addEventListener('click',leave);retry.addEventListener('click',load);
 craftButton.addEventListener('click',openCrafting);closeCrafting.addEventListener('click',hideCrafting);craftingPanel.addEventListener('click',event=>{if(event.target===craftingPanel)hideCrafting();});
+closeCraftedUse.addEventListener('click',hideCraftedUse);craftedUsePanel.addEventListener('click',event=>{if(event.target===craftedUsePanel)hideCraftedUse();});
 
 const joystick=$('joystick'),joystickKnob=$('joystickKnob');
 function updateJoystick(event){const bounds=joystick.getBoundingClientRect(),centerX=bounds.left+bounds.width/2,centerY=bounds.top+bounds.height/2,max=bounds.width*.32;let dx=event.clientX-centerX,dy=event.clientY-centerY,distance=Math.hypot(dx,dy);if(distance>max){dx=dx/distance*max;dy=dy/distance*max;}joystickX=dx/max;joystickY=dy/max;if(Math.hypot(joystickX,joystickY)<.12)joystickX=joystickY=0;joystickKnob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;}
