@@ -111,7 +111,7 @@ async function gatherResource(sql,player,world,key,nodeId){
     const raced=await sql`SELECT response FROM private_world_action_receipts WHERE player_id=${player.id} AND idempotency_key=${key} LIMIT 1`;
     if(raced.length)return raced[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:raced[0].response;
     const nodes=await sql`SELECT node_id,resource_type,x,z,max_amount,remaining,regrow_at,generation,metadata FROM private_world_resources WHERE world_id=${world.id} AND node_id=${nodeId} LIMIT 1`;
-    return{ok:false,error:nodes.length?'resource_depleted':'invalid_resource_node',node:nodes.length?privateResourceView(nodes)[0]:null};
+    return{ok:false,error:nodes.length?(Number(nodes[0].remaining)>0?'resource_out_of_range':'resource_depleted'):'invalid_resource_node',node:nodes.length?privateResourceView(nodes)[0]:null};
   }
   const rows=await sql`
     WITH target AS (
