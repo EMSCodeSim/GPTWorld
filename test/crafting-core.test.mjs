@@ -49,6 +49,41 @@ test('crafted item placement migration is additive and persistent',async()=>{
   assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b|\btruncate\b/);
 });
 
+test('functional crafted items use additive owner-scoped persistence',async()=>{
+  const sql=(await readFile(new URL('../migrations/005_functional_crafted_items.sql',import.meta.url),'utf8')).toLowerCase();
+  assert.match(sql,/create table if not exists crafted_item_storage/);
+  assert.match(sql,/item_id bigint primary key references player_crafted_items/);
+  assert.match(sql,/player_id bigint not null references players/);
+  assert.match(sql,/check \(wood \+ stone \+ herbs <= capacity\)/);
+  assert.match(sql,/create table if not exists crafted_item_use_receipts/);
+  assert.doesNotMatch(sql,/drop table|truncate|delete from/);
+});
+
+test('campfire and crate actions are proximity checked and server authoritative',async()=>{
+  const server=await readFile(new URL('../netlify/functions/crafting.mjs',import.meta.url),'utf8');
+  assert.match(server,/async function campfireAction/);
+  assert.match(server,/async function crateTransfer/);
+  assert.match(server,/inventory\.wood>=1/);
+  assert.match(server,/ecology_state->>'weather'.*<>'heavy rain'/s);
+  assert.match(server,/sqrt\(power\(session\.private_x-item\.placed_x/);
+  assert.match(server,/crafted_item_use_receipts/);
+  assert.match(server,/wood\+storage\.stone\+storage\.herbs\+\$\{amount\}<=storage\.capacity/);
+});
+
+test('private world exposes usable campfires and crates on mobile',async()=>{
+  const [html,client,css]=await Promise.all([
+    readFile(new URL('../private-world.html',import.meta.url),'utf8'),
+    readFile(new URL('../private-world.js',import.meta.url),'utf8'),
+    readFile(new URL('../private-world.css',import.meta.url),'utf8')
+  ]);
+  assert.match(html,/id="craftedUsePanel"/);
+  assert.match(client,/light_campfire/);
+  assert.match(client,/crate_transfer/);
+  assert.match(client,/Warmth, light, and wildlife protection/);
+  assert.match(client,/data\.behavior='avoiding fire'/);
+  assert.match(css,/\.crafted-use-panel\{position:fixed;z-index:1100/);
+});
+
 test('crafting endpoint requires private ownership and atomically changes materials',async()=>{
   const server=await readFile(new URL('../netlify/functions/crafting.mjs',import.meta.url),'utf8');
   assert.match(server,/current_world_type='private'/);
