@@ -1,0 +1,34 @@
+name: Sync private world clock
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/sync-private-clock.mjs'
+      - '.github/workflows/sync-private-clock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch public/private clock sync
+        run: node scripts/sync-private-clock.mjs
+      - name: Commit clock synchronization
+        run: |
+          git config user.name "gptworld-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add main.js private-world.js private-world.html
+          if git diff --cached --quiet; then
+            echo "No clock changes needed"
+          else
+            git commit -m "Sync private world clock with public world"
+            git push
+          fi
