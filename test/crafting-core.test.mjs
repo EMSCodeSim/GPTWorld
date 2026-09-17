@@ -78,6 +78,8 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   assert.match(client,/className='recipe-icon'/);
   assert.match(client,/function placeCraftedItem/);
   assert.match(client,/function pickupCraftedItem/);
+  assert.match(client,/craftingPanel\.hidden=false/);
+  assert.match(client,/Opening your bag/);
   assert.match(client,/gesturestart/);
   assert.match(client,/action:'gather_resource'/);
 });
