@@ -1,10 +1,10 @@
-const CACHE_NAME='gptworld-private-shell-v5';
+const CACHE_NAME='gptworld-private-shell-v6';
 const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 const PRIVATE_SHELL=[
   './private-world.html',
-  './private-world.js?v=living-worlds-8',
+  './private-world.js?v=living-worlds-9',
   './private-world-cache.mjs?v=living-worlds-5',
-  './private-world.css?v=living-worlds-8',
+  './private-world.css?v=living-worlds-9',
   './styles.css?v=living-worlds-5',
   './assets/crafting/campfire-kit.webp',
   './assets/crafting/wooden-crate.webp',

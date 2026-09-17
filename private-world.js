@@ -197,9 +197,12 @@ function renderCrafting(){
 }
 async function loadCrafting(){
   if(!navigator.onLine){showToast('Reconnect to open your authoritative crafting ledger.');return false;}
-  try{const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');craftingData=data;renderCrafting();return true;}catch(error){showToast(error.message==='crafting_migration_required'?'Crafting database update is required.':'Crafting could not load.');return false;}
+  try{const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');craftingData=data;renderCrafting();craftingResult.hidden=true;return true;}catch(error){showCraftingError(error.message==='crafting_migration_required'?'The crafting database is still updating. Close the bag and try again shortly.':'The bag could not sync. Check your connection, then close and reopen it.');return false;}
 }
-async function openCrafting(){if(await loadCrafting()){craftingPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();}}
+async function openCrafting(){
+  craftingPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();craftingResult.dataset.outcome='loading';craftingResult.hidden=false;craftingResult.innerHTML='<strong>Opening your bag…</strong><span>Syncing skills, recipes, and crafted possessions.</span>';
+  await loadCrafting();
+}
 function hideCrafting(){craftingPanel.hidden=true;}
 async function craftRecipe(recipe){
   if(craftBusy||!canAfford(recipe))return;craftBusy=true;renderCrafting();
