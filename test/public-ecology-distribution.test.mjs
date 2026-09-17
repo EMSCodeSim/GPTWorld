@@ -41,6 +41,21 @@ test('plant species have distinct readable silhouettes and names',()=>{
   assert.ok(plants.every(entity=>typeof entity.speciesName==='string'&&entity.speciesName.length>0));
 });
 
+test('food web visibly consumes plants and prey before seeking new targets',()=>{
+  const frames=Array.from({length:140},(_,frame)=>ecologyRenderEntities(ecosystem,frame*800,weather));
+  const plantCounts=frames.map(entities=>entities.filter(entity=>entity.clusterId).length);
+  const animalCounts=frames.map(entities=>entities.filter(entity=>entity.part==='creature').length);
+  const creatures=frames.flatMap(entities=>entities.filter(entity=>entity.part==='creature'));
+  assert.ok(creatures.some(entity=>entity.behavior==='seeking food'&&entity.foodTarget));
+  assert.ok(creatures.some(entity=>entity.behavior==='feeding'&&entity.consumedPlant));
+  assert.ok(creatures.some(entity=>entity.kind==='predator'&&entity.behavior==='stalking'&&entity.foodTarget));
+  assert.ok(creatures.some(entity=>entity.kind==='predator'&&entity.preyKilled));
+  assert.ok(Math.min(...plantCounts)<Math.max(...plantCounts));
+  assert.ok(Math.min(...animalCounts)<Math.max(...animalCounts));
+  const targets=new Set(creatures.filter(entity=>entity.kind==='herbivore').map(entity=>entity.foodTarget).filter(Boolean));
+  assert.ok(targets.size>2);
+});
+
 test('public animals follow long roaming routes while remaining outside town buildings',()=>{
   const first=ecologyRenderEntities(ecosystem,0,weather).filter(entity=>entity.part==='creature');
   const later=ecologyRenderEntities(ecosystem,110*800,weather).filter(entity=>entity.part==='creature');
