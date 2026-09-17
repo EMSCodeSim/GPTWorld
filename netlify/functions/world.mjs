@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { advanceIndividuals } from '../../lib/individual-wildlife.mjs';
 import { advanceAnimalSpecies } from '../../lib/animal-needs.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -320,6 +321,7 @@ function evolveOneYear(state) {
   applyMigrationAndTerritories(next);
   applyAnimalSocialAndBreeding(next, year);
   advanceWildlifeAges(next, year);
+  advanceIndividuals(next, year);
   return next;
 }
 
