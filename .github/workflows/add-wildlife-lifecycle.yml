@@ -1,0 +1,35 @@
+name: Integrate wildlife lifecycle
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/add-wildlife-lifecycle.mjs'
+      - '.github/workflows/add-wildlife-lifecycle.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate integration script
+        run: node --check scripts/add-wildlife-lifecycle.mjs
+      - name: Apply lifecycle and journal integration
+        run: node scripts/add-wildlife-lifecycle.mjs
+      - name: Validate world function
+        run: node --check netlify/functions/world.mjs
+      - name: Commit lifecycle integration
+        run: |
+          git config user.name "gptworld-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add netlify/functions/world.mjs
+          if git diff --cached --quiet; then
+            echo "Already integrated"
+          else
+            git commit -m "Persist wildlife age cohorts, injuries and journal"
+            git push
+          fi
