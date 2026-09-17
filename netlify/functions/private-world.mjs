@@ -1,5 +1,6 @@
 import {neon} from '@neondatabase/serverless';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateResourceSeeds,privateResourceView,seedFromPlayerId} from '../lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
+import {ecologyRenderEntities} from './_sim-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const text=(value,max=80)=>String(value||'').trim().slice(0,max);
@@ -40,7 +41,18 @@ async function ensureResources(sql,world){
     SELECT ${world.id},node->>'nodeId',node->>'resourceType',(node->>'x')::double precision,(node->>'z')::double precision,
       (node->>'maxAmount')::int,(node->>'remaining')::int,(node->>'generation')::int,node->'metadata',now()
     FROM jsonb_array_elements(${JSON.stringify(seeds)}::jsonb) AS node
-    ON CONFLICT(world_id,node_id) DO NOTHING
+    ON CONFLICT(world_id,node_id) DO UPDATE SET
+      metadata=private_world_resources.metadata||EXCLUDED.metadata,
+      remaining=CASE WHEN private_world_resources.remaining=private_world_resources.max_amount THEN GREATEST(private_world_resources.max_amount,EXCLUDED.max_amount) ELSE private_world_resources.remaining END,
+      max_amount=GREATEST(private_world_resources.max_amount,EXCLUDED.max_amount),
+      updated_at=now()
+  `;
+  await sql`
+    UPDATE private_world_resources SET
+      regrow_at=now()+((metadata->>'regrowMinutes')::int||' minutes')::interval,
+      updated_at=now()
+    WHERE world_id=${world.id} AND remaining=0 AND regrow_at IS NULL
+      AND NULLIF(metadata->>'regrowMinutes','') IS NOT NULL
   `;
   await sql`
     UPDATE private_world_resources SET remaining=max_amount,regrow_at=NULL,generation=generation+1,updated_at=now()
@@ -54,15 +66,20 @@ async function ensureResources(sql,world){
 }
 
 async function worldPayload(sql,player,world,catchUp,resources){
-  const [sessions,placedItems]=await Promise.all([
+  const [sessions,placedItems,livingRows]=await Promise.all([
     sql`SELECT current_world_type,private_x,private_z FROM player_world_sessions WHERE player_id=${player.id} LIMIT 1`,
     sql`SELECT item.id,item.item_key,item.display_name,item.quality,item.placed_x,item.placed_z,item.placed_rotation,item.placed_at,item.metadata,
       storage.wood AS stored_wood,storage.stone AS stored_stone,storage.herbs AS stored_herbs,storage.capacity
       FROM player_crafted_items item LEFT JOIN crafted_item_storage storage ON storage.item_id=item.id
-      WHERE item.player_id=${player.id} AND item.world_id=${world.id} AND item.placed_at IS NOT NULL ORDER BY item.placed_at`
+      WHERE item.player_id=${player.id} AND item.world_id=${world.id} AND item.placed_at IS NOT NULL ORDER BY item.placed_at`,
+    sql`SELECT key,value FROM world_state WHERE key IN ('weather_sim','ecosystem','forest_pressure')`
   ]);
   const session=sessions[0]||{current_world_type:'public',private_x:world.terrain_state?.spawn?.x||0,private_z:world.terrain_state?.spawn?.z||8};
-  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology:world.ecology_state,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:{x:Number(session.private_x),z:Number(session.private_z)}},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
+  const living=Object.fromEntries(livingRows.map(row=>[row.key,row.value]));
+  const ecology=synchronizePrivateLivingState(world.ecology_state,living.weather_sim,living.ecosystem);
+  const observer={x:Number(session.private_x),z:Number(session.private_z)};
+  const livingEntities=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,observer,living.forest_pressure);
+  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology,livingEntities,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:observer},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
 }
 
 async function gatherResource(sql,player,world,key,nodeId){
@@ -86,7 +103,7 @@ async function gatherResource(sql,player,world,key,nodeId){
   const rows=await sql`
     WITH target AS (
       SELECT r.id,r.world_id,r.node_id,r.resource_type,r.remaining,r.max_amount,r.regrow_at,r.generation,r.x,r.z,
-        NULLIF(r.metadata->>'regrowHours','')::int AS regrow_hours
+        NULLIF(r.metadata->>'regrowMinutes','')::int AS regrow_minutes
       FROM private_world_resources r
       JOIN player_worlds w ON w.id=r.world_id AND w.owner_player_id=${player.id}
       JOIN player_world_sessions s ON s.player_id=${player.id} AND s.private_world_id=w.id AND s.current_world_type='private'
@@ -95,7 +112,7 @@ async function gatherResource(sql,player,world,key,nodeId){
     ), gathered AS (
       UPDATE private_world_resources r SET
         remaining=r.remaining-1,
-        regrow_at=CASE WHEN r.remaining-1=0 AND target.regrow_hours IS NOT NULL THEN now()+(target.regrow_hours||' hours')::interval ELSE r.regrow_at END,
+        regrow_at=CASE WHEN r.remaining-1=0 AND target.regrow_minutes IS NOT NULL THEN now()+(target.regrow_minutes||' minutes')::interval ELSE r.regrow_at END,
         updated_at=now()
       FROM target WHERE r.id=target.id AND r.remaining>0
       RETURNING r.world_id,r.node_id,r.resource_type,r.remaining,r.max_amount,r.regrow_at,r.generation,r.x,r.z

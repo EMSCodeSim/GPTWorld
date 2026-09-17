@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,privateResourceSeeds,privateResourceView,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../netlify/lib/private-world-core.mjs';
 import {createPrivateWorldSnapshot,normalizeCachedPosition,snapshotToPrivateWorldPayload} from '../private-world-cache.mjs';
 import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
@@ -38,8 +38,10 @@ test('personal terrain produces persistent gatherable resource nodes',()=>{
   assert.equal(resources.filter(node=>node.resourceType==='wood').length,38);
   assert.equal(resources.filter(node=>node.resourceType==='stone').length,14);
   assert.equal(resources.filter(node=>node.resourceType==='herbs').length,12);
-  assert.ok(resources.filter(node=>node.resourceType!=='stone').every(node=>node.metadata.regrowHours>0));
-  assert.ok(resources.filter(node=>node.resourceType==='stone').every(node=>node.metadata.regrowHours===null));
+  assert.ok(resources.every(node=>node.metadata.regrowMinutes>0));
+  assert.ok(resources.filter(node=>node.resourceType==='wood').every(node=>node.maxAmount===6&&node.metadata.regrowMinutes===60));
+  assert.ok(resources.filter(node=>node.resourceType==='stone').every(node=>node.metadata.regrowMinutes===90));
+  assert.ok(resources.filter(node=>node.resourceType==='herbs').every(node=>node.metadata.regrowMinutes===20));
   assert.equal(new Set(resources.map(node=>node.nodeId)).size,resources.length);
 });
 
@@ -99,6 +101,41 @@ test('living ecology produces deterministic weather, growth, and wildlife state'
   assert.ok(first.state.plantGrowth>=.25&&first.state.plantGrowth<=1);
   assert.ok(first.state.soilMoisture>=.08&&first.state.soilMoisture<=1);
   assert.ok(first.state.wildlife>=2);
+});
+
+test('personal world synchronizes public weather, plants, and animal populations',()=>{
+  const local=initialPrivateEcology(9123);
+  const weather={tick:44,worldHour:20,season:'Autumn',seasonDay:12,temperatureC:7.5,precipitation:'heavy rain',precipitationRate:.85,wind:.7,soilMoisture:.92,drought:.05,snowCover:0};
+  const ecosystem={simulatedYear:4,species:[
+    {id:'rivergrass',kind:'plant',population:7000,lifeCycle:{waterStress:.1,grazingPressure:.2}},
+    {id:'reed-runner',kind:'herbivore',population:240}
+  ],plantPatches:[{id:'patch-1'}],animalGroups:[{id:'herd-1'}]};
+  const synced=synchronizePrivateLivingState(local,weather,ecosystem);
+  assert.equal(synced.weather,'heavy rain');
+  assert.equal(synced.worldHour,20);
+  assert.equal(synced.season,'Autumn');
+  assert.equal(synced.temperatureC,7.5);
+  assert.equal(synced.sharedWeatherTick,44);
+  assert.equal(synced.sharedEcologyYear,4);
+  assert.equal(synced.wildlife,240);
+  assert.deepEqual(synced.species,ecosystem.species);
+  assert.notEqual(synced.species,ecosystem.species);
+});
+
+test('private world uses the public living simulation and refreshes while occupied',async()=>{
+  const [server,client,publicResources]=await Promise.all([
+    readFile(new URL('../netlify/functions/private-world.mjs',import.meta.url),'utf8'),
+    readFile(new URL('../private-world.js',import.meta.url),'utf8'),
+    readFile(new URL('../netlify/functions/resource-state.mjs',import.meta.url),'utf8')
+  ]);
+  assert.match(server,/ecologyRenderEntities\(living\.ecosystem/);
+  assert.match(server,/world_state WHERE key IN \('weather_sim','ecosystem','forest_pressure'\)/);
+  assert.match(server,/regrow_minutes/);
+  assert.match(client,/syncLivingEntities\(data\.world\.livingEntities/);
+  assert.match(client,/if\(time-lastLivingRefresh>12000\)refreshLivingWorld\(\)/);
+  assert.match(publicResources,/wood:\{max:6,regrowMinutes:60\}/);
+  assert.match(publicResources,/stone:\{max:4,regrowMinutes:90\}/);
+  assert.match(publicResources,/herbs:\{max:3,regrowMinutes:20\}/);
 });
 
 test('legacy private ecology upgrades without advancing simulation time',()=>{

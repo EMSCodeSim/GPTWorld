@@ -15,11 +15,12 @@ const craftedUsePanel=$('craftedUsePanel'),craftedUseTitle=$('craftedUseTitle'),
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
+let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,livingRefreshBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
 const placedCrafts=new Map();
+const livingEntityObjects=new Map();
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const color=value=>new THREE.Color(value);
@@ -100,16 +101,46 @@ function addHerbs(object){
 }
 
 function addWildlife(object){
-  const group=new THREE.Group(),fur=material(0x94734c),dark=material(0x4a3828);group.position.set(object.x,0,object.z);group.rotation.y=object.heading||0;
-  const body=new THREE.Mesh(new THREE.SphereGeometry(.58,12,9),fur);body.scale.set(.72,.78,1.45);body.position.y=.92;body.castShadow=true;group.add(body);
+  const predator=object.kind==='predator',species=String(object.species||'reed-runner'),baseColor=object.color?color(object.color):color(predator?0x6b4d38:species==='reed-runner'?0xb39a67:0x96784e),bodySize=clamp(Number(object.bodyScale||.8),.5,1.5);
+  const group=new THREE.Group(),fur=material(baseColor),dark=material(predator?0x3f3027:0x4a3828);group.position.set(object.x,0,object.z);group.rotation.y=-Number(object.heading||0);
+  const body=new THREE.Mesh(new THREE.SphereGeometry(.58,12,9),fur);body.scale.set(.72,.78,1.45);body.position.y=.92;body.castShadow=true;group.scale.setScalar(.78+bodySize*.28);group.add(body);
   const neck=new THREE.Mesh(new THREE.CylinderGeometry(.19,.25,.7,8),fur);neck.position.set(0,1.3,.58);neck.rotation.x=-.35;group.add(neck);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),fur);head.scale.set(.8,.8,1.15);head.position.set(0,1.62,.88);group.add(head);
   const legs=[];for(const x of[-.22,.22])for(const z of[-.4,.4])legs.push(box(group,0x59422d,[.1,.72,.1],[x,.4,z]));
   const tail=new THREE.Mesh(new THREE.ConeGeometry(.13,.5,7),dark);tail.position.set(0,1.05,-.9);tail.rotation.x=-1;group.add(tail);
   for(const x of[-.11,.11]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.09,.32,6),fur);ear.position.set(x,1.91,.82);ear.rotation.z=x<0?.35:-.35;group.add(ear);}
-  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:'grazing',legs,head,tail};
+  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs,head,tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore'};
   scene.add(group);animals.push(group);
-  interactables.push({label:'reed-runner',message:()=>{const b=group.userData.behavior;return `This reed-runner is ${b}. The local herd is ${currentEcology.wildlife} strong, with ${Math.round(currentEcology.forage*100)}% forage available.`;},object:group,radius:2.5});
+  interactables.push({label:species.replaceAll('-',' '),livingEntityId:object.entityId||null,message:()=>{const b=group.userData.behavior;return `This ${species.replaceAll('-',' ')} is ${b}. Wildlife follows the same weather, migration, feeding, and predator rules as the public valley.`;},object:group,radius:2.5});
+  return group;
+}
+
+function addLivingPlant(entity){
+  const group=new THREE.Group(),width=Math.max(.08,Number(entity.width||.4)),height=Math.max(.08,Number(entity.height||.4)),depth=Math.max(.08,Number(entity.depth||.4));
+  group.position.set(Number(entity.x||0),0,Number(entity.z||0));box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
+  group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);return group;
+}
+
+function removeLivingEntity(id){
+  const object=livingEntityObjects.get(id);if(!object)return;scene.remove(object);livingEntityObjects.delete(id);
+  const animalIndex=animals.indexOf(object);if(animalIndex>=0)animals.splice(animalIndex,1);const plantIndex=plants.indexOf(object);if(plantIndex>=0)plants.splice(plantIndex,1);
+  for(let index=interactables.length-1;index>=0;index--)if(interactables[index].livingEntityId===id)interactables.splice(index,1);
+  object.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});
+}
+
+function syncLivingEntities(entities=[]){
+  const visible=entities.filter(entity=>entity?.id&&(entity.part==='creature'||entity.species||entity.part==='plant-patch'));
+  const nextIds=new Set(visible.map(entity=>String(entity.id)));
+  for(const id of livingEntityObjects.keys())if(!nextIds.has(id))removeLivingEntity(id);
+  for(const entity of visible){
+    const id=String(entity.id),creature=entity.part==='creature',existing=livingEntityObjects.get(id);
+    if(existing){
+      if(creature){existing.userData.target.set(Number(entity.x||0),0,Number(entity.z||0));existing.userData.behavior=entity.behavior||existing.userData.behavior;existing.userData.serverDriven=true;}
+      else existing.position.set(Number(entity.x||0),0,Number(entity.z||0));
+      continue;
+    }
+    const object=creature?addWildlife({...entity,id,entityId:id,serverDriven:true}):addLivingPlant(entity);livingEntityObjects.set(id,object);
+  }
 }
 
 function addCloud(index){
@@ -167,7 +198,9 @@ function build(data){
   water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,36),material(0x4c8190,{roughness:.28,transparent:true,opacity:.88}));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
   // Personal worlds begin undeveloped. The homestead and fertile site are
   // persisted as future build locations, but nothing is constructed or tilled.
-  for(const object of terrain.objects){if(object.kind==='tree')addTree(object);else if(object.kind==='rock')addRock(object);else if(object.kind==='herbs')addHerbs(object);else if(object.kind==='wildlife')addWildlife(object);}
+  const hasLivingAnimals=(data.world.livingEntities||[]).some(entity=>entity.part==='creature');
+  for(const object of terrain.objects){if(object.kind==='tree')addTree(object);else if(object.kind==='rock')addRock(object);else if(object.kind==='herbs')addHerbs(object);else if(object.kind==='wildlife'&&!hasLivingAnimals)addWildlife(object);}
+  syncLivingEntities(data.world.livingEntities||[]);
   for(let i=0;i<4;i++)addCloud(i);makePrecipitation();
   player=makeHumanoid();player.position.set(Number(data.session.position.x)||0,0,Number(data.session.position.z)||8);scene.add(player);
   for(const item of data.world.placedItems||[])addPlacedCraft(item);
@@ -293,7 +326,7 @@ function updateAnimals(dt,time){
     let nearbyFire=null,fireDistance=Infinity;for(const sprite of placedCrafts.values()){if(!campfireBurning(sprite.userData.item))continue;const distance=animal.position.distanceTo(sprite.position);if(distance<7&&distance<fireDistance){nearbyFire=sprite;fireDistance=distance;}}
     if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
     else if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
-    else if(time>data.nextTurn){
+    else if(!data.serverDriven&&time>data.nextTurn){
       const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
       if(seekWater){data.behavior='seeking water';data.target.set(terrain.water.x+(hash01(`${data.phase}:wx`)-.5)*6,0,terrain.water.z+(hash01(`${data.phase}:wz`)-.5)*6);}
       else if(forage>.42){data.behavior='grazing';const angle=hash01(`${Math.floor(time/5000)}:${data.phase}`)*Math.PI*2;data.target.copy(data.home).add(new THREE.Vector3(Math.cos(angle)*7,0,Math.sin(angle)*7));}
@@ -303,6 +336,18 @@ function updateAnimals(dt,time){
     const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();animal.position.addScaledVector(offset,dt*data.speed*(data.behavior==='fleeing'?2.3:1));animal.rotation.y=Math.atan2(offset.x,offset.z);}
     const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
   }
+}
+
+async function refreshLivingWorld(){
+  if(livingRefreshBusy||!navigator.onLine||!activeClientId)return;livingRefreshBusy=true;
+  try{
+    const response=await fetch(`${API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();
+    if(!response.ok||!data.ok)return;
+    currentEcology=data.world.ecology||currentEcology;syncLivingEntities(data.world.livingEntities||[]);
+    for(const node of data.world.resources||[]){resourceStates.set(node.nodeId,node);applyResourceVisual(node.nodeId);}
+    for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory?.[key]||0);
+    applyLivingVisuals();updateStatus();loadedPayload={...data,session:{...data.session,position:currentPosition()}};cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});
+  }catch{}finally{livingRefreshBusy=false;lastLivingRefresh=performance.now();}
 }
 
 function updateEnvironment(dt,time){
@@ -357,7 +402,7 @@ async function savePosition(){
 function requestKey(action){return`${action}-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;}
 async function leave(){if(!running)return;returnTown.disabled=true;await savePosition();try{const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'return_public',idempotencyKey:requestKey('return'),position:{x:player.position.x,z:player.position.z}})}),data=await response.json();if(!data.ok)throw Error(data.error||'return_failed');sessionStorage.setItem('gptworld-public-spawn',JSON.stringify(data.position));location.assign('./index.html?from=private');}catch{showToast('Return failed. Your world remains saved; try again.');returnTown.disabled=false;}}
 function resize(){if(!renderer)return;const width=worldEl.clientWidth,height=worldEl.clientHeight;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
-function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}renderer.render(scene,camera);}
+function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}if(time-lastLivingRefresh>12000)refreshLivingWorld();renderer.render(scene,camera);}
 async function load(){
   retry.hidden=true;activeClientId=localStorage.getItem(CLIENT_KEY)||'';
   if(!activeClientId){loadingTitle.textContent='No registered traveler';loadingMessage.textContent='Enter the public town first so the server can identify your world owner.';return;}
