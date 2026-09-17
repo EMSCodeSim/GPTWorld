@@ -62,7 +62,8 @@ async function craft(sql,actor,recipe,key){
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key=${recipe.skill} LIMIT 1`;
   const skillBefore=Number(skillRows[0]?.skill_value||0),outcome=resolveCraftAttempt({skillValue:skillBefore,difficulty:recipe.difficulty,key:`${actor.id}:${recipe.key}:${key}`});
   const spent=spentInputs(recipe,outcome.success),durability=qualityDurability(recipe.durability,outcome.quality);
-  const rows=await sql`
+  let rows;
+  try{rows=await sql`
     WITH inventory_change AS (
       UPDATE player_inventory SET wood=wood-${spent.wood},stone=stone-${spent.stone},herbs=herbs-${spent.herbs},updated_at=now()
       WHERE player_id=${actor.id} AND wood>=${spent.wood} AND stone>=${spent.stone} AND herbs>=${spent.herbs}
@@ -79,22 +80,26 @@ async function craft(sql,actor,recipe,key){
     ), history AS (
       INSERT INTO private_world_events(world_id,player_id,event_type,x,z,details)
       SELECT ${claimed[0].world_id},${actor.id},CASE WHEN ${outcome.success} THEN 'item_crafted' ELSE 'craft_failed' END,NULL,NULL,
-        jsonb_build_object('recipeKey',${recipe.key},'item',${recipe.name},'profession',${recipe.skill},'quality',${outcome.quality},'chance',${outcome.chance},'materialsSpent',${JSON.stringify(spent)}::jsonb)
+        jsonb_build_object('recipeKey',${recipe.key}::text,'item',${recipe.name}::text,'profession',${recipe.skill}::text,'quality',${outcome.quality}::text,'chance',${outcome.chance}::numeric,'materialsSpent',${JSON.stringify(spent)}::jsonb)
       FROM inventory_change,skill_change RETURNING id
     ), finalized AS (
       UPDATE crafting_action_receipts receipt SET response=(
         SELECT jsonb_build_object(
-          'ok',true,'success',${outcome.success},'recipeKey',${recipe.key},'quality',${outcome.quality},'chance',${outcome.chance},
+          'ok',true,'success',${outcome.success}::boolean,'recipeKey',${recipe.key}::text,'quality',${outcome.quality}::text,'chance',${outcome.chance}::numeric,
           'materialsSpent',${JSON.stringify(spent)}::jsonb,
           'inventory',jsonb_build_object('wood',inventory_change.wood,'stone',inventory_change.stone,'herbs',inventory_change.herbs),
-          'skill',jsonb_build_object('key',${recipe.skill},'before',${skillBefore},'value',skill_change.skill_value,'gain',${outcome.skillGain},'attempts',skill_change.attempts),
+          'skill',jsonb_build_object('key',${recipe.skill}::text,'before',${skillBefore}::numeric,'value',skill_change.skill_value,'gain',${outcome.skillGain}::numeric,'attempts',skill_change.attempts),
           'item',(SELECT jsonb_build_object('id',id::text,'key',item_key,'name',display_name,'profession',profession,'quality',quality,'durability',durability,'maxDurability',max_durability,'maker',maker_name,'craftedAt',crafted_at) FROM made_item)
         ) FROM inventory_change,skill_change,history
       )
       WHERE receipt.player_id=${actor.id} AND receipt.idempotency_key=${key}
       RETURNING response
     ) SELECT response FROM finalized
-  `;
+  `;}catch(error){
+    const failed={ok:false,error:'crafting_transaction_failed'};
+    await sql`UPDATE crafting_action_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key} AND response->>'error'='pending'`;
+    throw error;
+  }
   if(rows.length)return rows[0].response;
   const failed={ok:false,error:'inventory_changed'};
   await sql`UPDATE crafting_action_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key}`;
