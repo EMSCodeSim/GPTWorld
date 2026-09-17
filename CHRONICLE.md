@@ -45,3 +45,11 @@ The settlement's stores remained strong while travelers continued gathering and 
 Travelers can now turn a small amount of their own wood and stone into a persistent trail marker at the place where they stand. The shared world validates the cost, records the placement, and renders the marker for future travelers.
 
 These signs are modest, but they change the relationship between travelers and the landscape: exploration can now leave a player-made physical memory rather than only a coordinate or event record.
+
+## Day 6 — Campcraft
+
+Repeated harvesting has made raw materials plentiful enough to matter for more than communal construction. Travelers can now turn wood, stone, and herbs into persistent crafted goods in their own living worlds.
+
+Carpentry, masonry, and herbalism grow through use. Crafted goods retain their maker, quality, durability, and placement state. Campfires can be placed and visibly burn; crates hold personal supplies; tools, hearths, poultices, and weather preparations begin the settlement's first practical craft traditions.
+
+The public settlement remains the shared center for travel and trade, but a traveler's private land can now become a place where gathered resources are shaped into useful things rather than merely stored.
