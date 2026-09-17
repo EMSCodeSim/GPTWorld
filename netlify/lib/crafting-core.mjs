@@ -18,6 +18,7 @@ export const CRAFTING_RECIPES=Object.freeze([
 export function craftingRecipe(key){return CRAFTING_RECIPES.find(recipe=>recipe.key===String(key))||null;}
 
 export function craftingChance(skillValue,difficulty){
+  if(Number(difficulty)<=4)return 1;
   return Number(clamp(.72+(Number(skillValue)||0)*.009-(Number(difficulty)||0)*.018,.18,.98).toFixed(3));
 }
 
