@@ -48,6 +48,8 @@ test('crafting endpoint requires private ownership and atomically changes materi
   assert.match(server,/UPDATE player_inventory SET wood=wood-/);
   assert.match(server,/crafting_action_receipts/);
   assert.match(server,/item_crafted/);
+  assert.match(server,/\$\{recipe\.key\}::text/);
+  assert.match(server,/crafting_transaction_failed/);
 });
 
 test('private-world client exposes a mobile crafting ledger',async()=>{
