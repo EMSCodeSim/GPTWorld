@@ -1,0 +1,3 @@
+import fs from 'node:fs';
+const file='index.html';let html=fs.readFileSync(file,'utf8');const tag='<script defer src="./wildlife-journal.js?v=1"></script>';
+if(!html.includes(tag)){const anchor='  <script defer src="./info-center.js?v=living-memory-1"></script>';if(!html.includes(anchor))throw Error('Missing journal script insertion anchor');html=html.replace(anchor,anchor+'\n  '+tag);fs.writeFileSync(file,html);}console.log('Wildlife journal attached to public game page');
