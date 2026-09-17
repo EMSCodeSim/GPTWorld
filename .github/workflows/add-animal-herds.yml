@@ -1,0 +1,35 @@
+name: Integrate animal herds and chases
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/add-animal-herds.mjs'
+      - '.github/workflows/add-animal-herds.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate patch script
+        run: node --check scripts/add-animal-herds.mjs
+      - name: Apply herd and chase changes
+        run: node scripts/add-animal-herds.mjs
+      - name: Validate simulation syntax
+        run: node --check netlify/functions/_sim-core.mjs
+      - name: Commit integration
+        run: |
+          git config user.name "gptworld-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add netlify/functions/_sim-core.mjs
+          if git diff --cached --quiet; then
+            echo "Already integrated"
+          else
+            git commit -m "Integrate animal herds, memory and chase outcomes"
+            git push
+          fi
