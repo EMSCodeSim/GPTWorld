@@ -16,6 +16,9 @@ test('craft outcomes are reproducible and improve with skill',()=>{
   const again=resolveCraftAttempt({skillValue:22,difficulty:14,key:'player:recipe:request'});
   assert.deepEqual(first,again);
   assert.ok(craftingChance(70,14)>craftingChance(0,14));
+  assert.equal(craftingChance(0,0),1);
+  assert.equal(craftingChance(0,4),1);
+  assert.ok(craftingChance(0,12)<1);
   assert.ok(first.chance>=.18&&first.chance<=.98);
   assert.ok(first.skillGain>=.1&&first.skillGain<=.4);
   assert.equal(resolveCraftAttempt({skillValue:100,difficulty:14,key:'master'}).skillGain,0);
