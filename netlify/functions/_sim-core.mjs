@@ -29,15 +29,15 @@ function outsideTown(x,z,key,minRadius=12.5){const d=Math.hypot(x,z);if(d>=minRa
 function habitatPoint(h,key,spread=1){const seed=hash01(key),zones=ecologyHabitatZones(h,seed),zone=zones[Math.floor(hash01(`${key}:zone`)*zones.length)%zones.length],angle=hash01(`${key}:angle`)*Math.PI*2,radius=Math.sqrt(hash01(`${key}:radius`))*spread;return outsideTown(zone.x+Math.cos(angle)*zone.rx*radius,zone.z+Math.sin(angle)*zone.rz*radius,key);}
 function part(out,id,x,z,width,height,depth,color,extra={}){out.push({id:String(id).slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(width,2),height:round(height,2),depth:round(depth,2),color,...extra});}
 
-function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`,name=s.name||String(s.id||'plant').replaceAll('-',' ');if(s.id==='rivergrass'){
- const green='#79a85b',dark='#426f3d',seed='#d8bd62',meta={species:s.id,speciesName:name};
+function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`,name=s.name||String(s.id||'plant').replaceAll('-',' '),clusterId=base;if(s.id==='rivergrass'){
+ const green='#79a85b',dark='#426f3d',seed='#d8bd62',meta={species:s.id,speciesName:name,clusterId};
  part(out,`${base}-center`,x,z,size*.34,.9+size*1.8,size*.34,green,{...meta,part:'blade'});
  part(out,`${base}-left`,x-size*.38,z+size*.14,size*.24,.62+size*1.35,size*.24,dark,{...meta,part:'blade'});
  part(out,`${base}-right`,x+size*.38,z-size*.12,size*.24,.68+size*1.48,size*.24,green,{...meta,part:'blade'});
  part(out,`${base}-seed`,x+.03,z-.03,size*.42,.22,size*.42,seed,{...meta,part:'flower'});
  return;
  }
- const leaf='#436f37',bright='#698d43',branch='#684b32',berry='#b45f45',meta={species:s.id,speciesName:name};
+ const leaf='#436f37',bright='#698d43',branch='#684b32',berry='#b45f45',meta={species:s.id,speciesName:name,clusterId};
  part(out,`${base}-stem`,x,z,size*.32,.68+size*.95,size*.32,branch,{...meta,part:'stem'});
  part(out,`${base}-crown`,x,z,size*1.5,.7+size*1.05,size*1.35,leaf,{...meta,part:'crown'});
  part(out,`${base}-side`,x+size*.58,z-size*.25,size*.9,.5+size*.72,size*.82,bright,{...meta,part:'crown'});
@@ -51,17 +51,25 @@ function animalPosition(s,i,frame,weather,forestPressure=null){const need=s.need
 
 export function ecologyRenderEntities(ecosystem,now=Date.now(),weather=null,observer=null,forestPressure=null){
  const disturbance=ecosystem?.disturbance||{};const last=(disturbance.history||[]).slice(-1)[0]||null;
- const species=Array.isArray(ecosystem?.species)?ecosystem.species:[];const out=[];const frame=Math.floor(now/800);const herbivores=species.filter(s=>s.kind==='herbivore'&&Number(s.population||0)>0);
- for(const s of species){const pop=Math.max(0,Number(s.population||0));if(pop<=0)continue;const seed=hash01(s.id||s.name||'species');const area=habitat(s.habitat,seed);
-  if(s.kind==='plant'){const life=s.lifeCycle||{};const health=clamp(1-Number(life.waterStress||0)*.45-Number(life.grazingPressure||0)*.3,.35,1);const count=Math.max(3,Math.min(28,Math.round(Math.sqrt(pop)/6*health)));for(let i=0;i<count;i++){const point=habitatPoint(s.habitat,`${s.id}:plant:${i}`,1),breeze=Number(weather?.wind||0)*.12*Math.sin(frame*.18+i),safe=outsideTown(point.x+breeze,point.z,`${s.id}:plant:${i}:wind`),x=clamp(safe.x,-32,32),z=clamp(safe.z,-32,32),size=(.35+hash01(`${s.id}:s:${i}`)*.5)*(.65+health*.45);plantCluster(out,s,i,x,z,size);}continue;}
-  const max=s.kind==='predator'?5:9;const count=Math.max(1,Math.min(max,Math.round(pop/(s.kind==='predator'?14:65))));
-  for(let i=0;i<count;i++){const pos=animalPosition(s,i,frame,weather,forestPressure);let x=pos.x,z=pos.z,behavior=pos.feeding?'feeding':pos.forestShift>=.20?'migrating':'roaming';
-   if(s.kind==='predator'&&herbivores.length){const prey=herbivores[(i+Math.floor(frame/30))%herbivores.length];const preyPos=animalPosition(prey,i%3,frame,weather,forestPressure);const d=Math.hypot(preyPos.x-x,preyPos.z-z);if(d<18){x=x+(preyPos.x-x)*.18;z=z+(preyPos.z-z)*.18;behavior='stalking';}}
-   const ox=Number(observer?.x),oz=Number(observer?.z);if(s.kind==='herbivore'&&Number.isFinite(ox)&&Number.isFinite(oz)){const dx=x-ox,dz=z-oz,d=Math.hypot(dx,dz);if(d<7){const force=(7-d)/7*5;x=clamp(x+(dx/(d||1))*force,-32,32);z=clamp(z+(dz/(d||1))*force,-32,32);behavior='fleeing';}}
-   {const safe=outsideTown(x,z,`${s.id}:${i}:${frame}:final`,11.5);x=safe.x;z=safe.z;}
-   const next=animalPosition(s,i,frame+1,weather,forestPressure);let nx=next.x,nz=next.z;if(behavior==='feeding'){nx=x;nz=z;}else if(behavior==='stalking'&&herbivores.length){const prey=herbivores[(i+Math.floor(frame/30))%herbivores.length];const preyNext=animalPosition(prey,i%3,frame+1,weather,forestPressure);nx=next.x+(preyNext.x-next.x)*.18;nz=next.z+(preyNext.z-next.z)*.18;}else if(behavior==='fleeing'&&Number.isFinite(ox)&&Number.isFinite(oz)){const dx=next.x-ox,dz=next.z-oz,d=Math.hypot(dx,dz);const force=d<7?(7-d)/7*5:0;nx=clamp(next.x+(dx/(d||1))*force,-32,32);nz=clamp(next.z+(dz/(d||1))*force,-32,32);}
-   const heading=Math.atan2(nz-z,nx-x);const body=.65+clamp(Number(s.traits?.size||.4),0,1)*.8;animalParts(out,s,i,x,z,body,heading,behavior);}
+ const species=Array.isArray(ecosystem?.species)?ecosystem.species:[],out=[],plantParts=[],plantFoods=[],animals=[];const frame=Math.floor(now/800),ox=Number(observer?.x),oz=Number(observer?.z);
+ for(const s of species.filter(item=>item.kind==='plant'&&Number(item.population||0)>0)){const pop=Math.max(0,Number(s.population||0)),life=s.lifeCycle||{},health=clamp(1-Number(life.waterStress||0)*.45-Number(life.grazingPressure||0)*.3,.2,1),count=Math.max(1,Math.min(28,Math.round(Math.sqrt(pop)/6*health)));
+  for(let i=0;i<count;i++){const point=habitatPoint(s.habitat,`${s.id}:plant:${i}`,1),breeze=Number(weather?.wind||0)*.12*Math.sin(frame*.18+i),safe=outsideTown(point.x+breeze,point.z,`${s.id}:plant:${i}:wind`),x=clamp(safe.x,-32,32),z=clamp(safe.z,-32,32),size=(.35+hash01(`${s.id}:s:${i}`)*.5)*(.65+health*.45),parts=[];plantCluster(parts,s,i,x,z,size);plantParts.push(...parts);plantFoods.push({id:`eco-plant-${s.id}-${i}`,species:s.id,x,z});}
  }
+ const herbivoreRecords=[];
+ for(const s of species.filter(item=>item.kind==='herbivore'&&Number(item.population||0)>0)){const pop=Number(s.population||0),count=Math.max(1,Math.min(9,Math.round(pop/65)));
+  for(let i=0;i<count;i++){const base=animalPosition(s,i,frame,weather,forestPressure),nextBase=animalPosition(s,i,frame+1,weather,forestPressure),epoch=Math.floor((frame+Math.floor(hash01(`${s.id}:${i}:meal`)*70))/70),local=(frame+Math.floor(hash01(`${s.id}:${i}:meal`)*70))%70,target=plantFoods.length?plantFoods[Math.floor(hash01(`${s.id}:${i}:${epoch}:food`)*plantFoods.length)%plantFoods.length]:null;let x=base.x,z=base.z,nx=nextBase.x,nz=nextBase.z,behavior=base.forestShift>=.2?'migrating':'roaming';
+   if(target&&local>=18){const q=clamp((local-18)/24,0,1),smooth=q*q*(3-2*q);x=base.x+(target.x-base.x)*smooth;z=base.z+(target.z-base.z)*smooth;nx=x+(target.x-x)*.3;nz=z+(target.z-z)*.3;behavior=local>=42?'feeding':'seeking food';}
+   if(Number.isFinite(ox)&&Number.isFinite(oz)){const dx=x-ox,dz=z-oz,d=Math.hypot(dx,dz);if(d<7){const force=(7-d)/7*5;x=clamp(x+(dx/(d||1))*force,-32,32);z=clamp(z+(dz/(d||1))*force,-32,32);behavior='fleeing';}}
+   const safe=outsideTown(x,z,`${s.id}:${i}:${frame}:feeding`,11.5);x=safe.x;z=safe.z;const record={s,i,x,z,nx,nz,behavior,target,consumedPlant:target&&local>=58?target.id:null,id:`${s.id}-${i}`};herbivoreRecords.push(record);animals.push(record);}
+ }
+ const killedPrey=new Set();
+ for(const s of species.filter(item=>item.kind==='predator'&&Number(item.population||0)>0)){const pop=Number(s.population||0),count=Math.max(1,Math.min(5,Math.round(pop/14)));
+  for(let i=0;i<count;i++){const base=animalPosition(s,i,frame,weather,forestPressure),nextBase=animalPosition(s,i,frame+1,weather,forestPressure),offset=Math.floor(hash01(`${s.id}:${i}:hunt`)*110),epoch=Math.floor((frame+offset)/110),local=(frame+offset)%110,prey=herbivoreRecords.length?herbivoreRecords[Math.floor(hash01(`${s.id}:${i}:${epoch}:prey`)*herbivoreRecords.length)%herbivoreRecords.length]:null;let x=base.x,z=base.z,nx=nextBase.x,nz=nextBase.z,behavior='patrolling';
+   if(prey&&local>=38){const q=clamp((local-38)/52,0,1),smooth=q*q*(3-2*q);x=base.x+(prey.x-base.x)*smooth;z=base.z+(prey.z-base.z)*smooth;nx=x+(prey.x-x)*.36;nz=z+(prey.z-z)*.36;behavior=local>=90?'feeding':'stalking';if(local>=98)killedPrey.add(prey.id);}
+   {const safe=outsideTown(x,z,`${s.id}:${i}:${frame}:hunting`,11.5);x=safe.x;z=safe.z;}animals.push({s,i,x,z,nx,nz,behavior,target:prey?.id||null});}
+ }
+ const eatenPlants=new Set(herbivoreRecords.map(record=>record.consumedPlant).filter(Boolean));out.push(...plantParts.filter(entity=>!eatenPlants.has(entity.clusterId)));
+ for(const record of animals){if(record.s.kind==='herbivore'&&killedPrey.has(record.id))continue;const heading=Math.atan2(record.nz-record.z,record.nx-record.x),body=.65+clamp(Number(record.s.traits?.size||.4),0,1)*.8,before=out.length;animalParts(out,record.s,record.i,record.x,record.z,body,heading,record.behavior);const entity=out[before];if(entity){entity.foodWeb=true;entity.foodTarget=record.target?.id||record.target||null;entity.consumedPlant=record.consumedPlant||null;entity.preyKilled=record.s.kind==='predator'&&record.behavior==='feeding';}}
  // Persistent-looking seasonal game trails derived deterministically from current ecology and season.
  if(last?.type==='wildfire'){for(let i=0;i<8;i++)part(out,`eco-burn-scar-${i}`,-2+i*2.1,10+(i%2)*1.2,1.8,.03,1.3,'#3f392f',{part:'burn-scar',disaster:last.id});}
  if(last?.type==='flood'){for(let i=0;i<6;i++)part(out,`eco-flood-mark-${i}`,-20+i*.8,-5+i*2.3,.7,.04,1.4,'#526f73',{part:'flood-mark',disaster:last.id});}
