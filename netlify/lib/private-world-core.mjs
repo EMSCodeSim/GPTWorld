@@ -1,5 +1,11 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
+export const PRIVATE_RESOURCE_RULES=Object.freeze({
+  tree:{resource:'wood',maxAmount:5,regrowHours:18},
+  rock:{resource:'stone',maxAmount:4,regrowHours:null},
+  herbs:{resource:'herbs',maxAmount:3,regrowHours:6}
+});
+
 export function seedFromPlayerId(playerId){
   let x=BigInt(playerId||1)*6364136223846793005n+1442695040888963407n;
   x=BigInt.asUintN(63,x^(x>>29n));
@@ -33,6 +39,27 @@ export function generatePrivateWorld(seed){
     clearing:{x:0,z:4,radius:10},
     objects
   };
+}
+
+export function privateResourceSeeds(terrain){
+  return (terrain?.objects||[]).flatMap(object=>{
+    const rule=PRIVATE_RESOURCE_RULES[object.kind];
+    if(!rule)return[];
+    return[{
+      nodeId:String(object.id),resourceType:rule.resource,x:Number(object.x),z:Number(object.z),
+      maxAmount:rule.maxAmount,remaining:rule.maxAmount,generation:1,
+      metadata:{objectKind:object.kind,regrowHours:rule.regrowHours}
+    }];
+  });
+}
+
+export function privateResourceView(rows){
+  return (rows||[]).map(row=>({
+    nodeId:String(row.node_id??row.nodeId),resource:String(row.resource_type??row.resourceType),
+    x:Number(row.x),z:Number(row.z),maxAmount:Number(row.max_amount??row.maxAmount),
+    remaining:Number(row.remaining),regrowAt:row.regrow_at??row.regrowAt??null,
+    generation:Number(row.generation||1)
+  }));
 }
 
 export function initialPrivateEcology(seed){

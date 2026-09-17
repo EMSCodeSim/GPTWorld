@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-4';
+import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 
 const API='/.netlify/functions/private-world';
 const CLIENT_KEY='gptworld-client-id';
@@ -12,9 +12,10 @@ const syncStateEl=$('syncState');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,saveBusy=false,activeClientId='',cacheAvailable=true;
+let toastTimer,nearest=null,lastSave=0,saveBusy=false,gatherBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
+const resourceStates=new Map(),resourceVisuals=new Map();
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const color=value=>new THREE.Color(value);
@@ -58,6 +59,18 @@ function plantPalette(){
   return{leaf:0x3e7745,herb:0x79a85b,ground:0x69854e};
 }
 
+function applyResourceVisual(nodeId){
+  const state=resourceStates.get(nodeId),visual=resourceVisuals.get(nodeId);if(!state||!visual)return;
+  const ratio=clamp(Number(state.remaining||0)/Math.max(1,Number(state.maxAmount||1)),0,1),kind=visual.userData.resourceKind;
+  const scale=ratio>0?.58+ratio*.42:kind==='rock'?.28:.2,base=visual.userData.resourceBaseScale;visual.scale.copy(base).multiplyScalar(scale);
+  visual.traverse(child=>{if(!child.isMesh)return;child.material.transparent=ratio<=0;child.material.opacity=ratio<=0?.34:1;});
+}
+
+function registerResource(object,visual,label){
+  const state=resourceStates.get(object.id);visual.userData.resourceKind=object.kind;visual.userData.resourceBaseScale=visual.scale.clone();resourceVisuals.set(object.id,visual);applyResourceVisual(object.id);
+  interactables.push({label,nodeId:object.id,resource:state?.resource||({tree:'wood',rock:'stone',herbs:'herbs'}[object.kind]),object:visual,radius:object.kind==='tree'?2.2:1.9});
+}
+
 function addTree(object){
   const group=new THREE.Group(),growth=growthFor(object),scale=(object.scale||1)*(.62+growth*.42),palette=plantPalette();
   group.position.set(object.x,0,object.z);
@@ -66,20 +79,20 @@ function addTree(object){
   const upper=new THREE.Mesh(new THREE.ConeGeometry(1.05*scale,2.2*scale,8),material(palette.leaf));upper.position.y=4.05*scale;upper.castShadow=true;group.add(upper);
   group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
   const stage=growth>.78?'mature':growth>.5?'growing':'young';
-  interactables.push({label:`${stage} tree`,message:()=>`A ${stage} tree. Local plant growth is ${Math.round(currentEcology.plantGrowth*100)}% and soil moisture is ${Math.round(currentEcology.soilMoisture*100)}%.`,object:group,radius:2.2});
+  registerResource(object,group,`${stage} tree`);
 }
 
 function addRock(object){
   const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(.85*(object.scale||1),1),material(0x74786f));
   mesh.position.set(object.x,.55,object.z);mesh.scale.y=.7;mesh.rotation.y=hash01(object.id)*Math.PI;mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
-  interactables.push({label:'stone deposit',message:()=>`A persistent stone deposit, weathered by ${currentEcology.weather}.`,object:mesh,radius:1.9});
+  registerResource(object,mesh,'stone deposit');
 }
 
 function addHerbs(object){
   const group=new THREE.Group(),growth=growthFor(object),palette=plantPalette();group.position.set(object.x,0,object.z);
   for(let i=0;i<7;i++){const blade=new THREE.Mesh(new THREE.ConeGeometry(.11,.52+growth*.35,5),material(palette.herb));blade.position.set((i%3-1)*.24,(.52+growth*.35)/2,(Math.floor(i/3)-.7)*.27);blade.rotation.z=(hash01(`${object.id}:${i}`)-.5)*.28;group.add(blade);}
   group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
-  interactables.push({label:'wild herbs',message:()=>`These herbs are ${growth>.7?'flourishing':growth>.45?'growing':'recovering'} in the current ${currentEcology.season.toLowerCase()} conditions.`,object:group,radius:1.7});
+  registerResource(object,group,'wild herbs');
 }
 
 function addWildlife(object){
@@ -107,7 +120,8 @@ function makePrecipitation(){
 }
 
 function build(data){
-  terrain=data.world.terrain;currentEcology=data.world.ecology;worldSeed=data.world.seed;
+  loadedPayload=data;terrain=data.world.terrain;currentEcology=data.world.ecology;worldSeed=data.world.seed;
+  resourceStates.clear();for(const node of data.world.resources||[])resourceStates.set(node.nodeId,node);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.1,210);
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;worldEl.replaceChildren(renderer.domElement);
   skyLight=new THREE.HemisphereLight(0xc7e7ff,0x38442d,2.1);scene.add(skyLight);
@@ -179,8 +193,23 @@ function updateEnvironment(dt,time){
   water.position.y=.02+Math.sin(time*.0015)*.025;
 }
 
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(best)promptEl.textContent=`Inspect ${best.label}`;}
-function interact(){if(nearest)showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
+async function gather(item){
+  const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
+  if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
+  if(gatherBusy)return;if(!navigator.onLine){showToast('Gathering needs a connection so your inventory stays safe.');return;}
+  gatherBusy=true;actionButton.disabled=true;
+  try{
+    const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'gather_resource',nodeId:item.nodeId,idempotencyKey:requestKey(`gather-${item.nodeId}`)})}),data=await response.json();
+    if(!response.ok||!data.ok){if(data.node){resourceStates.set(data.node.nodeId,data.node);applyResourceVisual(data.node.nodeId);}throw Error(data.error||'gather_failed');}
+    resourceStates.set(data.node.nodeId,data.node);applyResourceVisual(data.node.nodeId);
+    for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory?.[key]||0);
+    if(loadedPayload?.world){loadedPayload.world.resources=[...resourceStates.values()];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}
+    showToast(`Gathered 1 ${data.gathered.resource}. ${data.node.remaining} remains here.`);
+  }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
+  finally{gatherBusy=false;actionButton.disabled=false;}
+}
+function interact(){if(!nearest)return;if(nearest.nodeId){gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
 function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}
 async function sendQueuedPosition(action){
   const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'save_position',position:action.position})}),data=await response.json();
