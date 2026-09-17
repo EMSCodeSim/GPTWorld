@@ -63,9 +63,10 @@ test('crafting endpoint requires private ownership and atomically changes materi
 });
 
 test('private-world client exposes a mobile crafting ledger',async()=>{
-  const [html,client]=await Promise.all([
+  const [html,client,shell]=await Promise.all([
     readFile(new URL('../private-world.html',import.meta.url),'utf8'),
-    readFile(new URL('../private-world.js',import.meta.url),'utf8')
+    readFile(new URL('../private-world.js',import.meta.url),'utf8'),
+    readFile(new URL('../private-world-shell.js',import.meta.url),'utf8')
   ]);
   assert.match(html,/id="craftButton"/);
   assert.match(html,/id="craftingPanel"/);
@@ -80,6 +81,9 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   assert.match(client,/function pickupCraftedItem/);
   assert.match(client,/craftingPanel\.hidden=false/);
   assert.match(client,/Opening your bag/);
+  assert.match(html,/private-world-shell\.js/);
+  assert.match(shell,/panel\.hidden=false/);
+  assert.match(shell,/capture:true/);
   assert.match(client,/gesturestart/);
   assert.match(client,/action:'gather_resource'/);
 });
