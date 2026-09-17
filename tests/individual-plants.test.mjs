@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {advancePlantIndividuals,harvestIndividualPlant,plantScale} from '../lib/individual-plants.mjs';
+const state={simulatedYear:0,climate:{rainfall:.8},species:[{id:'rivergrass',kind:'plant',population:7200,lifeCycle:{waterStress:0,grazingPressure:0}}]};
+advancePlantIndividuals(state,0);assert.ok(state.plantIndividuals.length>0);const id=state.plantIndividuals[0].id;assert.equal(state.plantIndividuals[0].stage,'seed');
+for(let year=1;year<=5;year++)advancePlantIndividuals(state,year);
+const plant=state.plantIndividuals.find(p=>p.id===id);assert.ok(plant);assert.equal(plant.stage,'mature');assert.ok(plantScale(plant)>plantScale({stage:'sprout'}));
+const before=plant.resources;const result=harvestIndividualPlant(state,id,5);assert.equal(result.ok,true);assert.ok(plant.resources<before);const depleted=plant.resources;
+advancePlantIndividuals(state,6);const grown=state.plantIndividuals.find(p=>p.id===id);assert.ok(grown.resources>depleted);assert.equal(grown.id,id);
+const bad=harvestIndividualPlant(state,'missing');assert.equal(bad.ok,false);
+console.log('Plant identity, maturation, harvesting and regrowth tests passed');
