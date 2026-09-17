@@ -63,5 +63,5 @@ test('server endpoints enforce receipts, range, ownership, and inventory-only-on
   const privateSource=fs.readFileSync(new URL('../netlify/functions/private-world.mjs',import.meta.url),'utf8');
   assert.match(publicSource,/public_resource_action_receipts/);assert.match(publicSource,/resource_out_of_range/);assert.match(publicSource,/FROM changed/);
   assert.match(publicSource,/plant'->>'resources'/);assert.match(publicSource,/resource_changed/);
-  assert.match(privateSource,/owner_player_id=\$\{player\.id\}/);assert.match(privateSource,/sqrt\(power\(s\.private_x-r\.x/);assert.match(privateSource,/FROM gathered/);
+  assert.match(privateSource,/owner_player_id=\$\{player\.id\}/);assert.match(privateSource,/private-\$\{world\.id\}/);assert.match(privateSource,/sqrt\(power\(s\.private_x-r\.x/);assert.match(privateSource,/FROM gathered/);
 });
