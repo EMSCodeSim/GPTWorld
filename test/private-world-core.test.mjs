@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,privateResourceSeeds,privateResourceView,seedFromPlayerId} from '../netlify/lib/private-world-core.mjs';
 import {createPrivateWorldSnapshot,normalizeCachedPosition,snapshotToPrivateWorldPayload} from '../private-world-cache.mjs';
 import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
@@ -30,6 +30,23 @@ test('personal world begins undeveloped and wildlife faces its movement axis',as
   assert.doesNotMatch(client,/new THREE\.BoxGeometry\(terrain\.farmland\.width/);
   assert.match(client,/body\.scale\.set\(\.72,\.78,1\.45\)/);
   assert.match(client,/for\(const x of\[-\.22,\.22\]\)for\(const z of\[-\.4,\.4\]\)/);
+});
+
+test('personal terrain produces persistent gatherable resource nodes',()=>{
+  const terrain=generatePrivateWorld(321),resources=privateResourceSeeds(terrain);
+  assert.equal(resources.length,38+14+12);
+  assert.equal(resources.filter(node=>node.resourceType==='wood').length,38);
+  assert.equal(resources.filter(node=>node.resourceType==='stone').length,14);
+  assert.equal(resources.filter(node=>node.resourceType==='herbs').length,12);
+  assert.ok(resources.filter(node=>node.resourceType!=='stone').every(node=>node.metadata.regrowHours>0));
+  assert.ok(resources.filter(node=>node.resourceType==='stone').every(node=>node.metadata.regrowHours===null));
+  assert.equal(new Set(resources.map(node=>node.nodeId)).size,resources.length);
+});
+
+test('database resource rows normalize for the private-world client',()=>{
+  assert.deepEqual(privateResourceView([{node_id:'tree-1',resource_type:'wood',x:'2.5',z:'-4',max_amount:'5',remaining:'3',regrow_at:null,generation:'2'}]),[
+    {nodeId:'tree-1',resource:'wood',x:2.5,z:-4,maxAmount:5,remaining:3,regrowAt:null,generation:2}
+  ]);
 });
 
 test('local snapshot caches world visuals and position but never authoritative inventory',()=>{
@@ -106,6 +123,23 @@ test('foundation migration is additive and includes travel idempotency',async()=
   assert.match(sql,/primary key \(player_id, idempotency_key\)/);
   assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b/);
   assert.doesNotMatch(sql,/\btruncate\b/);
+});
+
+test('private gathering migration is additive and idempotent',async()=>{
+  const sql=(await readFile(new URL('../migrations/002_private_world_gathering.sql',import.meta.url),'utf8')).toLowerCase();
+  assert.match(sql,/create table if not exists private_world_action_receipts/);
+  assert.match(sql,/primary key \(player_id, idempotency_key\)/);
+  assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b/);
+  assert.doesNotMatch(sql,/\btruncate\b/);
+});
+
+test('private gathering remains server-authoritative and records world history',async()=>{
+  const server=await readFile(new URL('../netlify/functions/private-world.mjs',import.meta.url),'utf8');
+  assert.match(server,/current_world_type='private'/);
+  assert.match(server,/owner_player_id=\$\{player\.id\}/);
+  assert.match(server,/private_world_action_receipts/);
+  assert.match(server,/'resource_gathered'/);
+  assert.match(server,/player_inventory\.wood\+EXCLUDED\.wood/);
 });
 
 test('personal-world archway sits at the far end of the bridge and supports walk-through entry',()=>{

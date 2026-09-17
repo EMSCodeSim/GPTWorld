@@ -19,4 +19,14 @@
 
 ## Phase boundary
 
-Phase 1 establishes world ownership, deterministic generation, storage, isolation, travel, position persistence, and bounded offline ecology. Private harvesting, construction, farming, hunting, history inspection, and the marketplace belong to Phases 2–4 and are not represented as complete.
+Phase 1 establishes world ownership, deterministic generation, storage, isolation, travel, position persistence, and bounded offline ecology.
+
+## Phase 2 progress — personal gathering
+
+- Trees, stone deposits, and wild herbs are seeded once into `private_world_resources` for every existing or new personal world.
+- Gathering requires an active owner session and atomically decrements the private node, credits the shared personal inventory, and records a `private_world_events` history entry.
+- `private_world_action_receipts` makes repeat requests idempotent, preventing double credit from taps or retries.
+- Trees and herbs recover after elapsed real time; finite stone remains depleted. The scene displays current amounts and visibly shrinks depleted nodes.
+- Migration order: apply `001_living_worlds_foundation.sql`, then `002_private_world_gathering.sql` using a direct Neon connection.
+
+Private construction, farming, hunting, history inspection, and the marketplace remain future Phase 2–4 work.
