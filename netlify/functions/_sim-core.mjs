@@ -29,17 +29,19 @@ function outsideTown(x,z,key,minRadius=12.5){const d=Math.hypot(x,z);if(d>=minRa
 function habitatPoint(h,key,spread=1){const seed=hash01(key),zones=ecologyHabitatZones(h,seed),zone=zones[Math.floor(hash01(`${key}:zone`)*zones.length)%zones.length],angle=hash01(`${key}:angle`)*Math.PI*2,radius=Math.sqrt(hash01(`${key}:radius`))*spread;return outsideTown(zone.x+Math.cos(angle)*zone.rx*radius,zone.z+Math.sin(angle)*zone.rz*radius,key);}
 function part(out,id,x,z,width,height,depth,color,extra={}){out.push({id:String(id).slice(0,80),type:'object',x:round(x,2),z:round(z,2),width:round(width,2),height:round(height,2),depth:round(depth,2),color,...extra});}
 
-function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`;if(s.id==='rivergrass'){
- const green='#6f9b55',dark='#4f7b43';
- part(out,`${base}-center`,x,z,size*.28,.75+size*1.6,size*.28,green,{species:s.id,part:'blade'});
- part(out,`${base}-left`,x-size*.3,z+size*.12,size*.2,.48+size*1.2,size*.2,dark,{species:s.id,part:'blade'});
- part(out,`${base}-right`,x+size*.3,z-size*.1,size*.2,.55+size*1.35,size*.2,green,{species:s.id,part:'blade'});
+function plantCluster(out,s,i,x,z,size){const base=`eco-plant-${s.id}-${i}`,name=s.name||String(s.id||'plant').replaceAll('-',' ');if(s.id==='rivergrass'){
+ const green='#79a85b',dark='#426f3d',seed='#d8bd62',meta={species:s.id,speciesName:name};
+ part(out,`${base}-center`,x,z,size*.34,.9+size*1.8,size*.34,green,{...meta,part:'blade'});
+ part(out,`${base}-left`,x-size*.38,z+size*.14,size*.24,.62+size*1.35,size*.24,dark,{...meta,part:'blade'});
+ part(out,`${base}-right`,x+size*.38,z-size*.12,size*.24,.68+size*1.48,size*.24,green,{...meta,part:'blade'});
+ part(out,`${base}-seed`,x+.03,z-.03,size*.42,.22,size*.42,seed,{...meta,part:'flower'});
  return;
  }
- const leaf='#4f793e',branch='#5f4a32';
- part(out,`${base}-stem`,x,z,size*.24,.5+size*.8,size*.24,branch,{species:s.id,part:'stem'});
- part(out,`${base}-crown`,x,z,size*1.2,.55+size*.9,size*1.05,leaf,{species:s.id,part:'crown'});
- part(out,`${base}-side`,x+size*.48,z-size*.22,size*.72,.4+size*.65,size*.7,'#5f8448',{species:s.id,part:'crown'});
+ const leaf='#436f37',bright='#698d43',branch='#684b32',berry='#b45f45',meta={species:s.id,speciesName:name};
+ part(out,`${base}-stem`,x,z,size*.32,.68+size*.95,size*.32,branch,{...meta,part:'stem'});
+ part(out,`${base}-crown`,x,z,size*1.5,.7+size*1.05,size*1.35,leaf,{...meta,part:'crown'});
+ part(out,`${base}-side`,x+size*.58,z-size*.25,size*.9,.5+size*.72,size*.82,bright,{...meta,part:'crown'});
+ part(out,`${base}-berries`,x-size*.28,z+size*.2,size*.48,.34,size*.48,berry,{...meta,part:'flower'});
 }
 
 function animalParts(out,s,i,x,z,body,heading,behavior='roaming'){const predator=s.kind==='predator';const runner=s.id==='reed-runner';const color=predator?'#6b4d38':runner?'#b39a67':'#96784e';const bodyLen=predator?body*1.75:runner?body*1.35:body*1.55,bodyWide=predator?body*.62:runner?body*.48:body*.72,bodyHigh=predator?body*.62:runner?body*.7:body*.82;part(out,`eco-animal-${s.id}-${i}`,x,z,bodyLen,bodyHigh,bodyWide,color,{species:s.id,animalId:`${s.id}-${i}`,behavior,part:'creature',kind:s.kind,heading:round(heading,4),bodyScale:round(body,3)});}
@@ -63,7 +65,7 @@ export function ecologyRenderEntities(ecosystem,now=Date.now(),weather=null,obse
  // Persistent-looking seasonal game trails derived deterministically from current ecology and season.
  if(last?.type==='wildfire'){for(let i=0;i<8;i++)part(out,`eco-burn-scar-${i}`,-2+i*2.1,10+(i%2)*1.2,1.8,.03,1.3,'#3f392f',{part:'burn-scar',disaster:last.id});}
  if(last?.type==='flood'){for(let i=0;i<6;i++)part(out,`eco-flood-mark-${i}`,-20+i*.8,-5+i*2.3,.7,.04,1.4,'#526f73',{part:'flood-mark',disaster:last.id});}
- const patches=Array.isArray(ecosystem?.plantPatches)?ecosystem.plantPatches:[];for(const p of patches.slice(-24)){const count=Math.max(1,Math.min(4,Math.ceil(Number(p.population||0)/250)));for(let n=0;n<count;n++){const a=habitatPoint(p.habitat,`${p.id}:patch:${n}`,.72);part(out,`eco-patch-${p.id}-${n}`,a.x,a.z,.45,.16,.45,p.stage==='pioneer'?'#7d8a4d':'#5f773f',{part:'plant-patch',species:p.speciesId,stage:p.stage,habitat:p.habitat});}}
+ const patches=Array.isArray(ecosystem?.plantPatches)?ecosystem.plantPatches:[];for(const p of patches.slice(-24)){const count=Math.max(1,Math.min(4,Math.ceil(Number(p.population||0)/250))),speciesName=species.find(s=>s.id===p.speciesId)?.name||String(p.speciesId||'new plant patch').replaceAll('-',' ');for(let n=0;n<count;n++){const a=habitatPoint(p.habitat,`${p.id}:patch:${n}`,.72),color=p.speciesId==='rivergrass'?'#83a653':'#597b3f';part(out,`eco-patch-${p.id}-${n}`,a.x,a.z,.72,.28,.72,color,{part:'plant-patch',species:p.speciesId,speciesName,stage:p.stage,habitat:p.habitat});}}
  const groups=Array.isArray(ecosystem?.animalGroups)?ecosystem.animalGroups:[];for(const g of groups){const a=habitatPoint(g.habitat,`${g.id}:home`,.42),pred=g.type==='pack';part(out,`eco-home-${g.id}`,a.x,a.z,pred?1.1:1.35,pred?.35:.12,pred?1.1:1.35,pred?'#51443a':'#7b6849',{part:g.shelterType,species:g.speciesId,group:g.type,groups:g.groups,young:g.young||0});}
  const season=String(weather?.season||'Spring');
  for(const s of species.filter(x=>x.kind!=='plant'&&Number(x.population||0)>0)){

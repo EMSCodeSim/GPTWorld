@@ -31,6 +31,16 @@ test('public plants spread across the valley outside the town core',()=>{
   assert.ok(Math.max(...zs)-Math.min(...zs)>40);
 });
 
+test('plant species have distinct readable silhouettes and names',()=>{
+  const plants=ecologyRenderEntities(ecosystem,0,weather).filter(entity=>entity.species&&entity.part!=='creature'&&entity.part!=='trail');
+  const rivergrass=plants.filter(entity=>entity.species==='rivergrass'),thornbrush=plants.filter(entity=>entity.species==='thornbrush');
+  assert.ok(rivergrass.some(entity=>entity.part==='blade'));
+  assert.ok(rivergrass.some(entity=>entity.part==='flower'&&entity.color==='#d8bd62'));
+  assert.ok(thornbrush.some(entity=>entity.part==='crown'));
+  assert.ok(thornbrush.some(entity=>entity.part==='flower'&&entity.color==='#b45f45'));
+  assert.ok(plants.every(entity=>typeof entity.speciesName==='string'&&entity.speciesName.length>0));
+});
+
 test('public animals follow long roaming routes while remaining outside town buildings',()=>{
   const first=ecologyRenderEntities(ecosystem,0,weather).filter(entity=>entity.part==='creature');
   const later=ecologyRenderEntities(ecosystem,110*800,weather).filter(entity=>entity.part==='creature');
