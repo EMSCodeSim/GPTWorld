@@ -127,7 +127,7 @@ async function crateTransfer(sql,actor,itemId,key,resource,direction,requestedAm
   const prior=await sql`SELECT response FROM crafted_item_use_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
   if(prior.length)return prior[0].response;
   if(!['wood','stone','herbs'].includes(resource)||!['deposit','withdraw'].includes(direction))return{ok:false,error:'invalid_crate_transfer'};
-  const amount=Math.max(1,Math.min(10,Math.floor(Number(requestedAmount)||1)));
+  const amount=Math.max(1,Math.min(60,Math.floor(Number(requestedAmount)||1)));
   await sql`INSERT INTO crafted_item_storage(item_id,player_id)
     SELECT item.id,${actor.id} FROM player_crafted_items item WHERE item.id=${itemId} AND item.player_id=${actor.id} AND item.item_key='wooden-crate'
     ON CONFLICT(item_id) DO NOTHING`;

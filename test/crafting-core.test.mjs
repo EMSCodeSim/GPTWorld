@@ -68,6 +68,7 @@ test('campfire and crate actions are proximity checked and server authoritative'
   assert.match(server,/sqrt\(power\(session\.private_x-item\.placed_x/);
   assert.match(server,/crafted_item_use_receipts/);
   assert.match(server,/wood\+storage\.stone\+storage\.herbs\+\$\{amount\}<=storage\.capacity/);
+  assert.match(server,/Math\.min\(60,Math\.floor/);
 });
 
 test('private world exposes usable campfires and crates on mobile',async()=>{
@@ -82,8 +83,13 @@ test('private world exposes usable campfires and crates on mobile',async()=>{
   assert.match(client,/Warmth, light, and wildlife protection/);
   assert.match(client,/data\.behavior='avoiding fire'/);
   assert.match(client,/function makeCampfireFlame/);
+  assert.match(client,/group\.position\.set\(item\.x,1,item\.z\)/);
   assert.match(client,/THREE\.AdditiveBlending/);
   assert.match(client,/emberSeeds/);
+  assert.match(client,/function openPlacedCraftFromTap/);
+  assert.match(client,/Store all \(\$\{storeAll\}\)/);
+  assert.match(client,/function refreshCrateStorageLabel/);
+  assert.match(css,/\.crate-actions\{display:grid/);
   assert.match(css,/\.crafted-use-panel\{position:fixed;z-index:1100/);
 });
 
