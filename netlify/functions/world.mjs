@@ -183,6 +183,29 @@ function applyMigrationAndTerritories(state) {
   return state;
 }
 
+// Persisted cohorts, injuries and wildlife journal advance once per ecological year.
+function advanceWildlifeAges(state,year){
+ state.wildlifeJournal ||= [];
+ for(const sp of (state.species||[]).filter(s=>s.kind!=='plant')){
+  const population=Math.max(0,Math.floor(Number(sp.population||0))),previous=sp.ageCohorts||{};
+  const previousYoung=Math.min(population,Math.max(0,Math.floor(Number(previous.young||0))));
+  const matured=Math.min(previousYoung,Math.max(0,Math.round(previousYoung*.65)));
+  const born=Math.min(population,Math.max(0,Math.floor(Number(sp.demography?.births||0))));
+  const breeding=Math.min(population,Math.max(0,Math.floor(Number(state.animalGroups?.find(g=>g.speciesId===sp.id)?.young||0))));
+  const young=Math.min(population,Math.max(0,previousYoung-matured+born+breeding));
+  const injuredBefore=Math.max(0,Math.floor(Number(sp.injuries?.injured||0)));
+  const recovered=Math.min(injuredBefore,Math.round(injuredBefore*(.2+Number(sp.needs?.energy??.5)*.45)));
+  const newInjuries=Math.min(Math.max(0,population-young),Math.round(Number(sp.demography?.predationDeaths||0)*.2+population*Number(sp.needs?.fear||0)*.012));
+  const injured=Math.min(population,Math.max(0,injuredBefore-recovered+newInjuries));
+  sp.ageCohorts={young,adults:population-young,matured,born:born+breeding,year};
+  sp.injuries={injured,recovered,newInjuries,year};
+  if(born+breeding||matured||newInjuries||recovered){state.wildlifeJournal.push({year,speciesId:sp.id,type:'life_cycle',births:born+breeding,matured,injured:newInjuries,recovered,deaths:Number(sp.demography?.naturalDeaths||0)+Number(sp.demography?.predationDeaths||0),text:`${sp.name}: ${born+breeding} young born, ${matured} matured, ${newInjuries} injured, ${recovered} recovered.`});}
+ }
+ state.wildlifeJournal=state.wildlifeJournal.slice(-60);
+ state.wildlifeSummary={year,animals:(state.species||[]).filter(s=>s.kind!=='plant').reduce((n,s)=>n+Number(s.population||0),0),young:(state.species||[]).reduce((n,s)=>n+Number(s.ageCohorts?.young||0),0),injured:(state.species||[]).reduce((n,s)=>n+Number(s.injuries?.injured||0),0)};
+ return state;
+}
+
 function evolveOneYear(state) {
   const next = structuredClone(state);
   const year = Number(next.simulatedYear || 0) + 1;
@@ -296,6 +319,7 @@ function evolveOneYear(state) {
   applyFoodChainNeeds(next);
   applyMigrationAndTerritories(next);
   applyAnimalSocialAndBreeding(next, year);
+  advanceWildlifeAges(next, year);
   return next;
 }
 
@@ -310,6 +334,7 @@ async function ensureAndAdvanceEcosystem(sql) {
   applyPlantColonizationAndSuccession(state);
   applyMigrationAndTerritories(state);
   applyAnimalSocialAndBreeding(state);
+  state.wildlifeJournal ||= [];
   const today = new Date().toISOString().slice(0, 10);
   if (state.lastRealDate !== today) {
     state = evolveOneYear(state);
