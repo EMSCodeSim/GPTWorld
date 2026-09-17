@@ -81,6 +81,9 @@ test('private world exposes usable campfires and crates on mobile',async()=>{
   assert.match(client,/crate_transfer/);
   assert.match(client,/Warmth, light, and wildlife protection/);
   assert.match(client,/data\.behavior='avoiding fire'/);
+  assert.match(client,/function makeCampfireFlame/);
+  assert.match(client,/THREE\.AdditiveBlending/);
+  assert.match(client,/emberSeeds/);
   assert.match(css,/\.crafted-use-panel\{position:fixed;z-index:1100/);
 });
 

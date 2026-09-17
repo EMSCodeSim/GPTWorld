@@ -116,17 +116,36 @@ function addCloud(index){
   const group=new THREE.Group();for(let i=0;i<5;i++){const puff=new THREE.Mesh(new THREE.SphereGeometry(2.2+i*.12,10,7),new THREE.MeshStandardMaterial({color:0xd9e1df,transparent:true,opacity:.72,depthWrite:false}));puff.scale.y=.55;puff.position.set((i-2)*1.65,(i%2)*.45,0);group.add(puff);}group.position.set(-28+index*18,18+index%2*2,-20+(index%3)*18);scene.add(group);clouds.push(group);
 }
 
+function makeCampfireFlame(item){
+  const group=new THREE.Group();group.position.set(item.x,0,item.z);group.visible=false;
+  const flameMaterial=(value,opacity)=>new THREE.MeshBasicMaterial({color:value,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
+  const flame=(radius,height,value,opacity,x,y,z,phase)=>{const mesh=new THREE.Mesh(new THREE.ConeGeometry(radius,height,7),flameMaterial(value,opacity));mesh.position.set(x,y,z);mesh.userData={baseX:x,baseY:y,phase};group.add(mesh);return mesh;};
+  const flames=[
+    flame(.34,1.05,0xff5a16,.72,0,.82,0,0),
+    flame(.24,.82,0xffa21c,.88,-.08,.72,.04,1.7),
+    flame(.15,.58,0xffed82,.95,.09,.58,-.02,3.1),
+    flame(.12,.48,0xff7a18,.78,.26,.48,.02,4.4),
+    flame(.1,.4,0xffc13b,.84,-.25,.44,-.03,5.6)
+  ];
+  const emberCount=10,positions=new Float32Array(emberCount*3),emberSeeds=[];
+  for(let i=0;i<emberCount;i++){const angle=hash01(`${item.id}:ember-angle:${i}`)*Math.PI*2,radius=.08+hash01(`${item.id}:ember-radius:${i}`)*.3;positions[i*3]=Math.cos(angle)*radius;positions[i*3+1]=.42+hash01(`${item.id}:ember-height:${i}`)*1.2;positions[i*3+2]=Math.sin(angle)*radius;emberSeeds.push(hash01(`${item.id}:ember-rise:${i}`));}
+  const emberGeometry=new THREE.BufferGeometry();emberGeometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  const embers=new THREE.Points(emberGeometry,new THREE.PointsMaterial({color:0xffb13b,size:.075,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending}));group.add(embers);
+  const light=new THREE.PointLight(0xff9a32,0,10,2);light.position.set(0,1.05,0);group.add(light);
+  group.userData={flames,embers,emberSeeds,emberBase:positions.slice(),light,phase:hash01(`${item.id}:fire-phase`)*Math.PI*2};scene.add(group);return group;
+}
+
 function addPlacedCraft(item){
   if(placedCrafts.has(String(item.id)))return;
   const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
   sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;
-  if(item.key==='campfire-kit'){const light=new THREE.PointLight(0xffa43a,0,10,2);light.position.set(0,1.25,0);light.castShadow=false;sprite.add(light);sprite.userData.fireLight=light;}
+  if(item.key==='campfire-kit'){const fireGroup=makeCampfireFlame(item);sprite.userData.fireGroup=fireGroup;sprite.userData.fireLight=fireGroup.userData.light;}
   scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);
   interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
 }
 function removePlacedCraft(itemId){
-  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();placedCrafts.delete(id);
+  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}placedCrafts.delete(id);
   const index=interactables.findIndex(item=>item.placedItemId===id);if(index>=0)interactables.splice(index,1);
 }
 
@@ -181,7 +200,7 @@ function showToast(message){toastEl.textContent=message;toastEl.classList.add('s
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 function craftingIcon(key){return `./assets/crafting/${encodeURIComponent(key)}.webp`;}
 function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&currentEcology?.weather!=='heavy rain';}
-function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}}
+function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}}
 function updatePlacedItemState(itemId,changes){
   const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
   if(loadedPayload?.world){const saved=(loadedPayload.world.placedItems||[]).find(entry=>String(entry.id)===String(itemId));if(saved)Object.assign(saved,changes);cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}return item;
@@ -293,7 +312,12 @@ function updateEnvironment(dt,time){
   for(const plant of plants)plant.rotation.z=Math.sin(time*.0018+plant.userData.phase)*.012*Number(currentEcology.wind||.2);
   if(precipitation.visible){const positions=precipitation.geometry.attributes.position.array,snow=currentEcology.weather==='snow';precipitation.position.x=player.position.x;precipitation.position.z=player.position.z;for(let i=0;i<positions.length/3;i++){positions[i*3+1]-=dt*(snow?2.2:13)*(currentEcology.weather==='heavy rain'?1.4:1);positions[i*3]+=snow?Math.sin(time*.001+i)*dt*.3:0;if(positions[i*3+1]<0)positions[i*3+1]=22;}precipitation.geometry.attributes.position.needsUpdate=true;}
   water.position.y=.02+Math.sin(time*.0015)*.025;
-  for(const sprite of placedCrafts.values())if(sprite.userData.fireLight){refreshPlacedCraft(sprite.userData.item);if(sprite.userData.fireLight.intensity)sprite.userData.fireLight.intensity=3.7+Math.sin(time*.018)*.55;}
+  for(const sprite of placedCrafts.values())if(sprite.userData.fireLight){
+    refreshPlacedCraft(sprite.userData.item);const fire=sprite.userData.fireGroup;if(!fire.visible)continue;const phase=fire.userData.phase;
+    fire.userData.light.intensity=3.65+Math.sin(time*.021+phase)*.55+Math.sin(time*.047+phase)*.22;
+    fire.userData.flames.forEach((flame,index)=>{const wave=Math.sin(time*(.008+index*.0017)+flame.userData.phase+phase),flutter=Math.sin(time*(.019+index*.002)+phase);flame.scale.set(1+wave*.13,1+flutter*.16,1-wave*.09);flame.position.x=flame.userData.baseX+wave*.055;flame.position.y=flame.userData.baseY+flutter*.035;flame.rotation.z=wave*.08;});
+    const positions=fire.userData.embers.geometry.attributes.position.array,base=fire.userData.emberBase;for(let i=0;i<fire.userData.emberSeeds.length;i++){const rise=(fire.userData.emberSeeds[i]+time*.00042)%1;positions[i*3]=base[i*3]+Math.sin(time*.004+i)*.08*rise;positions[i*3+1]=.42+rise*1.55;positions[i*3+2]=base[i*3+2]+Math.cos(time*.0035+i)*.065*rise;}fire.userData.embers.geometry.attributes.position.needsUpdate=true;
+  }
 }
 
 function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Use ${best.label}`:node?(node.remaining>0?`Gather ${node.resource} · ${node.remaining}/${node.maxAmount}`:`${best.label} is recovering`):`Inspect ${best.label}`;}
