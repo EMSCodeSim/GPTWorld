@@ -97,7 +97,8 @@ function addRock(object){
 
 function addHerbs(object){
   const group=new THREE.Group(),growth=growthFor(object),palette=plantPalette();group.position.set(object.x,0,object.z);
-  for(let i=0;i<7;i++){const blade=new THREE.Mesh(new THREE.ConeGeometry(.11,.52+growth*.35,5),material(palette.herb));blade.position.set((i%3-1)*.24,(.52+growth*.35)/2,(Math.floor(i/3)-.7)*.27);blade.rotation.z=(hash01(`${object.id}:${i}`)-.5)*.28;group.add(blade);}
+  for(let i=0;i<9;i++){const height=.68+growth*.48,blade=new THREE.Mesh(new THREE.ConeGeometry(.16,height,6),material(i%3?palette.herb:0x4d7b3b));blade.position.set((i%3-1)*.3,height/2,(Math.floor(i/3)-1)*.3);blade.rotation.z=(hash01(`${object.id}:${i}`)-.5)*.34;group.add(blade);}
+  for(const [x,z,c] of[[-.28,.1,0xe5c85f],[.2,-.18,0xd7e39a],[.34,.25,0xc98668]]){const bloom=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),material(c));bloom.position.set(x,1.02+growth*.22,z);group.add(bloom);}
   group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
   registerResource(object,group,'wild herbs');
 }
@@ -119,8 +120,15 @@ function addWildlife(object){
 
 function addLivingPlant(entity){
   const group=new THREE.Group(),width=Math.max(.08,Number(entity.width||.4)),height=Math.max(.08,Number(entity.height||.4)),depth=Math.max(.08,Number(entity.depth||.4));
-  group.position.set(Number(entity.x||0),0,Number(entity.z||0));box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
-  group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);return group;
+  group.position.set(Number(entity.x||0),0,Number(entity.z||0));const part=String(entity.part||'');
+  if(part==='blade'){const mesh=new THREE.Mesh(new THREE.ConeGeometry(Math.max(.06,width*.48),height,6),material(entity.color||0x6f9b55));mesh.position.y=height/2;mesh.rotation.z=.08;group.add(mesh);}
+  else if(part==='stem'){const mesh=new THREE.Mesh(new THREE.CylinderGeometry(width*.3,width*.46,height,7),material(entity.color||0x684b32));mesh.position.y=height/2;group.add(mesh);}
+  else if(part==='crown'){const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(.5,1),material(entity.color||0x4f793e));mesh.position.y=Math.max(.38,height*.72);mesh.scale.set(width,height,depth);group.add(mesh);}
+  else if(part==='flower'){const mesh=new THREE.Mesh(new THREE.SphereGeometry(.5,9,7),material(entity.color||0xd8bd62));mesh.position.y=Math.max(.18,height*.8);mesh.scale.set(width,height,depth);group.add(mesh);}
+  else box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
+  group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);
+  if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' ');interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label}${entity.stage?` · ${String(entity.stage).replaceAll('-',' ')}`:''}. A living part of this world’s ecology.`});}
+  return group;
 }
 
 function removeLivingEntity(id){
