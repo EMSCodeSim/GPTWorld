@@ -1,9 +1,9 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const PRIVATE_RESOURCE_RULES=Object.freeze({
-  tree:{resource:'wood',maxAmount:5,regrowHours:18},
-  rock:{resource:'stone',maxAmount:4,regrowHours:null},
-  herbs:{resource:'herbs',maxAmount:3,regrowHours:6}
+  tree:{resource:'wood',maxAmount:6,regrowMinutes:60},
+  rock:{resource:'stone',maxAmount:4,regrowMinutes:90},
+  herbs:{resource:'herbs',maxAmount:3,regrowMinutes:20}
 });
 
 export function seedFromPlayerId(playerId){
@@ -48,7 +48,7 @@ export function privateResourceSeeds(terrain){
     return[{
       nodeId:String(object.id),resourceType:rule.resource,x:Number(object.x),z:Number(object.z),
       maxAmount:rule.maxAmount,remaining:rule.maxAmount,generation:1,
-      metadata:{objectKind:object.kind,regrowHours:rule.regrowHours}
+      metadata:{objectKind:object.kind,regrowMinutes:rule.regrowMinutes}
     }];
   });
 }
@@ -64,6 +64,38 @@ export function privateResourceView(rows){
 
 export function initialPrivateEcology(seed){
   return{version:2,tick:0,worldHour:8,season:'Spring',seasonDay:1,weather:'clear',precipitationRate:0,temperatureC:13,wind:.22,treeCover:38,plantGrowth:.58,forage:.7,wildlife:7,soilMoisture:.64,drought:.18,snowCover:0,seed:Number(seed)||1};
+}
+
+export function synchronizePrivateLivingState(privateState,sharedWeather,sharedEcosystem){
+  const local=structuredClone(privateState||initialPrivateEcology(1)),weather=sharedWeather||{},ecosystem=sharedEcosystem||{};
+  const species=Array.isArray(ecosystem.species)?structuredClone(ecosystem.species):[];
+  const plants=species.filter(item=>item.kind==='plant'),animals=species.filter(item=>item.kind!=='plant');
+  const plantHealth=plants.length?plants.reduce((sum,item)=>{
+    const life=item.lifeCycle||{};
+    return sum+clamp(1-Number(life.waterStress||0)*.45-Number(life.grazingPressure||0)*.3,.25,1);
+  },0)/plants.length:null;
+  const animalPopulation=animals.reduce((sum,item)=>sum+Math.max(0,Number(item.population||0)),0);
+  return{
+    ...local,
+    worldHour:Number.isFinite(Number(weather.worldHour))?Number(weather.worldHour):local.worldHour,
+    season:weather.season||local.season,
+    seasonDay:Number.isFinite(Number(weather.seasonDay))?Number(weather.seasonDay):local.seasonDay,
+    weather:weather.precipitation||local.weather||'clear',
+    precipitationRate:Number.isFinite(Number(weather.precipitationRate))?Number(weather.precipitationRate):local.precipitationRate,
+    temperatureC:Number.isFinite(Number(weather.temperatureC))?Number(weather.temperatureC):local.temperatureC,
+    wind:Number.isFinite(Number(weather.wind))?Number(weather.wind):local.wind,
+    soilMoisture:Number.isFinite(Number(weather.soilMoisture))?Number(weather.soilMoisture):local.soilMoisture,
+    drought:Number.isFinite(Number(weather.drought))?Number(weather.drought):local.drought,
+    snowCover:Number.isFinite(Number(weather.snowCover))?Number(weather.snowCover):local.snowCover,
+    plantGrowth:plantHealth===null?local.plantGrowth:Number(plantHealth.toFixed(3)),
+    forage:plantHealth===null?local.forage:Number(clamp(plantHealth*(.7+Number(weather.soilMoisture||.5)*.3)-Number(weather.snowCover||0)*.18,.12,1).toFixed(3)),
+    wildlife:animalPopulation||local.wildlife,
+    species,
+    plantPatches:structuredClone(Array.isArray(ecosystem.plantPatches)?ecosystem.plantPatches:[]),
+    animalGroups:structuredClone(Array.isArray(ecosystem.animalGroups)?ecosystem.animalGroups:[]),
+    sharedWeatherTick:Number(weather.tick||0),
+    sharedEcologyYear:Number(ecosystem.simulatedYear||0)
+  };
 }
 
 export function advancePrivateEcology(input,lastSimulatedAt,now=new Date()){
