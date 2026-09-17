@@ -1,0 +1,28 @@
+name: Install persistent individual wildlife
+on:
+  push:
+    paths:
+      - 'lib/individual-wildlife.mjs'
+      - 'scripts/install-individual-wildlife.mjs'
+      - '.github/workflows/install-individual-wildlife.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check lib/individual-wildlife.mjs && node --check scripts/install-individual-wildlife.mjs
+      - run: node scripts/install-individual-wildlife.mjs
+      - run: node --check netlify/functions/world.mjs
+      - run: npm test --if-present
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add netlify/functions/world.mjs
+          if ! git diff --cached --quiet; then git commit -m 'Persist individual wildlife across ecology years'; git push; fi
