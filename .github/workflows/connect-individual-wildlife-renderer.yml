@@ -1,0 +1,37 @@
+name: Connect visible individual wildlife behavior
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/connect-individual-wildlife-renderer.mjs'
+      - '.github/workflows/connect-individual-wildlife-renderer.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate patch script
+        run: node --check scripts/connect-individual-wildlife-renderer.mjs
+      - name: Apply visible wildlife behavior
+        run: node scripts/connect-individual-wildlife-renderer.mjs
+      - name: Validate simulation syntax
+        run: node --check netlify/functions/_sim-core.mjs
+      - name: Run tests
+        run: npm test --if-present
+      - name: Commit integration
+        run: |
+          git config user.name "gptworld-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add netlify/functions/_sim-core.mjs
+          if git diff --cached --quiet; then
+            echo "Already integrated"
+          else
+            git commit -m "Connect individual age injury and herd protection to wildlife"
+            git push
+          fi
