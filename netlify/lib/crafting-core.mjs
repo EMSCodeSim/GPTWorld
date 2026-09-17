@@ -27,8 +27,8 @@ export function resolveCraftAttempt({skillValue=0,difficulty=0,key=''}){
   const chance=craftingChance(skillValue,difficulty),roll=craftingHash(`${key}:success`),success=roll<chance;
   const qualityRoll=craftingHash(`${key}:quality`),mastery=clamp((Number(skillValue)-Number(difficulty)+20)/120,0,1);
   const quality=!success?null:qualityRoll<.05+mastery*.14?'exceptional':qualityRoll<.32+mastery*.28?'fine':'standard';
-  const gainChance=clamp(.7-(Number(skillValue)||0)*.006+Math.max(0,Number(difficulty)-Number(skillValue))*.008,.08,.82);
-  const skillGain=craftingHash(`${key}:gain`)<gainChance?Number((.2+craftingHash(`${key}:gain-size`)*.4).toFixed(2)):0;
+  const currentSkill=clamp(skillValue,0,100);
+  const skillGain=currentSkill>=100?0:Number((.1+craftingHash(`${key}:gain-size`)*.3).toFixed(2));
   return{success,chance,roll:Number(roll.toFixed(4)),quality,skillGain};
 }
 

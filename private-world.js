@@ -10,7 +10,7 @@ const retry=$('retry'),returnTown=$('returnTown'),promptEl=$('prompt'),toastEl=$
 const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather'),temperature:$('temperature')};
 const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
 const syncStateEl=$('syncState');
-const craftingPanel=$('craftingPanel'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
+const craftingPanel=$('craftingPanel'),craftingResult=$('craftingResult'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
@@ -163,6 +163,17 @@ function updateStatus(){
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 function canAfford(recipe){return Object.entries(recipe.inputs).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);}
+function showCraftingResult(data,recipe){
+  const title=document.createElement('strong'),detail=document.createElement('span'),before=Number(data.skill.before),after=Number(data.skill.value),gain=Math.max(0,after-before);
+  craftingResult.dataset.outcome=data.success?'success':'failure';
+  title.textContent=data.success?`Success — ${data.quality} ${recipe.name}`:`Attempt failed — ${recipe.name}`;
+  detail.textContent=`${data.skill.key[0].toUpperCase()+data.skill.key.slice(1)} ${before.toFixed(2)} → ${after.toFixed(2)} (+${gain.toFixed(2)}). ${data.success?'Item added to your possessions.':'Some materials were lost.'}`;
+  craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;craftingResult.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function showCraftingError(message){
+  const title=document.createElement('strong'),detail=document.createElement('span');title.textContent='Crafting could not complete';detail.textContent=message;
+  craftingResult.dataset.outcome='failure';craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;craftingResult.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
 function renderCrafting(){
   if(!craftingData)return;
   craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skill.key[0].toUpperCase()+skill.key.slice(1);progress.textContent=`${skill.value.toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
@@ -180,9 +191,9 @@ async function craftRecipe(recipe){
   try{
     const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,recipeKey:recipe.key,idempotencyKey:requestKey(`craft-${recipe.key}`)})}),data=await response.json();
     if(!response.ok||!data.ok)throw Error(data.error||'craft_failed');
-    showToast(data.success?`Crafted ${data.quality} ${recipe.name}. ${data.skill.gain?`+${data.skill.gain.toFixed(2)} ${data.skill.key}.`:''}`:`The attempt failed. Some materials were lost${data.skill.gain?`, but ${data.skill.key} improved`:''}.`);
+    showCraftingResult(data,recipe);
     await loadCrafting();for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(craftingData.inventory?.[key]||0);
-  }catch(error){showToast(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='private_world_required'?'Craft inside your personal world.':'Crafting failed. Try again.');}
+  }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='private_world_required'?'Craft inside your personal world.':'Please try again. No success was recorded.');}
   finally{craftBusy=false;renderCrafting();}
 }
 function collides(x,z){return blockers.some(block=>Math.abs(x-block.x)<block.halfX&&Math.abs(z-block.z)<block.halfZ);}
