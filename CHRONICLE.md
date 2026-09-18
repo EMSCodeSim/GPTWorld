@@ -53,3 +53,11 @@ Repeated harvesting has made raw materials plentiful enough to matter for more t
 Carpentry, masonry, and herbalism grow through use. Crafted goods retain their maker, quality, durability, and placement state. Campfires can be placed and visibly burn; crates hold personal supplies; tools, hearths, poultices, and weather preparations begin the settlement's first practical craft traditions.
 
 The public settlement remains the shared center for travel and trade, but a traveler's private land can now become a place where gathered resources are shaped into useful things rather than merely stored.
+
+## Day 7 — The Timber Line
+
+Sustained cutting pushed the nearby forest into critical pressure. When the settlement faced the choice, a traveler chose to continue expansion rather than restrict harvesting.
+
+A narrow logging spur now branches from the western survey route. A timber marker and two heavier pine stands make that decision visible in the shared landscape. The stands yield more wood than ordinary pines, but recover far more slowly.
+
+The settlement has gained another source of timber, but the cost of expansion is no longer abstract: the new route is a persistent scar in a forest already under pressure, and what travelers cut there will shape what follows.
