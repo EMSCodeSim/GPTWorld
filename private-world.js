@@ -140,7 +140,7 @@ function addLivingPlant(entity){
   else if(part==='flower'){const mesh=new THREE.Mesh(new THREE.SphereGeometry(.5,9,7),material(entity.color||0xd8bd62));mesh.position.y=Math.max(.18,height*.8);mesh.scale.set(width,height,depth);group.add(mesh);}
   else box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
   group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);
-  if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' ');interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label}${entity.stage?` · ${String(entity.stage).replaceAll('-',' ')}`:''}. A living part of this world’s ecology.`});}
+  if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' '),stage=String(entity.plantStage||entity.stage||'mature').replaceAll('-',' '),health=Math.round(Number(entity.plantHealth??100)*(Number(entity.plantHealth??100)<=1?100:1)),available=Number(entity.harvestAvailable);interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label} · ${stage} · health ${health}%${Number.isFinite(available)?` · ${Math.max(0,Math.floor(available))} naturally available`:''}. Wildlife can feed here; gatherable plants are marked separately.`});}
   return group;
 }
 
@@ -378,7 +378,7 @@ function updateAnimals(dt,time){
     const data=animal.userData,distanceToPlayer=animal.position.distanceTo(player.position);
     let nearbyFire=null,fireDistance=Infinity;for(const sprite of placedCrafts.values()){if(!campfireBurning(sprite.userData.item))continue;const distance=animal.position.distanceTo(sprite.position);if(distance<7&&distance<fireDistance){nearbyFire=sprite;fireDistance=distance;}}
     if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
-    else if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
+    else if(distanceToPlayer<7){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
     else if(!data.serverDriven&&time>data.nextTurn){
       const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
       if(seekWater){const angle=hash01(`${data.phase}:water-shore`)*Math.PI*2,radius=Number(terrain.water.radius||0)+.9;data.behavior='seeking water';data.target.set(terrain.water.x+Math.cos(angle)*radius,0,terrain.water.z+Math.sin(angle)*radius);}
