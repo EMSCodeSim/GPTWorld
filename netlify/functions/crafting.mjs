@@ -301,7 +301,6 @@ async function buildHouse(sql,actor,key,position={}){
   const componentRows=await sql`
     SELECT id,item_key FROM player_crafted_items
     WHERE player_id=${actor.id} AND world_id=${actor.world_id} AND placed_at IS NULL
-      AND item_key=ANY(${components})
     ORDER BY crafted_at ASC
   `;
   const picked=[];
@@ -310,7 +309,7 @@ async function buildHouse(sql,actor,key,position={}){
   for(const row of componentRows){
     const need=remaining.get(row.item_key)||0;
     if(need<=0)continue;
-    picked.push(row.id);
+    picked.push(Number(row.id));
     remaining.set(row.item_key,need-1);
   }
   if([...remaining.values()].some(value=>value>0))return{ok:false,error:'missing_components',needed:components,have:componentRows.map(row=>row.item_key)};

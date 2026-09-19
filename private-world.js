@@ -432,7 +432,12 @@ function renderCrafting(){
     if(item.placed){button.textContent='Placed';button.disabled=true;}
     else if(component){button.textContent='Held';button.disabled=true;}
     else if(!placeable){button.textContent='Held';button.disabled=true;}
-    else{button.textContent='Place';button.disabled=itemBusy;button.addEventListener('click',()=>placeCraftedItem(item));}
+    else{
+      const house=currentHomestead();
+      if(house&&['wooden-crate','stone-hearth','reed-mat','campfire-kit'].includes(item.key)){
+        button.textContent='Install in house';button.disabled=itemBusy;button.addEventListener('click',()=>installInteriorFurniture(item,house));
+      }else{button.textContent='Place';button.disabled=itemBusy;button.addEventListener('click',()=>placeCraftedItem(item));}
+    }
     content.append(title,detail);row.append(image,content,button);return row;
   }):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your bag is empty. Crafted items will appear here.'})]));
 }
@@ -494,6 +499,25 @@ async function placeCraftedItem(item){
   if(itemBusy||item.placed||!isPlaceableItem(item))return;itemBusy=true;renderCrafting();await savePosition();
   const position={x:clamp(player.position.x+Math.sin(player.rotation.y)*2.6,-32,32),z:clamp(player.position.z+Math.cos(player.rotation.y)*2.6,-32,32),rotation:player.rotation.y};
   try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'place_item',itemId:item.id,position,idempotencyKey:requestKey(`place-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'place_failed');const placed={...data.item,...data.item.placed};addPlacedCraft(placed);if(loadedPayload?.world){loadedPayload.world.placedItems=[...(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id)),placed];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}await loadCrafting();showCraftingError(`${item.name} was placed nearby. Close your bag to see it.`);craftingResult.dataset.outcome='success';craftingResult.firstElementChild.textContent=`Placed — ${item.name}`;}catch{showCraftingError('Move to a clear nearby spot and try placing the item again.');}finally{itemBusy=false;renderCrafting();}
+}
+function currentHomestead(){
+  const fromPayload=(loadedPayload?.world?.buildings||[]).find(building=>building.key==='homestead'||building.type==='house');
+  if(fromPayload)return fromPayload;
+  for(const record of homesteadBuildings.values())return record.building;
+  return (craftingData?.buildings||[]).find(building=>building.key==='homestead')||null;
+}
+async function installInteriorFurniture(item,house){
+  if(itemBusy||item.placed||!house?.id)return;itemBusy=true;renderCrafting();
+  const slots=[[-3.2,2.1],[3.1,-2.4],[-1.5,2.6],[2.8,2.5],[0,-2.8]];
+  const index=Math.abs(Number(item.id)||0)%slots.length,position={x:slots[index][0],z:slots[index][1],rotation:0};
+  try{
+    const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'place_interior_furniture',itemId:item.id,buildingId:house.id,position,idempotencyKey:requestKey(`interior-${item.id}`)})}),data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'furniture_failed');
+    await loadCrafting();
+    showCraftingError(`${item.name} was installed inside your homestead. Enter the cabin to see it.`);
+    craftingResult.dataset.outcome='success';craftingResult.firstElementChild.textContent=`Installed — ${item.name}`;
+  }catch{showCraftingError('Could not install that item in your house. Try again after the cabin is built.');}
+  finally{itemBusy=false;renderCrafting();}
 }
 async function buildHouse(){
   const house=craftingData?.house;if(houseBusy||craftBusy||!house?.canAttempt)return;houseBusy=true;renderCrafting();await savePosition();
