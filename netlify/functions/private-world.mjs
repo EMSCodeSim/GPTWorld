@@ -1,5 +1,5 @@
 import {neon} from '@neondatabase/serverless';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateLivingEntityView,privateObserverForLivingRenderer,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
 import {harvestPlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
 
@@ -86,7 +86,9 @@ async function worldPayload(sql,player,world,catchUp,resources){
   const living=Object.fromEntries(livingRows.map(row=>[row.key,row.value]));
   const ecology=synchronizePrivateLivingState(world.ecology_state,living.weather_sim,living.ecosystem);
   const observer={x:Number(session.private_x),z:Number(session.private_z)};
-  const livingEntities=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,observer,living.forest_pressure).filter(entity=>!entity.plantId);
+  const rendererObserver=privateObserverForLivingRenderer(observer,world.seed);
+  const sharedRules=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,rendererObserver,living.forest_pressure);
+  const livingEntities=privateLivingEntityView(sharedRules,{worldId:world.id,seed:world.seed,terrain:world.terrain_state});
   return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology,livingEntities,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:observer},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
 }
 
