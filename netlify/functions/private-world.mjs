@@ -74,12 +74,20 @@ async function ensureResources(sql,world){
 }
 
 async function worldPayload(sql,player,world,catchUp,resources){
+  let buildings=[];
+  try{
+    buildings=await sql`SELECT id,building_key,building_type,x,z,level,condition,status,width,depth,metadata FROM private_world_buildings WHERE world_id=${world.id} AND status='active' ORDER BY created_at`;
+  }catch{
+    buildings=[];
+  }
   const [sessions,placedItems,livingRows]=await Promise.all([
     sql`SELECT current_world_type,private_x,private_z FROM player_world_sessions WHERE player_id=${player.id} LIMIT 1`,
     sql`SELECT item.id,item.item_key,item.display_name,item.quality,item.placed_x,item.placed_z,item.placed_rotation,item.placed_at,item.metadata,
       storage.wood AS stored_wood,storage.stone AS stored_stone,storage.herbs AS stored_herbs,storage.capacity
       FROM player_crafted_items item LEFT JOIN crafted_item_storage storage ON storage.item_id=item.id
-      WHERE item.player_id=${player.id} AND item.world_id=${world.id} AND item.placed_at IS NOT NULL ORDER BY item.placed_at`,
+      WHERE item.player_id=${player.id} AND item.world_id=${world.id} AND item.placed_at IS NOT NULL
+        AND COALESCE(item.metadata->>'interior','false')<>'true'
+      ORDER BY item.placed_at`,
     sql`SELECT key,value FROM world_state WHERE key IN ('weather_sim','ecosystem','forest_pressure')`
   ]);
   const session=sessions[0]||{current_world_type:'public',private_x:world.terrain_state?.spawn?.x||0,private_z:world.terrain_state?.spawn?.z||8};
@@ -89,7 +97,7 @@ async function worldPayload(sql,player,world,catchUp,resources){
   const rendererObserver=privateObserverForLivingRenderer(observer,world.seed);
   const sharedRules=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,rendererObserver,living.forest_pressure);
   const livingEntities=privateLivingEntityView(sharedRules,{worldId:world.id,seed:world.seed,terrain:world.terrain_state});
-  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology,livingEntities,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:observer},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
+  return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology,livingEntities,resources,buildings:buildings.map(row=>({id:String(row.id),key:row.building_key,type:row.building_type,x:Number(row.x),z:Number(row.z),level:Number(row.level||2),width:Number(row.width||7),depth:Number(row.depth||6),metadata:row.metadata||{},status:row.status||'active'})),placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:observer},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
 }
 
 async function gatherResource(sql,player,world,key,nodeId){
