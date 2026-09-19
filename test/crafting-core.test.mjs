@@ -5,7 +5,8 @@ import {CRAFTING_RECIPES,craftingChance,craftingRecipe,qualityDurability,resolve
 
 test('starter crafting professions use existing private-world resources',()=>{
   assert.ok(CRAFTING_RECIPES.length>=6);
-  assert.deepEqual(new Set(CRAFTING_RECIPES.map(recipe=>recipe.skill)),new Set(['carpentry','masonry','herbalism']));
+  const skills=new Set(CRAFTING_RECIPES.map(recipe=>recipe.skill));
+  assert.ok(['carpentry','masonry','herbalism'].every(skill=>skills.has(skill)));
   assert.ok(CRAFTING_RECIPES.every(recipe=>Object.keys(recipe.inputs).every(resource=>['wood','stone','herbs'].includes(resource))));
   assert.equal(craftingRecipe('stone-hammer').skill,'masonry');
   assert.equal(craftingRecipe('not-real'),null);
@@ -116,10 +117,19 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   assert.match(html,/id="craftButton"/);
   assert.match(html,/id="craftingPanel"/);
   assert.match(html,/id="craftingResult"/);
+  assert.match(html,/id="constructionPanel"/);
+  assert.match(html,/id="houseBlueprint"/);
   assert.match(html,/user-scalable=no/);
   assert.match(client,/function renderCrafting/);
   assert.match(client,/function showCraftingResult/);
   assert.match(client,/function showCraftingError/);
+  assert.match(client,/function addHomesteadBuilding/);
+  assert.match(client,/function enterHomestead/);
+  assert.match(client,/function buildHouse/);
+  assert.match(client,/action:'build_house'/);
+  assert.match(client,/private-interior/);
+  assert.match(client,/gptworld-private-spawn|PRIVATE_INTERIOR_SPAWN_KEY/);
+  assert.match(client,/metadata\?\.interior===true/);
   assert.match(client,/assets\/crafting/);
   assert.match(client,/className='recipe-icon'/);
   assert.match(client,/function placeCraftedItem/);
@@ -132,6 +142,8 @@ test('private-world client exposes a mobile crafting ledger',async()=>{
   assert.match(css,/\.crafting-panel\{position:fixed;z-index:1000/);
   assert.match(css,/\.crafting-panel\[hidden\]\{display:none!important\}/);
   assert.match(css,/\.crafting-recipes/);
+  assert.match(css,/\.recipe-card\.locked/);
+  assert.match(css,/\.construction-panel/);
   assert.match(client,/gesturestart/);
   assert.match(client,/action:'gather_resource'/);
 });

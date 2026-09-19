@@ -9,18 +9,39 @@
 .crafting-card h2,.crafting-card h3{margin:4px 0 10px}
 .crafting-card header button{border:0;background:transparent;color:#f4e3b9;font-size:34px;line-height:1;padding:0 4px}
 .crafting-intro{color:#cbd4c8;margin-top:0}
-.crafting-skills{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.crafting-skills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
 .crafting-skill{background:#263c2b;border-radius:12px;padding:10px}
 .crafting-skill strong,.crafting-skill span{display:block}
 .crafting-skill span{font-size:12px;color:#b8c6b8;margin-top:3px}
 .crafting-recipes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 22px}
 .recipe-card{display:grid;grid-template-columns:86px minmax(0,1fr);gap:12px;align-items:start;border:1px solid #49604c;border-radius:15px;padding:12px;background:#1e3223}
+.recipe-card.locked{opacity:.72;border-color:#3d4f40;background:#1a2a1e;filter:saturate(.75)}
+.recipe-card.locked .recipe-icon{opacity:.55}
+.recipe-profession{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#c9b57a;margin:0 0 4px}
 .recipe-icon{width:86px;aspect-ratio:1;object-fit:contain;border-radius:12px;background:radial-gradient(circle,#3b503c,#1a2d20 72%)}
 .recipe-card h3{font-size:17px;margin:0 0 4px}
 .recipe-card p{font-size:13px;color:#bdc9bd;min-height:34px}
 .recipe-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#e1c785;margin:9px 0}
-.recipe-card button{width:100%;min-height:42px;border:0;border-radius:11px;background:#d2b36a;color:#17231a;font-weight:900}
+.recipe-card button{width:100%;min-height:44px;border:0;border-radius:11px;background:#d2b36a;color:#17231a;font-weight:900}
 .recipe-card button:disabled{opacity:.45}
+.construction-panel{margin:4px 0 22px;padding:14px;border:1px solid #5a6f52;border-radius:16px;background:#1c2f22}
+.construction-panel h3{margin:0 0 10px}
+.house-blueprint{display:grid;gap:10px}
+.house-blueprint-card{display:grid;gap:10px}
+.house-blueprint-card.locked{opacity:.78}
+.house-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+.house-heading strong{font-size:17px}
+.house-heading span{font-size:13px;color:#d2c08a}
+.house-checklist{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.house-checklist li{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#c8d2c6;padding:8px 10px;border-radius:10px;background:#243629;min-height:40px;align-items:center}
+.house-checklist li.ready{color:#b9e0b4}
+.house-checklist li.missing{color:#e2b3a4}
+.house-meta{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:#e1c785}
+.house-blueprint button{width:100%;min-height:48px;border:0;border-radius:12px;background:#d2b36a;color:#17231a;font-weight:900;font-size:15px}
+.house-blueprint button:disabled{opacity:.45;background:#506052;color:#c8d0c7}
+.house-empty{font-size:13px;color:#b8c6b8}
+.unlock-toast{border-color:#79b879!important;box-shadow:0 0 0 1px rgba(121,184,121,.35)}
+.crafting-result.unlock-toast span{color:#cfe9cb}
 .crafted-items{display:grid;gap:7px}
 .crafted-item,.crafted-empty{background:#263c2b;border-radius:11px;padding:10px 12px;font-size:13px}
 .crafted-item{display:flex;align-items:center;gap:10px}
@@ -40,4 +61,4 @@
 .crate-resource{display:grid;gap:8px;padding:10px;border-radius:12px;background:#203725}.crate-resource-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.crate-resource-heading strong{font-size:14px}.crate-resource-heading span{font-size:13px;color:#d7c792}.crate-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.crate-actions button{min-height:42px;padding:7px}.crate-summary{text-align:center;color:#e6ca87;font-size:13px}
 .loading-return{display:block;margin-top:12px;color:#d2b36a;text-align:center}
 .sync-state::before{content:'●';margin-right:5px;color:#d2b36a}.sync-state[data-state="synced"]::before{color:#8fca8c}.sync-state[data-state="offline"]::before{color:#e7b762}.sync-state[data-state="failed"]::before{color:#e08174}
-@media(max-width:800px),(pointer:coarse){.world-actions{top:max(68px,calc(env(safe-area-inset-top) + 58px));right:max(10px,env(safe-area-inset-right));gap:5px}.return-town,.craft-button{font-size:12px;padding:9px 11px}.inventory{pointer-events:none}.topbar .world-title{max-width:58vw}.topbar .status-strip{margin-top:40px}.crafting-card,.crafted-use-card{padding:16px;border-radius:20px}.crafting-skills{grid-template-columns:1fr 1fr 1fr}.crafting-recipes{grid-template-columns:1fr}.recipe-card{grid-template-columns:74px minmax(0,1fr)}.recipe-icon{width:74px}.recipe-card p{min-height:0}.crate-actions button{font-size:12px}}
+@media(max-width:800px),(pointer:coarse){.world-actions{top:max(68px,calc(env(safe-area-inset-top) + 58px));right:max(10px,env(safe-area-inset-right));gap:5px}.return-town,.craft-button{font-size:12px;padding:9px 11px}.inventory{pointer-events:none}.topbar .world-title{max-width:58vw}.topbar .status-strip{margin-top:40px}.crafting-card,.crafted-use-card{padding:16px;border-radius:20px}.crafting-skills{grid-template-columns:1fr 1fr}.crafting-recipes,.house-blueprint{grid-template-columns:1fr}.recipe-card{grid-template-columns:74px minmax(0,1fr)}.recipe-icon{width:74px}.recipe-card p{min-height:0}.recipe-card button,.house-blueprint button,.crafted-item>button{min-height:48px}.construction-panel{padding:12px}.crate-actions button{font-size:12px}}
