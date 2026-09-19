@@ -6,6 +6,7 @@ import {PRIVATE_INTERIOR_SPAWN_KEY,interiorEntryUrl,rememberOutdoorPosition} fro
 
 const API='/.netlify/functions/private-world';
 const CRAFTING_API='/.netlify/functions/crafting';
+const MERCHANT_API='/.netlify/functions/merchant';
 const CLIENT_KEY='gptworld-client-id';
 const SHARED_CLOCK_KEY='gptworld-shared-clock';
 function formatSharedClock(minutes){const m=((Math.floor(minutes)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
@@ -24,7 +25,7 @@ const $=id=>document.getElementById(id);
 const worldEl=$('world'),loading=$('loading'),loadingTitle=$('loadingTitle'),loadingMessage=$('loadingMessage');
 const retry=$('retry'),returnTown=$('returnTown'),promptEl=$('prompt'),toastEl=$('toast'),actionButton=$('actionButton');
 const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather'),temperature:$('temperature')};
-const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
+const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount'),coins:$('coinCount')};
 const syncStateEl=$('syncState');
 const craftingPanel=$('craftingPanel'),craftingResult=$('craftingResult'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
 const constructionPanel=$('constructionPanel'),houseBlueprint=$('houseBlueprint');
@@ -423,12 +424,14 @@ function renderCrafting(){
   renderConstruction();
   craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{
     const row=document.createElement('div');row.className='crafted-item';
-    const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),button=document.createElement('button');
+    const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),actions=document.createElement('div'),button=document.createElement('button');
     image.src=craftingIcon(item.key);image.alt='';image.loading='lazy';
+    const qty=Math.max(1,Number(item.quantity||1));
     title.textContent=`${item.quality} ${item.name}`;
+    if(qty>1){const badge=document.createElement('span');badge.className='crafted-qty';badge.textContent=`× ${qty}`;title.append(' ',badge);}
     const component=isComponentItem(item),placeable=isPlaceableItem(item);
     detail.textContent=item.placed?'Placed in your world · approach it to pick it up':component?`${item.profession} · construction component · held in bag`:`${item.profession} · ${item.durability}/${item.maxDurability} durability`;
-    button.type='button';
+    button.type='button';actions.className='crafted-item-actions';
     if(item.placed){button.textContent='Placed';button.disabled=true;}
     else if(component){button.textContent='Held';button.disabled=true;}
     else if(!placeable){button.textContent='Held';button.disabled=true;}
@@ -438,7 +441,13 @@ function renderCrafting(){
         button.textContent='Install in house';button.disabled=itemBusy;button.addEventListener('click',()=>installInteriorFurniture(item,house));
       }else{button.textContent='Place';button.disabled=itemBusy;button.addEventListener('click',()=>placeCraftedItem(item));}
     }
-    content.append(title,detail);row.append(image,content,button);return row;
+    actions.append(button);
+    if(!item.placed&&qty>1){
+      const split=document.createElement('button');split.type='button';split.className='split';split.textContent='Split';split.disabled=itemBusy;
+      split.addEventListener('click',()=>splitCraftedStack(item));
+      actions.append(split);
+    }
+    content.append(title,detail);row.append(image,content,actions);return row;
   }):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your bag is empty. Crafted items will appear here.'})]));
 }
 async function loadCrafting(){
@@ -447,7 +456,7 @@ async function loadCrafting(){
     const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();
     if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');
     previousSkills=(craftingData?.skills||data.skills||[]).map(skill=>({key:skill.key,value:Number(skill.value)}));
-    craftingData=data;renderCrafting();craftingResult.hidden=true;craftingResult.classList.remove('unlock-toast');return true;
+    craftingData=data;if(data.inventory){for(const [key,element] of Object.entries(inventoryEls)){if(!element)continue;if(key==='coins'&&data.inventory.coins==null)continue;element.textContent=String(Number(data.inventory?.[key]||0));}}renderCrafting();craftingResult.hidden=true;craftingResult.classList.remove('unlock-toast');return true;
   }catch(error){showCraftingError(error.message==='crafting_migration_required'?'The crafting database is still updating. Close the bag and try again shortly.':'The bag could not sync. Check your connection, then close and reopen it.');return false;}
 }
 async function openCrafting(){
@@ -455,6 +464,27 @@ async function openCrafting(){
   await loadCrafting();
 }
 function hideCrafting(){craftingPanel.hidden=true;}
+async function splitCraftedStack(item){
+  if(itemBusy||!item?.id)return;
+  const have=Math.max(1,Number(item.quantity||1));
+  if(have<=1){showToast('That stack cannot be split further.');return;}
+  const raw=window.prompt(`Split how many from ${have}? (1–${have-1})`,String(Math.min(1,have-1)));
+  if(raw==null)return;
+  const quantity=Math.floor(Number(raw));
+  if(!Number.isFinite(quantity)||quantity<1||quantity>=have){showToast('Enter a split amount smaller than the stack.');return;}
+  itemBusy=true;
+  try{
+    const response=await fetch(MERCHANT_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'split_stack',itemId:item.id,quantity,idempotencyKey:requestKey(`split-${item.id}`)})});
+    const data=await response.json();
+    if(data?.error==='economy_migration_required')throw Error('economy_migration_required');
+    if(!response.ok||!data.ok)throw Error(data.error||'split_failed');
+    await loadCrafting();
+    showToast(`Split ${quantity} from ${item.name}.`);
+  }catch(error){
+    showToast(error.message==='economy_migration_required'?'The town economy is still updating. Try again shortly.':error.message==='item_not_stackable'?'That item cannot be stacked or split.':'Split failed. Try again.');
+  }finally{itemBusy=false;renderCrafting();}
+}
+
 function itemButton(label,handler,className='',unavailable=false){const button=document.createElement('button');button.type='button';button.textContent=label;button.className=className;button.disabled=itemBusy||unavailable;button.addEventListener('click',handler);return button;}
 function renderCraftedUse(item){
   craftedUseTitle.textContent=item.name;craftedUseIcon.src=craftingIcon(item.key);craftedUseControls.replaceChildren();
