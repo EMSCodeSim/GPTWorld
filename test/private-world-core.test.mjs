@@ -48,7 +48,7 @@ test('personal terrain produces persistent gatherable resource nodes',()=>{
   assert.equal(resources.filter(node=>node.resourceType==='herbs').length,12);
   assert.ok(resources.every(node=>node.metadata.regrowMinutes>0));
   assert.ok(resources.filter(node=>node.resourceType==='wood').every(node=>node.maxAmount===6&&node.metadata.regrowMinutes===60));
-  assert.ok(resources.filter(node=>node.resourceType==='stone').every(node=>node.metadata.regrowMinutes===90));
+  assert.ok(resources.filter(node=>node.resourceType==='stone').every(node=>node.maxAmount===12&&node.metadata.regrowMinutes===480));
   assert.ok(resources.filter(node=>node.resourceType==='herbs').every(node=>node.metadata.regrowMinutes===20));
   assert.equal(new Set(resources.map(node=>node.nodeId)).size,resources.length);
 });
@@ -176,7 +176,7 @@ test('private world uses the public living simulation and refreshes while occupi
   assert.match(client,/if\(time-lastLivingRefresh>12000\)refreshLivingWorld\(\)/);
   assert.match(publicResources,/from '\.\.\/\.\.\/lib\/resource-defaults\.mjs'/);
   assert.match(defaults,/wood:\{max:6,regrowMinutes:60\}/);
-  assert.match(defaults,/stone:\{max:4,regrowMinutes:90\}/);
+  assert.match(defaults,/stone:\{max:12,regrowMinutes:480\}/);
   assert.match(defaults,/herbs:\{max:3,regrowMinutes:20\}/);
 });
 
