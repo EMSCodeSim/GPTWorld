@@ -3,11 +3,13 @@ import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {WORLD_GATEWAY,isInsideWorldGateway} from './world-gateway.mjs';
 import {canEnterBuilding,interiorEntryUrl,INTERIOR_SPAWN_KEY,rememberOutdoorPosition,shouldAutoResumePublicWorld} from './lib/interior-core.mjs';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
+import {MERCHANTS_CLIENT} from './lib/merchants-client.mjs';
 
 const WORLD_API='/.netlify/functions/world-v2';
 const RESOURCE_API='/.netlify/functions/resource-state';
 const PRIVATE_WORLD_API='/.netlify/functions/private-world';
 const DEVICE_API='/.netlify/functions/device-session';
+const MERCHANT_API='/.netlify/functions/merchant';
 const CLIENT_KEY='gptworld-client-id';
 const STORAGE_KEY='gptworld-day1';
 const BACKUP_KEY='gptworld-device-backup';
@@ -31,8 +33,9 @@ setInterval(publishSharedWorldClock,750);
 
 const worldEl=document.getElementById('world'),welcomeEl=document.getElementById('welcome'),playerNameEl=document.getElementById('playerName'),enterWorldBtn=document.getElementById('enterWorld'),promptEl=document.getElementById('prompt'),toastEl=document.getElementById('toast'),clockEl=document.getElementById('clock'),onlineEl=document.getElementById('online'),actionButton=document.getElementById('actionButton'),chronicleEntries=document.getElementById('chronicleEntries'),toggleChronicle=document.getElementById('toggleChronicle');
 const deviceStatusEl=document.getElementById('deviceStatus'),recoveryNotice=document.getElementById('recoveryNotice'),recoveryCodeEl=document.getElementById('recoveryCode'),copyRecoveryCode=document.getElementById('copyRecoveryCode'),recoverTraveler=document.getElementById('recoverTraveler'),recoveryForm=document.getElementById('recoveryForm'),recoveryCodeInput=document.getElementById('recoveryCodeInput'),submitRecovery=document.getElementById('submitRecovery');
-const resourceEls={wood:document.getElementById('woodCount'),stone:document.getElementById('stoneCount'),herbs:document.getElementById('herbCount')};
-const state=loadState();let playerName=state.playerName||'Traveler';playerNameEl.value=playerName;state.inventory??={wood:0,stone:0,herbs:0};
+const resourceEls={wood:document.getElementById('woodCount'),stone:document.getElementById('stoneCount'),herbs:document.getElementById('herbCount'),coins:document.getElementById('coinCount')};
+const merchantPanel=document.getElementById('merchantPanel'),merchantTitle=document.getElementById('merchantTitle'),merchantIntro=document.getElementById('merchantIntro'),merchantBudget=document.getElementById('merchantBudget'),merchantPlayerCoins=document.getElementById('merchantPlayerCoins'),merchantItems=document.getElementById('merchantItems'),merchantQtyCustom=document.getElementById('merchantQtyCustom'),merchantSellOne=document.getElementById('merchantSellOne'),merchantSellSelected=document.getElementById('merchantSellSelected'),merchantSellAll=document.getElementById('merchantSellAll'),merchantConfirm=document.getElementById('merchantConfirm'),merchantConfirmText=document.getElementById('merchantConfirmText'),merchantConfirmYes=document.getElementById('merchantConfirmYes'),merchantConfirmNo=document.getElementById('merchantConfirmNo'),merchantReceipt=document.getElementById('merchantReceipt'),closeMerchant=document.getElementById('closeMerchant');
+const state=loadState();let playerName=state.playerName||'Traveler';playerNameEl.value=playerName;state.inventory??={wood:0,stone:0,herbs:0,coins:0};state.inventory.coins=Number(state.inventory.coins||0);
 let deviceSession=null,deviceSessionReady=false,deviceRecoveryRequired=false,deviceSessionPromise=null,memoryRegistrationKey='';
 
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x8fb1b1);scene.fog=new THREE.Fog(0x8fb1b1,38,95);
@@ -61,7 +64,7 @@ const weatherClouds=new THREE.Group();for(let i=0;i<7;i++){const c=new THREE.Mes
 function applyWeatherVisuals(w={}){currentWeather={...currentWeather,...w};const snowCover=Math.max(0,Math.min(1,Number(currentWeather.snowCover)||0));snowGround.visible=snowCover>.02;snowGround.material.opacity=Math.min(.92,snowCover*.92);const weatherClass=classifyPrecipitation(currentWeather.precipitation);rain.visible=weatherClass.wet;weatherClouds.visible=weatherClass.cloudy;scene.fog.near=weatherClass.foggy?24:38;scene.fog.far=weatherClass.foggy?68:95;scene.background.set(weatherClass.foggy?0x788e91:weatherClass.cloudy?0x81999b:0x8fb1b1);scene.fog.color.copy(scene.background);sun.intensity=weatherClass.wet?1.45:weatherClass.cloudy?1.8:2.5}
 function updateWeatherVisuals(dt,t){const wind=Math.max(.05,Number(currentWeather.wind)||.2);weatherClouds.position.x=((t*.00025*wind+28)%56)-28;if(rain.visible){const a=rain.geometry.attributes.position.array;for(let i=0;i<rainCount;i++){a[i*3+1]-=dt*(12+wind*7);a[i*3]+=dt*wind*1.8;if(a[i*3+1]<.2){a[i*3+1]=18+Math.random()*4;a[i*3]=(Math.random()-.5)*48}}rain.geometry.attributes.position.needsUpdate=true}}
 const interactables=[],blockers=[],npcs=[],resourceNodes=[],buildingDoors=[],townBuildings=new Map(),inspectedResources=new Map();
-function identifyItem(item){if(!item)return 'Nothing nearby.';if(item.type==='memory')return item.memoryText||`History: ${item.label||'world feature'}.`;if(item.type==='resource'){if(item.plantInfo){const p=item.plantInfo,plant=item.plant||{},stage=String(plant.stage||'mature'),health=Math.round(Number(plant.health??100)),available=Math.floor(Number(plant.resources??item.remaining??0)),reason=stage==='dead'?'Dead plants cannot regrow. A new plant may establish later.':available<=0?'Depleted; this living plant must recover before another harvest.':'Ready to harvest.';return `${item.label} · ${stage} · health ${health}% · ${available}/${item.max||plant.maxResources||'?'} available. ${reason}`;}const kind=item.resource==='wood'?'Plant':item.resource==='herbs'?'Plant':'Mineral';return `${kind}: ${item.label}${Number.isFinite(item.remaining)?` · ${item.remaining}/${item.max||'?'} available`:''}. Collectable ${item.resource}.`;}if(item.type==='npc'){const role=item.role?` · ${item.role}`:'';const reason=item.reason&&item.reason!=='routine'?` · ${item.reason}`:'';return `Person: ${item.label}${role}${item.activity?` · ${item.activity}`:''}${reason}.`;}if(item.object?.userData?.creature){const u=item.object.userData;return `Animal: ${item.label||u.species||u.kind||'wild animal'} · ${u.behavior||'roaming'}.`;}return `Object: ${item.label||'world feature'}.`;}
+function identifyItem(item){if(!item)return 'Nothing nearby.';if(item.type==='memory')return item.memoryText||`History: ${item.label||'world feature'}.`;if(item.type==='resource'){if(item.plantInfo){const p=item.plantInfo,plant=item.plant||{},stage=String(plant.stage||'mature'),health=Math.round(Number(plant.health??100)),available=Math.floor(Number(plant.resources??item.remaining??0)),reason=stage==='dead'?'Dead plants cannot regrow. A new plant may establish later.':available<=0?'Depleted; this living plant must recover before another harvest.':'Ready to harvest.';return `${item.label} · ${stage} · health ${health}% · ${available}/${item.max||plant.maxResources||'?'} available. ${reason}`;}const kind=item.resource==='wood'?'Plant':item.resource==='herbs'?'Plant':'Mineral';return `${kind}: ${item.label}${Number.isFinite(item.remaining)?` · ${item.remaining}/${item.max||'?'} available`:''}. Collectable ${item.resource}.`;}if(item.type==='merchant'||item.merchantKey){return `Merchant: ${item.label}${item.title?` · ${item.title}`:''}.`;}if(item.type==='npc'){const role=item.role?` · ${item.role}`:'';const reason=item.reason&&item.reason!=='routine'?` · ${item.reason}`:'';return `Person: ${item.label}${role}${item.activity?` · ${item.activity}`:''}${reason}.`;}if(item.object?.userData?.creature){const u=item.object.userData;return `Animal: ${item.label||u.species||u.kind||'wild animal'} · ${u.behavior||'roaming'}.`;}return `Object: ${item.label||'world feature'}.`;}
 
 const renderedEntities=new Map(),remotePlayers=new Map();
 let bridgeBuilt=false,bridgeGroup=null,worldGateway=null;
@@ -82,7 +85,7 @@ function applyResourceRelocations(nodes={}){for(const item of resourceNodes){con
 function addTree(id,x,z,s=1){const art=createPineArt(THREE,s),g=art.group,trunk=art.trunk,c=art.crown;g.position.set(x,0,z);scene.add(g);registerResource({type:'resource',nodeId:id,resource:'wood',label:'pine tree',plantInfo:{type:'evergreen tree',habitat:'upland and well-drained ground',ecology:'Provides cover and renewable woody biomass; new trees can establish in suitable habitat after harvest.',use:'wood for construction, fuel, and future crafting'},object:g,treeParts:{trunk,crown:c,scale:s},radius:2.25,amount:1,depleted:false});return g}
 function addRock(id,x,z,s=1){const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.9*s,0),new THREE.MeshStandardMaterial({color:0x77796f,roughness:1}));m.position.set(x,.6*s,z);m.scale.y=.7;m.rotation.set(Math.random(),Math.random(),Math.random());m.castShadow=true;scene.add(m);registerResource({type:'resource',nodeId:id,resource:'stone',label:'stone outcrop',object:m,radius:2,amount:1,depleted:false});return m}
 function addHerbs(id,x,z){const g=createHerbArt(THREE,1,String(id||'').length%2);g.position.set(x,0,z);g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(g);registerResource({type:'resource',nodeId:id,resource:'herbs',label:'wild herbs',plantInfo:{type:'wild flowering herb patch',habitat:'open ground with adequate soil moisture',ecology:'A short-lived plant resource that can spread and recolonize suitable habitat.',use:'herbs for healing and future recipes'},object:g,radius:1.8,amount:1,depleted:false});return g}
-function createHumanoid({outfit=0x8b7650,skin=0xdfb083,hair=0x3b2a20,accent=0x3d3329,pack=false}={}){const g=new THREE.Group();const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.43,.86,8),new THREE.MeshStandardMaterial({color:outfit,roughness:.95}));torso.position.y=1.28;torso.castShadow=true;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.30,12,9),new THREE.MeshStandardMaterial({color:skin,roughness:1}));head.position.y=1.96;head.castShadow=true;g.add(head);const hairMesh=new THREE.Mesh(new THREE.SphereGeometry(.305,10,7,0,Math.PI*2,0,Math.PI*.52),new THREE.MeshStandardMaterial({color:hair,roughness:1}));hairMesh.position.y=2.05;g.add(hairMesh);const faceMat=new THREE.MeshStandardMaterial({color:0x1d1a17,roughness:1});for(const x of[-.105,.105]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.032,7,5),faceMat);eye.position.set(x,2.00,.286);g.add(eye)}const nose=new THREE.Mesh(new THREE.SphereGeometry(.045,7,5),new THREE.MeshStandardMaterial({color:skin,roughness:1}));nose.scale.set(.75,1,1.15);nose.position.set(0,1.94,.305);g.add(nose);const neck=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,.18,7),new THREE.MeshStandardMaterial({color:skin,roughness:1}));neck.position.y=1.69;g.add(neck);const belt=new THREE.Mesh(new THREE.CylinderGeometry(.425,.425,.09,8),new THREE.MeshStandardMaterial({color:0x49392b,roughness:1}));belt.position.y=.88;g.add(belt);const buckle=new THREE.Mesh(new THREE.BoxGeometry(.12,.09,.045),new THREE.MeshStandardMaterial({color:0xb79a62,roughness:.8}));buckle.position.set(0,.88,.42);g.add(buckle);const armGeo=new THREE.CylinderGeometry(.095,.11,.70,6),legGeo=new THREE.CylinderGeometry(.12,.14,.70,6);const armL=new THREE.Mesh(armGeo,new THREE.MeshStandardMaterial({color:outfit,roughness:.95})),armR=armL.clone(),legL=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:accent,roughness:.98})),legR=legL.clone();armL.position.set(-.45,1.25,0);armR.position.set(.45,1.25,0);legL.position.set(-.19,.47,0);legR.position.set(.19,.47,0);for(const m of[armL,armR,legL,legR]){m.castShadow=true;g.add(m)}for(const x of[-.45,.45]){const hand=new THREE.Mesh(new THREE.SphereGeometry(.105,8,6),new THREE.MeshStandardMaterial({color:skin,roughness:1}));hand.position.set(x,.88,0);g.add(hand)}for(const x of[-.19,.19]){const boot=new THREE.Mesh(new THREE.BoxGeometry(.25,.18,.38),new THREE.MeshStandardMaterial({color:0x332a22,roughness:1}));boot.position.set(x,.10,.07);g.add(boot)}if(pack){const bag=new THREE.Mesh(new THREE.BoxGeometry(.58,.72,.28),new THREE.MeshStandardMaterial({color:0x5c4934,roughness:1}));bag.position.set(0,1.30,-.34);bag.castShadow=true;g.add(bag)}g.userData.rig={armL,armR,legL,legR,torso,head,hairMesh};return g}function animateHumanoid(g,moving,t,speed=1){const r=g.userData.rig;if(!r)return;const a=moving?Math.sin(t*.012*speed)*.52:0;r.legL.rotation.x=a;r.legR.rotation.x=-a;r.armL.rotation.x=-a*.72;r.armR.rotation.x=a*.72;r.torso.rotation.z=moving?Math.sin(t*.024*speed)*.02:0;r.torso.position.y=1.28+(moving?Math.abs(Math.sin(t*.012*speed))*.018:Math.sin(t*.0025)*.008);if(r.head){r.head.rotation.y=moving?0:Math.sin(t*.0017)*.10;r.head.position.y=1.96+(moving?Math.abs(Math.sin(t*.012*speed))*.012:Math.sin(t*.0025)*.006)}if(r.hairMesh){r.hairMesh.rotation.y=r.head?.rotation.y||0;r.hairMesh.position.y=2.05+(r.head?.position.y-1.96||0)}}function addNPC(name,x,z,color,lines){const g=createHumanoid({outfit:color,hair:0x3a2b23});g.position.set(x,0,z);scene.add(g);const npc={type:'npc',label:name,object:g,radius:2.6,lines,lineIndex:0,anchor:new THREE.Vector3(x,0,z),target:new THREE.Vector3(x,0,z),phase:Math.random()*Math.PI*2,activity:'',location:'',moving:false};interactables.push(npc);npcs.push(npc);return npc}
+function createHumanoid({outfit=0x8b7650,skin=0xdfb083,hair=0x3b2a20,accent=0x3d3329,pack=false}={}){const g=new THREE.Group();const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.43,.86,8),new THREE.MeshStandardMaterial({color:outfit,roughness:.95}));torso.position.y=1.28;torso.castShadow=true;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.30,12,9),new THREE.MeshStandardMaterial({color:skin,roughness:1}));head.position.y=1.96;head.castShadow=true;g.add(head);const hairMesh=new THREE.Mesh(new THREE.SphereGeometry(.305,10,7,0,Math.PI*2,0,Math.PI*.52),new THREE.MeshStandardMaterial({color:hair,roughness:1}));hairMesh.position.y=2.05;g.add(hairMesh);const faceMat=new THREE.MeshStandardMaterial({color:0x1d1a17,roughness:1});for(const x of[-.105,.105]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.032,7,5),faceMat);eye.position.set(x,2.00,.286);g.add(eye)}const nose=new THREE.Mesh(new THREE.SphereGeometry(.045,7,5),new THREE.MeshStandardMaterial({color:skin,roughness:1}));nose.scale.set(.75,1,1.15);nose.position.set(0,1.94,.305);g.add(nose);const neck=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,.18,7),new THREE.MeshStandardMaterial({color:skin,roughness:1}));neck.position.y=1.69;g.add(neck);const belt=new THREE.Mesh(new THREE.CylinderGeometry(.425,.425,.09,8),new THREE.MeshStandardMaterial({color:0x49392b,roughness:1}));belt.position.y=.88;g.add(belt);const buckle=new THREE.Mesh(new THREE.BoxGeometry(.12,.09,.045),new THREE.MeshStandardMaterial({color:0xb79a62,roughness:.8}));buckle.position.set(0,.88,.42);g.add(buckle);const armGeo=new THREE.CylinderGeometry(.095,.11,.70,6),legGeo=new THREE.CylinderGeometry(.12,.14,.70,6);const armL=new THREE.Mesh(armGeo,new THREE.MeshStandardMaterial({color:outfit,roughness:.95})),armR=armL.clone(),legL=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:accent,roughness:.98})),legR=legL.clone();armL.position.set(-.45,1.25,0);armR.position.set(.45,1.25,0);legL.position.set(-.19,.47,0);legR.position.set(.19,.47,0);for(const m of[armL,armR,legL,legR]){m.castShadow=true;g.add(m)}for(const x of[-.45,.45]){const hand=new THREE.Mesh(new THREE.SphereGeometry(.105,8,6),new THREE.MeshStandardMaterial({color:skin,roughness:1}));hand.position.set(x,.88,0);g.add(hand)}for(const x of[-.19,.19]){const boot=new THREE.Mesh(new THREE.BoxGeometry(.25,.18,.38),new THREE.MeshStandardMaterial({color:0x332a22,roughness:1}));boot.position.set(x,.10,.07);g.add(boot)}if(pack){const bag=new THREE.Mesh(new THREE.BoxGeometry(.58,.72,.28),new THREE.MeshStandardMaterial({color:0x5c4934,roughness:1}));bag.position.set(0,1.30,-.34);bag.castShadow=true;g.add(bag)}g.userData.rig={armL,armR,legL,legR,torso,head,hairMesh};return g}function animateHumanoid(g,moving,t,speed=1){const r=g.userData.rig;if(!r)return;const a=moving?Math.sin(t*.012*speed)*.52:0;r.legL.rotation.x=a;r.legR.rotation.x=-a;r.armL.rotation.x=-a*.72;r.armR.rotation.x=a*.72;r.torso.rotation.z=moving?Math.sin(t*.024*speed)*.02:0;r.torso.position.y=1.28+(moving?Math.abs(Math.sin(t*.012*speed))*.018:Math.sin(t*.0025)*.008);if(r.head){r.head.rotation.y=moving?0:Math.sin(t*.0017)*.10;r.head.position.y=1.96+(moving?Math.abs(Math.sin(t*.012*speed))*.012:Math.sin(t*.0025)*.006)}if(r.hairMesh){r.hairMesh.rotation.y=r.head?.rotation.y||0;r.hairMesh.position.y=2.05+(r.head?.position.y-1.96||0)}}function addNPC(name,x,z,color,lines,opts={}){const g=createHumanoid({outfit:color,hair:0x3a2b23});g.position.set(x,0,z);scene.add(g);const merchantKey=opts.merchantKey||null;const npc={type:merchantKey?'merchant':'npc',label:name,title:opts.title||'',merchantKey,object:g,radius:2.6,lines,lineIndex:0,anchor:new THREE.Vector3(x,0,z),target:new THREE.Vector3(x,0,z),phase:Math.random()*Math.PI*2,activity:'',location:'',moving:false};interactables.push(npc);npcs.push(npc);return npc}
 
 function renderBuildingEntity(e){const g=new THREE.Group();const w=Math.max(1,Number(e.width||4)),d=Math.max(1,Number(e.depth||4)),h=Math.max(1,Number(e.height||3));g.position.set(Number(e.x||0),0,Number(e.z||0));addBox(g,colorValue(e.wallColor,0x8b7658),[w,h,d],[0,h/2,0]);const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.75,Math.max(1,Number(e.roofHeight||1.7)),4),new THREE.MeshStandardMaterial({color:colorValue(e.roofColor,0x4c3529),roughness:.95}));roof.position.y=h+Math.max(.5,Number(e.roofHeight||1.7))/2;roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);scene.add(g);return g}
 function renderTrailEntity(e){const g=new THREE.Group();const pts=Array.isArray(e.points)?e.points:[];const width=Math.max(.2,Number(e.width||1.2));for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];if(!Array.isArray(a)||!Array.isArray(b))continue;const ax=Number(a[0]),az=Number(a[1]),bx=Number(b[0]),bz=Number(b[1]);const len=Math.hypot(bx-ax,bz-az);if(!Number.isFinite(len)||len<=0)continue;const mesh=addBox(g,colorValue(e.color,0x8e806d),[width,.035,len],[0,.035,0],{castShadow:false});mesh.position.set((ax+bx)/2,.035,(az+bz)/2);mesh.rotation.y=Math.atan2(bx-ax,bz-az);}scene.add(g);return g}
@@ -114,11 +117,19 @@ worldGateway=addWorldGateway(WORLD_GATEWAY.x,WORLD_GATEWAY.z,Math.PI/2);worldGat
 [[18,-13],[20,-7],[19,4],[23,10],[16,15],[10,18],[3,19],[-5,18],[-12,15],[-16,8],[-17,-1],[-15,-12],[-9,-17],[1,-18],[12,-17],[27,-17],[28,-7],[28,3],[27,15],[-29,-18],[-31,-8],[-30,7],[-29,18]].forEach(([x,z],i)=>addTree(`tree-${i}`,x,z,.85+(i%3)*.12));
 [[15,9],[-12,10],[20,-2],[-15,-6],[9,14]].forEach(([x,z],i)=>addRock(`rock-${i}`,x,z,.7+i*.04));
 [[7,14],[-10,13],[17,-10],[-13,-3],[13,11]].forEach(([x,z],i)=>addHerbs(`herb-${i}`,x,z));
-addNPC('Mara the Keeper',2,-4,0x7b4f42,['“You arrived on the first morning. Remember that.”','“We have walls, grain, and very little certainty.”','“If you find something beyond the river, tell someone. History begins as gossip.”']);addNPC('Tovan the Smith',9,2,0x455c6b,['“Stone first. Iron later, if the hills are kind.”','“Tools change people faster than speeches do.”']);addNPC('Edda the Healer',-4,-4,0x697348,['“The valley grows three useful herbs and six useless ones. Learn the difference.”','“No settlement survives long if everyone only knows how to fight.”']);
+addNPC('Mara the Keeper',2,-4,0x7b4f42,['“You arrived on the first morning. Remember that.”','“We have walls, grain, and very little certainty.”','“If you find something beyond the river, tell someone. History begins as gossip.”']);
+addNPC('Tovan the Smith',9,2,0x455c6b,['“Stone first. Iron later, if the hills are kind.”','“Tools change people faster than speeches do.”','“Metal and tools, if they’re sound.”'],{merchantKey:'blacksmith',title:'Blacksmith'});
+addNPC('Edda the Healer',-4,-4,0x697348,['“The valley grows three useful herbs and six useless ones. Learn the difference.”','“No settlement survives long if everyone only knows how to fight.”']);
+for(const merchant of MERCHANTS_CLIENT){
+  if(merchant.key==='blacksmith')continue;
+  addNPC(merchant.name,merchant.x,merchant.z,merchant.outfit,[...merchant.lines],{merchantKey:merchant.key,title:merchant.title});
+}
 
 const publicSpawn=(()=>{try{return JSON.parse(sessionStorage.getItem('gptworld-public-spawn')||'null')}catch{return null}})();if(publicSpawn){sessionStorage.removeItem('gptworld-public-spawn');state.x=Number(publicSpawn.x);state.z=Number(publicSpawn.z);}const player=createHumanoid({outfit:0x8b7650,skin:0xe0b586,hair:0x3a2b23,accent:0x49392c,pack:true});player.position.set(state.x??0,0,state.z??12);scene.add(player);const shadow=new THREE.Mesh(new THREE.CircleGeometry(.7,18),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.18,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.02;player.add(shadow);
 const keys=new Set();let joystickX=0,joystickY=0,nearest=null,gameStarted=false,elapsedWorldMinutes=state.worldMinutes??360,lastSave=0,toastTimer=null,gathering=false,presenceBusy=false;const velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();const chronicle=state.chronicle?.length?state.chronicle:[{stamp:'Founding Day · Dawn',text:'The first settlement woke beneath a pale sky. Five buildings stood along the dirt road.'},{stamp:'Founding Day · Dawn',text:'Mara opened the Wayfarer Inn. Tovan lit the smithy forge. Edda began mapping the valley’s medicinal plants.'}];renderInventory();renderChronicle();
-function renderInventory(){for(const k of Object.keys(resourceEls))resourceEls[k].textContent=String(state.inventory[k]||0)}
+function renderInventory(){for(const k of Object.keys(resourceEls)){if(resourceEls[k])resourceEls[k].textContent=String(state.inventory[k]||0)}}
+function mergeInventory(next){if(!next||typeof next!=='object')return;const coins=Number(next.coins??state.inventory.coins??0);state.inventory={wood:Number(next.wood??state.inventory.wood??0),stone:Number(next.stone??state.inventory.stone??0),herbs:Number(next.herbs??state.inventory.herbs??0),coins:Number.isFinite(coins)?coins:Number(state.inventory.coins||0)};renderInventory()}
+function applyCoinBalance(coins){if(!Number.isFinite(Number(coins)))return;state.inventory.coins=Number(coins);if(resourceEls.coins)resourceEls.coins.textContent=String(state.inventory.coins);if(merchantPlayerCoins)merchantPlayerCoins.textContent=String(state.inventory.coins)}
 function renderChronicle(){chronicleEntries.innerHTML='';chronicle.slice().reverse().forEach(i=>{const d=document.createElement('div');d.className='entry';const t=document.createElement('time');t.textContent=i.stamp;const p=document.createElement('p');p.textContent=i.text;d.append(t,p);chronicleEntries.appendChild(d)})}
 function addChronicle(text){chronicle.push({stamp:`Founding Day · ${formatTime(elapsedWorldMinutes)}`,text});state.chronicle=chronicle.slice(-40);renderChronicle();saveState()}
 function showToast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2200)}
@@ -127,7 +138,8 @@ function saveState(){state.playerName=playerName;state.x=Number(player.position.
 function loadState(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{}}catch{return{}}}
 function ensureClientId(){return localStorage.getItem(CLIENT_KEY)||''}
 function applyNodeStates(nodes={}){applyResourceRelocations(nodes);for(const item of resourceNodes){const n=nodes[item.nodeId];if(!n)continue;item.remaining=Number(n.remaining||0);item.max=Number(n.max||0);item.regrowAt=n.regrowAt||null;item.generation=Number(n.generation||0);item.plant=n.plant||null;item.depleted=item.remaining<=0;if(item.resource==='wood'&&item.treeParts){const{trunk,crown,scale}=item.treeParts,stage=String(item.plant?.stage||'mature'),stageScale={seed:.12,sprout:.28,young:.57,mature:1,old:1.12,dead:.68}[stage]||1;item.object.visible=true;if(stage==='dead'||item.depleted){crown.visible=false;trunk.scale.y=.22;trunk.position.y=.255*scale;item.object.scale.setScalar(1);item.label='cut pine stump';}else{crown.visible=true;trunk.scale.y=1;trunk.position.y=1.15*scale;item.object.scale.setScalar(stageScale);item.label=stage==='young'||stage==='sprout'?'young pine sapling':stage==='seed'?'pine seedling':stage==='old'?'old pine tree':'pine tree';}}else if(item.resource==='herbs'){const stageScale={seed:.12,sprout:.28,young:.57,mature:1,old:1.12,dead:.68}[String(item.plant?.stage||'mature')]||1;item.object.visible=true;item.object.scale.setScalar(stageScale);item.object.traverse(o=>{if(o.isMesh){o.material.transparent=item.depleted;o.material.opacity=item.depleted?.42:1}});}else item.object.visible=!item.depleted;}}
-async function refreshResourceNodes(){const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return;try{const r=await fetch(`${RESOURCE_API}?clientId=${encodeURIComponent(clientId)}`,{cache:'no-store'});const d=await r.json();if(d.ok){if(d.inventory){state.inventory={wood:Number(d.inventory.wood||0),stone:Number(d.inventory.stone||0),herbs:Number(d.inventory.herbs||0)};renderInventory()}applyNodeStates(d.nodes||{});}}catch{}}
+async function refreshResourceNodes(){const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return;try{const r=await fetch(`${RESOURCE_API}?clientId=${encodeURIComponent(clientId)}`,{cache:'no-store'});const d=await r.json();if(d.ok){if(d.inventory){const prevCoins=Number(state.inventory.coins||0);mergeInventory({...d.inventory,coins:d.inventory.coins??prevCoins})}applyNodeStates(d.nodes||{});}}catch{}}
+async function syncMerchantCoins(){const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return;try{const r=await fetch(`${MERCHANT_API}?clientId=${encodeURIComponent(clientId)}`,{cache:'no-store'});const d=await r.json();if(d?.ok){if(d.inventory)mergeInventory(d.inventory);else if(Number.isFinite(Number(d.coins)))applyCoinBalance(d.coins)}}catch{}}
 async function refreshSharedState(){try{const clientId=localStorage.getItem(CLIENT_KEY)||'';const response=await fetch(`${WORLD_API}${clientId?`?clientId=${encodeURIComponent(clientId)}`:''}`,{cache:'no-store'});const data=await response.json();if(!data.ok)return;const crossing=data.world?.western_crossing;setBridgeBuilt(Boolean(crossing?.complete));applyWeatherVisuals(data.world?.weather_sim||data.simulations?.weather||{});applyRenderEntities(data.world?.render_entities||[]);applyRemotePlayers(Array.isArray(data.online)?data.online:[]);const day=data.world?.current_day?.day,era=data.world?.current_day?.era;if(day){const eyebrow=document.querySelector('.topbar .eyebrow');if(eyebrow)eyebrow.textContent=`GPTWORLD · PUBLIC WORLD · DAY ${day}`}if(era){const eraEl=document.getElementById('era');if(eraEl)eraEl.textContent=era}}catch{}}
 async function syncPresenceFast(){if(!gameStarted||presenceBusy)return;const clientId=ensureClientId();if(!clientId)return;presenceBusy=true;try{await fetch(WORLD_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,name:playerName,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))})});}catch{}finally{presenceBusy=false}}
 function animateGather(item){
@@ -145,7 +157,7 @@ function animateGather(item){
     if(q<1)requestAnimationFrame(frame);else{if(rig){rig.armR.rotation.x=0;rig.armL.rotation.x=0;rig.torso.rotation.z=0;}item.object.rotation.z=0;item.object.scale.copy(originalScale);scene.remove(icon);icon.geometry.dispose();icon.material.dispose();}}
   requestAnimationFrame(frame);
 }
-async function gatherResource(item){if(gathering||item.depleted){if(item.depleted)showToast(identifyItem(item));return;}const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId){showToast('The shared world is still connecting.');return;}gathering=true;animateGather(item);const idempotencyKey=`public-gather-${item.nodeId}-${crypto.randomUUID?.()||Date.now()}`;try{const response=await fetch(RESOURCE_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'gather',nodeId:item.nodeId,resource:item.resource,amount:1,idempotencyKey,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))})});const data=await response.json();if(!data.ok){if(data.node)applyNodeStates({[item.nodeId]:data.node});showToast(data.error==='resource_out_of_range'?'Move closer to gather.':data.error==='plant_dead'||data.error==='plant_depleted'?identifyItem(item):data.error==='resource_depleted'?'This resource is depleted.':'Gathering failed to reach the shared world.');return;}state.inventory={wood:Number(data.inventory.wood||0),stone:Number(data.inventory.stone||0),herbs:Number(data.inventory.herbs||0)};renderInventory();applyNodeStates(data.nodes||data.node?{...(data.nodes||{}),...(data.node?{[item.nodeId]:data.node}:{})}:{});const forest=data.forestPressure;showToast(`Gathered 1 ${item.resource}. ${data.remaining>0?`${data.remaining} left here.`:item.resource==='wood'?'A stump now marks the harvest.':'This plant is depleted and must recover.'}${forest&&Number(forest.pressure)>=20?` Forest pressure: ${forest.stage}.`:''}`);if(!item.gatheredOnce){item.gatheredOnce=true;if((state.inventory[item.resource]||0)===1)addChronicle(`${playerName} gathered the settlement’s first recorded ${item.resource}.`)}saveState();}catch{showToast('Gathering failed to reach the shared world.');}finally{gathering=false}}
+async function gatherResource(item){if(gathering||item.depleted){if(item.depleted)showToast(identifyItem(item));return;}const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId){showToast('The shared world is still connecting.');return;}gathering=true;animateGather(item);const idempotencyKey=`public-gather-${item.nodeId}-${crypto.randomUUID?.()||Date.now()}`;try{const response=await fetch(RESOURCE_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'gather',nodeId:item.nodeId,resource:item.resource,amount:1,idempotencyKey,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))})});const data=await response.json();if(!data.ok){if(data.node)applyNodeStates({[item.nodeId]:data.node});showToast(data.error==='resource_out_of_range'?'Move closer to gather.':data.error==='plant_dead'||data.error==='plant_depleted'?identifyItem(item):data.error==='resource_depleted'?'This resource is depleted.':'Gathering failed to reach the shared world.');return;}mergeInventory({...data.inventory,coins:data.inventory.coins??state.inventory.coins});applyNodeStates(data.nodes||data.node?{...(data.nodes||{}),...(data.node?{[item.nodeId]:data.node}:{})}:{});const forest=data.forestPressure;showToast(`Gathered 1 ${item.resource}. ${data.remaining>0?`${data.remaining} left here.`:item.resource==='wood'?'A stump now marks the harvest.':'This plant is depleted and must recover.'}${forest&&Number(forest.pressure)>=20?` Forest pressure: ${forest.stage}.`:''}`);if(!item.gatheredOnce){item.gatheredOnce=true;if((state.inventory[item.resource]||0)===1)addChronicle(`${playerName} gathered the settlement’s first recorded ${item.resource}.`)}saveState();}catch{showToast('Gathering failed to reach the shared world.');}finally{gathering=false}}
 
 function validTravelerName(raw){const name=String(raw||'').trim().replace(/\s+/g,' ').slice(0,20);if(name.length<2)return{ok:false,error:'Choose a name with at least 2 characters.'};if(!/^[A-Za-z0-9][A-Za-z0-9 _'-]*$/.test(name))return{ok:false,error:'Use letters, numbers, spaces, apostrophes or hyphens only.'};const compact=name.toLowerCase().replace(/[^a-z]/g,'');const blocked=['fuck','shit','bitch','cunt','nigger','nigga','faggot','retard','whore','slut','asshole','dick','penis','vagina','nazi','hitler'];if(blocked.some(x=>compact.includes(x)))return{ok:false,error:'That traveler name is not allowed. Choose another.'};return{ok:true,name}}
 function registrationKey(){try{let key=localStorage.getItem(REGISTRATION_KEY);if(!key){key=`register-${crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`}`;localStorage.setItem(REGISTRATION_KEY,key)}return key}catch{if(!memoryRegistrationKey)memoryRegistrationKey=`register-${Date.now()}-${Math.random().toString(36).slice(2)}`;return memoryRegistrationKey}}
@@ -178,29 +190,211 @@ async function startGame(){
   const checked=validTravelerName(playerNameEl.value),errorEl=document.getElementById('nameError');if(!checked.ok){if(errorEl){errorEl.textContent=checked.error;errorEl.hidden=false}playerNameEl.focus();return}if(errorEl)errorEl.hidden=true;
   enterWorldBtn.disabled=true;
   try{if(!deviceSession){const data=await registerDevice(checked.name);if(data.recoveryCode){enterWorldBtn.disabled=false;return;}}
-    if(!recoveryNotice.hidden)recoveryNotice.hidden=true;playerName=checked.name;gameStarted=true;welcomeEl.hidden=true;showToast(`Welcome, ${playerName}.`);if(!state.firstEntryRecorded){addChronicle(`${playerName} entered the settlement during its first day.`);state.firstEntryRecorded=true;saveState()}setTimeout(syncPresenceFast,80);setTimeout(refreshSharedState,180);setTimeout(refreshResourceNodes,300);
+    if(!recoveryNotice.hidden)recoveryNotice.hidden=true;playerName=checked.name;gameStarted=true;welcomeEl.hidden=true;showToast(`Welcome, ${playerName}.`);if(!state.firstEntryRecorded){addChronicle(`${playerName} entered the settlement during its first day.`);state.firstEntryRecorded=true;saveState()}setTimeout(syncPresenceFast,80);setTimeout(refreshSharedState,180);setTimeout(refreshResourceNodes,300);setTimeout(syncMerchantCoins,900);
   }catch(error){deviceStatusEl.textContent=error.message==='recovery_required'?'Recover the existing traveler for this device instead of creating another.':'Your traveler could not be safely registered. Check your connection and try again.';enterWorldBtn.disabled=false;}
 }
 enterWorldBtn.addEventListener('click',startGame);playerNameEl.addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});recoverTraveler.addEventListener('click',()=>{recoveryForm.hidden=!recoveryForm.hidden;if(!recoveryForm.hidden)recoveryCodeInput.focus();});submitRecovery.addEventListener('click',recoverDevice);recoveryCodeInput.addEventListener('keydown',event=>{if(event.key==='Enter')recoverDevice();});copyRecoveryCode.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(recoveryCodeEl.textContent);copyRecoveryCode.textContent='Copied';}catch{copyRecoveryCode.textContent='Take a screenshot of this code';}});toggleChronicle.addEventListener('click',()=>{const h=chronicleEntries.hidden;chronicleEntries.hidden=!h;toggleChronicle.textContent=h?'Hide':'Show';toggleChronicle.setAttribute('aria-expanded',String(h))});
-window.addEventListener('keydown',e=>{if(!gameStarted||e.target instanceof HTMLInputElement)return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keys.add(k);e.preventDefault()}if(k==='e'||k===' '){interact();e.preventDefault()}});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{keys.clear();joystickX=joystickY=0;resetJoystick()});
+window.addEventListener('keydown',e=>{if(!gameStarted)return;if(e.key==='Escape'&&merchantPanel&&!merchantPanel.hidden){hideMerchantTrade();e.preventDefault();return}if(e.target instanceof HTMLInputElement)return;if(merchantPanel&&!merchantPanel.hidden)return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keys.add(k);e.preventDefault()}if(k==='e'||k===' '){interact();e.preventDefault()}});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{keys.clear();joystickX=joystickY=0;resetJoystick()});
 const joystick=document.getElementById('joystick'),joystickKnob=document.getElementById('joystickKnob');let joystickPointer=null;function updateJoystick(e){const r=joystick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.32;let dx=e.clientX-cx,dy=e.clientY-cy;const dist=Math.hypot(dx,dy);if(dist>max){dx=dx/dist*max;dy=dy/dist*max}joystickX=dx/max;joystickY=dy/max;if(Math.hypot(joystickX,joystickY)<.12)joystickX=joystickY=0;joystickKnob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`}function resetJoystick(){if(!joystick||!joystickKnob)return;joystickPointer=null;joystickX=joystickY=0;joystick.classList.remove('active');joystickKnob.style.transform='translate(-50%,-50%)'}joystick?.addEventListener('pointerdown',e=>{e.preventDefault();joystickPointer=e.pointerId;joystick.setPointerCapture?.(e.pointerId);joystick.classList.add('active');updateJoystick(e)});joystick?.addEventListener('pointermove',e=>{if(e.pointerId===joystickPointer)updateJoystick(e)});joystick?.addEventListener('pointerup',e=>{if(e.pointerId===joystickPointer)resetJoystick()});joystick?.addEventListener('pointercancel',resetJoystick);actionButton.addEventListener('click',interact);const trailMarkerBtn=document.getElementById('trailMarkerBtn');
-async function placeTrailMarker(){if(!gameStarted)return;const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return showToast('The shared world is still connecting.');if((state.inventory.wood||0)<2||(state.inventory.stone||0)<1)return showToast('A trail marker needs 2 wood and 1 stone.');trailMarkerBtn.disabled=true;try{const r=await fetch(WORLD_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,name:playerName,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3)),action:'place_trail_marker'})});const d=await r.json();if(!d.ok){showToast(d.error==='not_enough_materials'?'You need 2 wood and 1 stone.':'The marker could not be placed.');return}state.inventory={...state.inventory,...d.inventory};renderInventory();saveState();showToast('Trail marker placed. It is now part of the shared world.');setTimeout(refreshSharedState,250)}catch{showToast('The marker could not reach the shared world.')}finally{trailMarkerBtn.disabled=false}}
+async function placeTrailMarker(){if(!gameStarted)return;const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return showToast('The shared world is still connecting.');if((state.inventory.wood||0)<2||(state.inventory.stone||0)<1)return showToast('A trail marker needs 2 wood and 1 stone.');trailMarkerBtn.disabled=true;try{const r=await fetch(WORLD_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,name:playerName,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3)),action:'place_trail_marker'})});const d=await r.json();if(!d.ok){showToast(d.error==='not_enough_materials'?'You need 2 wood and 1 stone.':'The marker could not be placed.');return}mergeInventory({...state.inventory,...d.inventory});saveState();showToast('Trail marker placed. It is now part of the shared world.');setTimeout(refreshSharedState,250)}catch{showToast('The marker could not reach the shared world.')}finally{trailMarkerBtn.disabled=false}}
+closeMerchant?.addEventListener('click',()=>hideMerchantTrade());
+merchantPanel?.addEventListener('click',e=>{if(e.target===merchantPanel)hideMerchantTrade();});
+for(const btn of merchantPanel?.querySelectorAll('.qty-chip')||[])btn.addEventListener('click',()=>setTradeQtyMode(btn.dataset.qty));
+merchantQtyCustom?.addEventListener('focus',()=>setTradeQtyMode('custom'));
+merchantQtyCustom?.addEventListener('input',()=>{tradeQtyMode='custom';for(const btn of merchantPanel?.querySelectorAll('.qty-chip')||[])btn.classList.remove('active');});
+merchantSellOne?.addEventListener('click',()=>sellSelected(1));
+merchantSellSelected?.addEventListener('click',()=>sellSelected());
+merchantSellAll?.addEventListener('click',()=>sellAllEligible());
+merchantConfirmYes?.addEventListener('click',()=>confirmSellAll());
+merchantConfirmNo?.addEventListener('click',()=>hideMerchantConfirm());
+setInterval(()=>{if(gameStarted)syncMerchantCoins();},45000);
 trailMarkerBtn?.addEventListener('click',placeTrailMarker);
 
+let activeMerchantKey=null,merchantCatalog=null,selectedTradeItemId=null,tradeQtyMode='1',tradeBusy=false,pendingSellAll=null;
+function tradeIdempotency(action){return`trade-${action}-${crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`}`}
+function eligibleBag(merchantKey){
+  const bag=merchantCatalog?.bag||[];
+  return bag.filter(item=>{
+    if(item.sellableTo?.includes(merchantKey))return true;
+    const price=item.unitPriceByMerchant?.[merchantKey];
+    return Number(price)>0;
+  });
+}
+function selectedTradeItem(){return eligibleBag(activeMerchantKey).find(item=>String(item.id)===String(selectedTradeItemId))||null}
+function resolveTradeQuantity(item){
+  const max=Math.max(1,Number(item?.quantity||1));
+  if(tradeQtyMode==='all')return max;
+  if(tradeQtyMode==='custom'){
+    const raw=Math.floor(Number(merchantQtyCustom?.value||1));
+    return Math.max(1,Math.min(max,Number.isFinite(raw)?raw:1));
+  }
+  const n=Math.floor(Number(tradeQtyMode)||1);
+  return Math.max(1,Math.min(max,n));
+}
+function setTradeQtyMode(mode){
+  tradeQtyMode=mode;
+  for(const btn of merchantPanel?.querySelectorAll('.qty-chip')||[])btn.classList.toggle('active',btn.dataset.qty===mode||(mode==='custom'&&btn.dataset.qty==='custom'));
+  if(mode!=='custom'&&merchantQtyCustom)merchantQtyCustom.value='';
+}
+function showMerchantReceipt(text){
+  if(!merchantReceipt)return;
+  merchantReceipt.hidden=!text;
+  merchantReceipt.textContent=text||'';
+}
+function hideMerchantConfirm(){if(merchantConfirm)merchantConfirm.hidden=true;pendingSellAll=null}
+function renderMerchantTrade(){
+  if(!merchantPanel||!activeMerchantKey)return;
+  const merchant=merchantCatalog?.merchants?.find(m=>m.key===activeMerchantKey)||MERCHANTS_CLIENT.find(m=>m.key===activeMerchantKey);
+  if(merchantTitle)merchantTitle.textContent=merchant?.name||'Merchant';
+  if(merchantIntro)merchantIntro.textContent=merchant?.lines?.[0]||merchant?.title||'Sell crafted goods for coin.';
+  if(merchantBudget)merchantBudget.textContent=String(merchant?.budget??'—');
+  if(merchantPlayerCoins)merchantPlayerCoins.textContent=String(merchantCatalog?.coins??state.inventory.coins??0);
+  const items=eligibleBag(activeMerchantKey);
+  if(!items.some(item=>String(item.id)===String(selectedTradeItemId)))selectedTradeItemId=items[0]?.id||null;
+  if(!merchantItems)return;
+  if(!items.length){
+    merchantItems.replaceChildren(Object.assign(document.createElement('div'),{className:'merchant-empty',textContent:'No sellable crafted goods for this merchant yet. Craft items in your private world, then return.'}));
+    return;
+  }
+  merchantItems.replaceChildren(...items.map(item=>{
+    const row=document.createElement('button');
+    row.type='button';row.className=`merchant-item${String(item.id)===String(selectedTradeItemId)?' selected':''}`;
+    const unit=Number(item.unitPriceByMerchant?.[activeMerchantKey]||0);
+    row.innerHTML=`<strong>${item.quality||'standard'} ${item.name}</strong><small>×${item.quantity||1} · ${item.durability}/${item.maxDurability} durability</small><div class="merchant-item-meta"><span>${unit} coins each</span><span>${unit*(item.quantity||1)} if all</span></div>`;
+    row.addEventListener('click',()=>{selectedTradeItemId=item.id;renderMerchantTrade();});
+    return row;
+  }));
+}
+async function loadMerchantCatalog(merchantKey=activeMerchantKey){
+  const clientId=localStorage.getItem(CLIENT_KEY);
+  if(!clientId)throw Error('client_missing');
+  const url=`${MERCHANT_API}?clientId=${encodeURIComponent(clientId)}${merchantKey?`&merchantKey=${encodeURIComponent(merchantKey)}`:''}`;
+  const response=await fetch(url,{cache:'no-store'});
+  const data=await response.json();
+  if(data?.error==='economy_migration_required')throw Error('economy_migration_required');
+  if(!response.ok||!data.ok)throw Error(data.error||'merchant_load_failed');
+  merchantCatalog=data;
+  if(data.inventory)mergeInventory(data.inventory);
+  else if(Number.isFinite(Number(data.coins)))applyCoinBalance(data.coins);
+  return data;
+}
+async function openMerchantTrade(merchantKey){
+  activeMerchantKey=merchantKey;
+  selectedTradeItemId=null;
+  tradeQtyMode='1';
+  hideMerchantConfirm();
+  showMerchantReceipt('');
+  setTradeQtyMode('1');
+  merchantPanel.hidden=false;
+  velocity.set(0,0,0);keys.clear();
+  if(merchantItems)merchantItems.replaceChildren(Object.assign(document.createElement('div'),{className:'merchant-empty',textContent:'Loading trade goods…'}));
+  try{
+    await loadMerchantCatalog(merchantKey);
+    renderMerchantTrade();
+  }catch(error){
+    const msg=error.message==='economy_migration_required'?'The town economy is still updating. Try again shortly.':'Trade could not open. Check your connection and try again.';
+    showMerchantReceipt(msg);
+    showToast(msg);
+  }
+}
+function hideMerchantTrade(){merchantPanel.hidden=true;hideMerchantConfirm();activeMerchantKey=null;merchantCatalog=null;selectedTradeItemId=null;pendingSellAll=null}
+async function postMerchantSell(itemId,quantity){
+  const clientId=localStorage.getItem(CLIENT_KEY);
+  const response=await fetch(MERCHANT_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'sell',merchantKey:activeMerchantKey,itemId,quantity,idempotencyKey:tradeIdempotency(`sell-${itemId}`)})});
+  const data=await response.json();
+  if(data?.error==='economy_migration_required')throw Error('economy_migration_required');
+  if(!response.ok||!data.ok)throw Error(data.error||'sell_failed');
+  return data;
+}
+function tradeErrorMessage(error){
+  const code=error?.message||error;
+  if(code==='economy_migration_required')return 'The town economy is still updating. Try again shortly.';
+  if(code==='merchant_insufficient_funds')return 'This merchant cannot afford that sale right now.';
+  if(code==='merchant_rejects_item')return 'This merchant will not buy that item.';
+  if(code==='item_not_found')return 'That item is no longer in your bag.';
+  if(code==='invalid_quantity')return 'Choose a valid quantity.';
+  if(code==='action_in_progress')return 'A trade is already in progress.';
+  return 'The sale could not complete. Try again.';
+}
+async function sellSelected(quantityOverride=null){
+  if(tradeBusy||!activeMerchantKey)return;
+  const item=selectedTradeItem();
+  if(!item){showToast('Select an item to sell.');return;}
+  const quantity=quantityOverride??resolveTradeQuantity(item);
+  tradeBusy=true;
+  try{
+    const data=await postMerchantSell(item.id,quantity);
+    if(data.inventory)mergeInventory(data.inventory);
+    else if(Number.isFinite(Number(data.coins)))applyCoinBalance(data.coins);
+    const receipt=data.receipt||`Sold ${data.quantity||quantity} for ${data.total||0} coins.`;
+    showMerchantReceipt(receipt);
+    showToast(receipt);
+    await loadMerchantCatalog(activeMerchantKey);
+    renderMerchantTrade();
+  }catch(error){
+    const msg=tradeErrorMessage(error);
+    showMerchantReceipt(msg);
+    showToast(msg);
+  }finally{tradeBusy=false}
+}
+async function sellAllEligible(){
+  if(tradeBusy||!activeMerchantKey)return;
+  const items=eligibleBag(activeMerchantKey);
+  if(!items.length){showToast('Nothing eligible to sell.');return;}
+  const estimate=items.reduce((sum,item)=>{
+    const unit=Number(item.unitPriceByMerchant?.[activeMerchantKey]||0);
+    return sum+unit*Number(item.quantity||1);
+  },0);
+  pendingSellAll=items;
+  if(merchantConfirmText)merchantConfirmText.textContent=`Sell all ${items.length} eligible stack${items.length===1?'':'s'} for up to ${estimate} coins? Merchants stop when their budget runs out.`;
+  if(merchantConfirm)merchantConfirm.hidden=false;
+}
+async function confirmSellAll(){
+  if(tradeBusy||!pendingSellAll?.length)return;
+  const queue=[...pendingSellAll];
+  hideMerchantConfirm();
+  tradeBusy=true;
+  const receipts=[];
+  let earned=0;
+  try{
+    for(const item of queue){
+      try{
+        const data=await postMerchantSell(item.id,Number(item.quantity||1));
+        if(data.inventory)mergeInventory(data.inventory);
+        else if(Number.isFinite(Number(data.coins)))applyCoinBalance(data.coins);
+        earned+=Number(data.total||0);
+        receipts.push(data.receipt||`Sold ${data.quantity} ${data.name}`);
+        if(data.partial)break;
+      }catch(error){
+        if(['merchant_insufficient_funds','merchant_rejects_item','item_not_found'].includes(error.message))break;
+        throw error;
+      }
+    }
+    const summary=receipts.length?`Sold ${receipts.length} stack${receipts.length===1?'':'s'} · +${earned} coins`:'No sales completed.';
+    showMerchantReceipt(summary);
+    showToast(summary);
+    await loadMerchantCatalog(activeMerchantKey);
+    renderMerchantTrade();
+  }catch(error){
+    const msg=tradeErrorMessage(error);
+    showMerchantReceipt(msg);
+    showToast(msg);
+  }finally{tradeBusy=false}
+}
 async function talkToNPC(npc){try{const r=await fetch('/.netlify/functions/living-systems',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'npc_interact',npc:npc.label,traveler:playerName})});const d=await r.json();if(d.ok){npc.relationship=d.relationship;npc.familiarity=d.familiarity;showToast(`${d.dialogue}${d.relationship?` · ${d.relationship}`:''}`);return}}catch{}const line=npc.lines[npc.lineIndex%npc.lines.length];npc.lineIndex++;showToast(`${npc.label}: ${line}${npc.activity?` · ${npc.activity}`:''}`)}
 let buildingEnterBusy=false;
 async function enterBuilding(buildingId,label='building'){if(buildingEnterBusy||!gameStarted)return;buildingEnterBusy=true;try{const response=await fetch('/.netlify/functions/town-upgrades',{cache:'no-store'}),data=await response.json(),buildingLevel=Number(data?.levels?.[buildingId]||1);if(!data.ok)throw Error('upgrade data unavailable');if(!canEnterBuilding(buildingLevel)){showToast(`${label} is Level 1. Upgrade it to Level 2 to enter.`);return}const entry=interiorEntryUrl(buildingId);if(!entry){showToast('That building has no interior yet.');return}saveState();sessionStorage.setItem(INTERIOR_SPAWN_KEY,JSON.stringify(rememberOutdoorPosition({x:player.position.x,z:player.position.z},buildingId)));window.location.assign(entry)}catch{showToast('The building door could not open. Try again.')}finally{buildingEnterBusy=false}}
 let worldTravelBusy=false,gatewayWalkArmed=true;
 function travelKey(){return`enter-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`}
 async function enterPrivateWorld(){if(worldTravelBusy)return;const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId){showToast('Enter the public world before opening your private world.');return;}worldTravelBusy=true;showToast('Opening your persistent world…');try{const response=await fetch(PRIVATE_WORLD_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'enter_private',idempotencyKey:travelKey(),position:{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))}})}),data=await response.json();if(!data.ok)throw Error(data.error||'travel_failed');saveState();window.location.assign('./private-world.html');}catch(error){worldTravelBusy=false;showToast(error.message==='living_worlds_migration_required'?'Living Worlds is awaiting its safe database migration.':'The gateway did not open. Try again.');}}
-function interact(){if(!gameStarted||!nearest)return;if(nearest.type==='gateway'){enterPrivateWorld();return}if(nearest.type==='building'){enterBuilding(nearest.buildingId,nearest.label);return}if(nearest.type==='resource'){const now=performance.now(),inspectedAt=inspectedResources.get(nearest.nodeId)||0;if(nearest.plantInfo&&(!inspectedAt||now-inspectedAt>5000)){inspectedResources.set(nearest.nodeId,now);showToast(identifyItem(nearest));promptEl.textContent=`Gather ${nearest.label} · interact again`;return}showToast(identifyItem(nearest));setTimeout(()=>gatherResource(nearest),300);inspectedResources.delete(nearest.nodeId);return}showToast(identifyItem(nearest));if(nearest.type==='npc'){setTimeout(()=>talkToNPC(nearest),420);return}if(nearest.message)setTimeout(()=>showToast(nearest.message),650)}
+function interact(){if(!gameStarted||!nearest)return;if(merchantPanel&&!merchantPanel.hidden)return;if(nearest.type==='gateway'){enterPrivateWorld();return}if(nearest.type==='building'){enterBuilding(nearest.buildingId,nearest.label);return}if(nearest.type==='resource'){const now=performance.now(),inspectedAt=inspectedResources.get(nearest.nodeId)||0;if(nearest.plantInfo&&(!inspectedAt||now-inspectedAt>5000)){inspectedResources.set(nearest.nodeId,now);showToast(identifyItem(nearest));promptEl.textContent=`Gather ${nearest.label} · interact again`;return}showToast(identifyItem(nearest));setTimeout(()=>gatherResource(nearest),300);inspectedResources.delete(nearest.nodeId);return}if(nearest.type==='merchant'||nearest.merchantKey){openMerchantTrade(nearest.merchantKey);return}showToast(identifyItem(nearest));if(nearest.type==='npc'){setTimeout(()=>talkToNPC(nearest),420);return}if(nearest.message)setTimeout(()=>showToast(nearest.message),650)}
 const doorRaycaster=new THREE.Raycaster(),doorPointer=new THREE.Vector2();let doorTapStart=null;
 renderer.domElement.addEventListener('pointerdown',e=>{doorTapStart={x:e.clientX,y:e.clientY}});
 renderer.domElement.addEventListener('pointerup',e=>{if(!gameStarted||!doorTapStart)return;const moved=Math.hypot(e.clientX-doorTapStart.x,e.clientY-doorTapStart.y);doorTapStart=null;if(moved>14)return;const rect=renderer.domElement.getBoundingClientRect();doorPointer.set((e.clientX-rect.left)/rect.width*2-1,-((e.clientY-rect.top)/rect.height)*2+1);doorRaycaster.setFromCamera(doorPointer,camera);const hit=doorRaycaster.intersectObjects(buildingDoors,false)[0];if(hit?.object?.userData?.worldGateway){enterPrivateWorld();return}if(hit?.object?.userData?.buildingId)enterBuilding(hit.object.userData.buildingId,hit.object.userData.buildingLabel)});
 function isBlocked(x,z){if(x< -33||x>33||z< -33||z>33)return true;if(x>-29&&x<-19&&!(bridgeBuilt&&Math.abs(z)<1.55))return true;for(const b of blockers){const dx=x-b.x,dz=z-b.z;if(dx*dx+dz*dz<b.r*b.r)return true}return false}
 function updatePlayer(dt,t){desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;const strength=Math.min(1,desired.length());if(strength>0){desired.normalize().multiplyScalar(5.2*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z)}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));const nx=player.position.x+velocity.x*dt,nz=player.position.z+velocity.z*dt;if(!isBlocked(nx,player.position.z))player.position.x=nx;if(!isBlocked(player.position.x,nz))player.position.z=nz;const insideGateway=bridgeBuilt&&isInsideWorldGateway(player.position.x,player.position.z);if(insideGateway&&gatewayWalkArmed){gatewayWalkArmed=false;enterPrivateWorld()}else if(!insideGateway&&Math.hypot(player.position.x-WORLD_GATEWAY.x,player.position.z-WORLD_GATEWAY.z)>2.2)gatewayWalkArmed=true;animateHumanoid(player,strength>.05,t,1.12);cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.5,player.position.z)}
 function updateNPCs(t,dt){for(const n of npcs){const dx=n.target.x-n.object.position.x,dz=n.target.z-n.object.position.z,dist=Math.hypot(dx,dz),moving=dist>.14;if(moving){const step=Math.min(dist,Math.max(.01,dt)*1.35);n.object.position.x+=dx/dist*step;n.object.position.z+=dz/dist*step;n.object.rotation.y=Math.atan2(dx,dz);}else{n.object.position.x=n.target.x+Math.cos(t*.00035+n.phase)*.12;n.object.position.z=n.target.z+Math.sin(t*.0003+n.phase)*.12;}animateHumanoid(n.object,moving,t,.82);if(!moving&&n.object.userData.rig&&/forge|working metal|herb|sorting|serving|supplies|tending/i.test(n.activity||'')){const r=n.object.userData.rig,a=Math.sin(t*.01+n.phase);r.armR.rotation.x=-.45-a*.72;r.armL.rotation.x=.18+a*.25;}}}
-function updateNearest(){let best=null,dist=Infinity;for(const i of interactables){if(!i.object.visible)continue;const d=player.position.distanceTo(i.object.position);if(d<i.radius&&d<dist){best=i;dist=d}}nearest=best;promptEl.hidden=!nearest;if(nearest)promptEl.textContent=nearest.type==='gateway'?'Walk through or interact · Enter My World':nearest.type==='resource'?(nearest.plantInfo?`Inspect ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} harvestable`:''}`:`Gather ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} left`:''}`):nearest.type==='npc'?`Talk to ${nearest.label}`:nearest.type==='building'?(Number(nearest.level||1)>=2?`Enter ${nearest.label} · Level ${Number(nearest.level||1)}`:`Upgrade ${nearest.label} to Level 2 to enter`):`Inspect ${nearest.label}`}
+function updateNearest(){let best=null,dist=Infinity;for(const i of interactables){if(!i.object.visible)continue;const d=player.position.distanceTo(i.object.position);if(d<i.radius&&d<dist){best=i;dist=d}}nearest=best;promptEl.hidden=!nearest;if(nearest)promptEl.textContent=nearest.type==='gateway'?'Walk through or interact · Enter My World':nearest.type==='resource'?(nearest.plantInfo?`Inspect ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} harvestable`:''}`:`Gather ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} left`:''}`):nearest.type==='merchant'||nearest.merchantKey?`Trade with ${nearest.label}`:nearest.type==='npc'?`Talk to ${nearest.label}`:nearest.type==='building'?(Number(nearest.level||1)>=2?`Enter ${nearest.label} · Level ${Number(nearest.level||1)}`:`Upgrade ${nearest.label} to Level 2 to enter`):`Inspect ${nearest.label}`}
 function resize(){const w=worldEl.clientWidth,h=worldEl.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener('resize',resize);resize();const clock=new THREE.Clock();function animate(t){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if(gameStarted){updatePlayer(dt,t);updateNPCs(t,dt);updateRemotePlayers(dt,t);updateCreatures(t,dt);updateWeatherVisuals(dt,t);updateNearest();elapsedWorldMinutes+=dt*2;clockEl.textContent=formatTime(elapsedWorldMinutes);if(t-lastSave>4000){saveState();lastSave=t}}renderer.render(scene,camera)}requestAnimationFrame(animate);deviceSessionPromise=resolveDeviceSession();const resumeFrom=new URLSearchParams(location.search).get('from');if(shouldAutoResumePublicWorld(resumeFrom)&&state.playerName)deviceSessionPromise.then(()=>startGame());
 window.addEventListener('gptworld:cross-river',e=>{const x=Number(e.detail?.x),z=Number(e.detail?.z);if(!Number.isFinite(x)||!Number.isFinite(z))return;player.position.set(x,0,z);velocity.set(0,0,0);state.x=x;state.z=z;saveState()});
 window.addEventListener('gptworld:bridge-state',e=>setBridgeBuilt(Boolean(e.detail?.complete)));

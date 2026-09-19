@@ -13,13 +13,14 @@ import {
   resolveHouseAttempt,
   spentInputs
 } from '../lib/crafting-core.mjs';
+import {DEFAULT_MAX_STACK,isStackableCrafted,normalizeQuantity,splitStackPlan} from '../lib/economy-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const clean=(value,max=100)=>String(value||'').trim().slice(0,max);
 
 async function context(sql,clientId){
   const rows=await sql`
-    SELECT p.id,p.display_name,i.wood,i.stone,i.herbs,w.id AS world_id,s.current_world_type,w.terrain_state
+    SELECT p.id,p.display_name,i.wood,i.stone,i.herbs,COALESCE(i.coins,0) AS coins,w.id AS world_id,s.current_world_type,w.terrain_state
     FROM players p
     LEFT JOIN player_inventory i ON i.player_id=p.id
     LEFT JOIN player_worlds w ON w.owner_player_id=p.id
@@ -39,7 +40,7 @@ async function payload(sql,actor){
   await ensureSkills(sql,actor.id);
   const [skills,items,buildings]=await Promise.all([
     sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} ORDER BY skill_key`,
-    sql`SELECT item.id,item.item_key,item.display_name,item.profession,item.quality,item.durability,item.max_durability,item.maker_name,item.crafted_at,item.placed_x,item.placed_z,item.placed_rotation,item.placed_at,item.metadata,
+    sql`SELECT item.id,item.item_key,item.display_name,item.profession,item.quality,item.durability,item.max_durability,item.maker_name,item.crafted_at,item.placed_x,item.placed_z,item.placed_rotation,item.placed_at,item.metadata,COALESCE(item.quantity,1) AS quantity,
       storage.wood AS stored_wood,storage.stone AS stored_stone,storage.herbs AS stored_herbs,storage.capacity
       FROM player_crafted_items item LEFT JOIN crafted_item_storage storage ON storage.item_id=item.id
       WHERE item.player_id=${actor.id} ORDER BY item.crafted_at DESC LIMIT 80`,
@@ -48,15 +49,15 @@ async function payload(sql,actor){
       :Promise.resolve([])
   ]);
   const skillRows=skills.map(skill=>({key:skill.skill_key,value:Number(skill.skill_value),attempts:Number(skill.attempts)}));
-  const inventory={wood:Number(actor.wood||0),stone:Number(actor.stone||0),herbs:Number(actor.herbs||0)};
-  const ownedComponents=items.filter(item=>!item.placed_at).map(item=>item.item_key);
+  const inventory={wood:Number(actor.wood||0),stone:Number(actor.stone||0),herbs:Number(actor.herbs||0),coins:Number(actor.coins||0)};
+  const ownedComponents=items.filter(item=>!item.placed_at).flatMap(item=>Array(Math.max(1,Number(item.quantity||1))).fill(item.item_key));
   return{
     ok:true,
     recipes:recipesForSkillView(skillRows),
     skills:skillRows,
     house:housePreview(skillRows,inventory,ownedComponents),
     buildings:buildings.map(row=>({id:String(row.id),key:row.building_key,type:row.building_type,x:Number(row.x),z:Number(row.z),level:Number(row.level||1),width:Number(row.width||HOUSE_BLUEPRINT.width),depth:Number(row.depth||HOUSE_BLUEPRINT.depth),metadata:row.metadata||{},status:row.status||'active'})),
-    items:items.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,profession:item.profession,quality:item.quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),maker:item.maker_name,craftedAt:item.crafted_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null,placed:item.placed_at?{x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at}:null})),
+    items:items.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,profession:item.profession,quality:item.quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),quantity:Math.max(1,Number(item.quantity||1)),stackable:isStackableCrafted(item.item_key,{placed:Boolean(item.placed_at)}),maker:item.maker_name,craftedAt:item.crafted_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null,placed:item.placed_at?{x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at}:null})),
     inventory
   };
 }
@@ -234,34 +235,50 @@ async function craft(sql,actor,recipe,key){
   }
   const outcome=resolveCraftAttempt({skillValue:skillBefore,difficulty:recipe.difficulty,key:`${actor.id}:${recipe.key}:${key}`,minSkill:recipe.minSkill});
   const spent=spentInputs(recipe,outcome.success),durability=qualityDurability(recipe.durability,outcome.quality);
+  const canStack=outcome.success&&isStackableCrafted(recipe.key);
+  const quality=outcome.quality||'standard';
   let rows;
   try{rows=await sql`
     WITH inventory_change AS (
       UPDATE player_inventory SET wood=wood-${spent.wood},stone=stone-${spent.stone},herbs=herbs-${spent.herbs},updated_at=now()
       WHERE player_id=${actor.id} AND wood>=${spent.wood} AND stone>=${spent.stone} AND herbs>=${spent.herbs}
-      RETURNING wood,stone,herbs
+      RETURNING wood,stone,herbs,COALESCE(coins,0) AS coins
     ), skill_change AS (
       UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${outcome.skillGain}),attempts=attempts+1,updated_at=now()
       WHERE player_id=${actor.id} AND skill_key=${recipe.skill} AND EXISTS(SELECT 1 FROM inventory_change)
       RETURNING skill_value,attempts
+    ), stacked AS (
+      UPDATE player_crafted_items item SET quantity=LEAST(${DEFAULT_MAX_STACK},COALESCE(item.quantity,1)+1)
+      WHERE ${canStack} AND item.id=(
+        SELECT candidate.id FROM player_crafted_items candidate
+        WHERE candidate.player_id=${actor.id} AND candidate.world_id=${claimed[0].world_id}
+          AND candidate.item_key=${recipe.key} AND candidate.quality=${quality}
+          AND candidate.durability=${durability} AND candidate.max_durability=${durability}
+          AND candidate.placed_at IS NULL AND COALESCE(candidate.quantity,1)<${DEFAULT_MAX_STACK}
+          AND EXISTS(SELECT 1 FROM inventory_change)
+        ORDER BY candidate.crafted_at DESC LIMIT 1
+      )
+      RETURNING item.id,item.item_key,item.display_name,item.profession,item.quality,item.durability,item.max_durability,item.maker_name,item.crafted_at,item.quantity
     ), made_item AS (
-      INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,metadata)
-      SELECT ${actor.id},${claimed[0].world_id},${recipe.key},${recipe.name},${recipe.skill},${outcome.quality||'standard'},${durability},${durability},${actor.display_name},${JSON.stringify({recipe:recipe.key,inputs:recipe.inputs,chance:outcome.chance,component:Boolean(recipe.component)})}::jsonb
-      FROM inventory_change WHERE ${outcome.success}
-      RETURNING id,item_key,display_name,profession,quality,durability,max_durability,maker_name,crafted_at
+      INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,quantity,metadata)
+      SELECT ${actor.id},${claimed[0].world_id},${recipe.key},${recipe.name},${recipe.skill},${quality},${durability},${durability},${actor.display_name},1,${JSON.stringify({recipe:recipe.key,inputs:recipe.inputs,chance:outcome.chance,component:Boolean(recipe.component)})}::jsonb
+      FROM inventory_change WHERE ${outcome.success} AND NOT EXISTS(SELECT 1 FROM stacked)
+      RETURNING id,item_key,display_name,profession,quality,durability,max_durability,maker_name,crafted_at,quantity
+    ), result_item AS (
+      SELECT * FROM stacked UNION ALL SELECT * FROM made_item
     ), history AS (
       INSERT INTO private_world_events(world_id,player_id,event_type,x,z,details)
       SELECT ${claimed[0].world_id},${actor.id},CASE WHEN ${outcome.success} THEN 'item_crafted' ELSE 'craft_failed' END,NULL,NULL,
-        jsonb_build_object('recipeKey',${recipe.key}::text,'item',${recipe.name}::text,'profession',${recipe.skill}::text,'quality',${outcome.quality}::text,'chance',${outcome.chance}::numeric,'materialsSpent',${JSON.stringify(spent)}::jsonb)
+        jsonb_build_object('recipeKey',${recipe.key}::text,'item',${recipe.name}::text,'profession',${recipe.skill}::text,'quality',${quality}::text,'chance',${outcome.chance}::numeric,'materialsSpent',${JSON.stringify(spent)}::jsonb,'stacked',${canStack}::boolean)
       FROM inventory_change,skill_change RETURNING id
     ), finalized AS (
       UPDATE crafting_action_receipts receipt SET response=(
         SELECT jsonb_build_object(
-          'ok',true,'success',${outcome.success}::boolean,'recipeKey',${recipe.key}::text,'quality',${outcome.quality}::text,'chance',${outcome.chance}::numeric,
+          'ok',true,'success',${outcome.success}::boolean,'recipeKey',${recipe.key}::text,'quality',${quality}::text,'chance',${outcome.chance}::numeric,
           'materialsSpent',${JSON.stringify(spent)}::jsonb,
-          'inventory',jsonb_build_object('wood',inventory_change.wood,'stone',inventory_change.stone,'herbs',inventory_change.herbs),
+          'inventory',jsonb_build_object('wood',inventory_change.wood,'stone',inventory_change.stone,'herbs',inventory_change.herbs,'coins',inventory_change.coins),
           'skill',jsonb_build_object('key',${recipe.skill}::text,'before',${skillBefore}::numeric,'value',skill_change.skill_value,'gain',${outcome.skillGain}::numeric,'attempts',skill_change.attempts),
-          'item',(SELECT jsonb_build_object('id',id::text,'key',item_key,'name',display_name,'profession',profession,'quality',quality,'durability',durability,'maxDurability',max_durability,'maker',maker_name,'craftedAt',crafted_at) FROM made_item)
+          'item',(SELECT jsonb_build_object('id',id::text,'key',item_key,'name',display_name,'profession',profession,'quality',quality,'durability',durability,'maxDurability',max_durability,'quantity',COALESCE(quantity,1),'maker',maker_name,'craftedAt',crafted_at) FROM result_item LIMIT 1)
         ) FROM inventory_change,skill_change,history
       )
       WHERE receipt.player_id=${actor.id} AND receipt.idempotency_key=${key}
@@ -299,20 +316,22 @@ async function buildHouse(sql,actor,key,position={}){
   const materials=HOUSE_BLUEPRINT.materials;
   const components=HOUSE_BLUEPRINT.components;
   const componentRows=await sql`
-    SELECT id,item_key FROM player_crafted_items
+    SELECT id,item_key,COALESCE(quantity,1) AS quantity FROM player_crafted_items
     WHERE player_id=${actor.id} AND world_id=${actor.world_id} AND placed_at IS NULL
     ORDER BY crafted_at ASC
   `;
-  const picked=[];
   const remaining=new Map();
   for(const keyName of components)remaining.set(keyName,(remaining.get(keyName)||0)+1);
+  const picks=[];
   for(const row of componentRows){
-    const need=remaining.get(row.item_key)||0;
+    let need=remaining.get(row.item_key)||0;
     if(need<=0)continue;
-    picked.push(Number(row.id));
-    remaining.set(row.item_key,need-1);
+    const available=Math.max(1,Number(row.quantity||1));
+    const take=Math.min(need,available);
+    picks.push({id:Number(row.id),amount:take});
+    remaining.set(row.item_key,need-take);
   }
-  if([...remaining.values()].some(value=>value>0))return{ok:false,error:'missing_components',needed:components,have:componentRows.map(row=>row.item_key)};
+  if([...remaining.values()].some(value=>value>0))return{ok:false,error:'missing_components',needed:components,have:componentRows.flatMap(row=>Array(Math.max(1,Number(row.quantity||1))).fill(row.item_key))};
   const claimed=await sql`
     INSERT INTO private_construction_receipts(player_id,world_id,idempotency_key,blueprint_key,response)
     SELECT ${actor.id},w.id,${key},${HOUSE_BLUEPRINT.key},'{"ok":false,"error":"pending"}'::jsonb
@@ -332,7 +351,8 @@ async function buildHouse(sql,actor,key,position={}){
   const outcome=resolveHouseAttempt({skillValue:skillBefore,key:`${actor.id}:house:${key}`});
   const spent=houseMaterialLoss(HOUSE_BLUEPRINT,outcome.success);
   const consumeComponents=outcome.success||!HOUSE_BLUEPRINT.keepComponentsOnFailure;
-  const componentIds=picked.map(String);
+  const componentIds=picks.map(pick=>String(pick.id));
+  const picksJson=JSON.stringify(picks);
   let rows;
   try{
     rows=await sql`
@@ -340,10 +360,14 @@ async function buildHouse(sql,actor,key,position={}){
         UPDATE player_inventory SET wood=wood-${spent.wood},stone=stone-${spent.stone},herbs=herbs-${spent.herbs},updated_at=now()
         WHERE player_id=${actor.id} AND wood>=${spent.wood} AND stone>=${spent.stone} AND herbs>=${spent.herbs}
         RETURNING wood,stone,herbs
+      ), decremented AS (
+        UPDATE player_crafted_items item SET quantity=GREATEST(0,COALESCE(item.quantity,1)-u.amount)
+        FROM jsonb_to_recordset(${picksJson}::jsonb) AS u(id bigint, amount int)
+        WHERE ${consumeComponents} AND item.player_id=${actor.id} AND item.id=u.id AND EXISTS(SELECT 1 FROM inventory_change)
+        RETURNING item.id,item.quantity
       ), consumed AS (
         DELETE FROM player_crafted_items item
-        WHERE item.player_id=${actor.id} AND item.id=ANY(${picked}::bigint[])
-          AND ${consumeComponents} AND EXISTS(SELECT 1 FROM inventory_change)
+        WHERE item.player_id=${actor.id} AND item.id IN (SELECT id FROM decremented WHERE quantity<=0)
         RETURNING item.id
       ), skill_change AS (
         UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${outcome.skillGain}),attempts=attempts+1,updated_at=now()

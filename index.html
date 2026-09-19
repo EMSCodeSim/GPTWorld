@@ -19,7 +19,45 @@
       #trailMarkerBtn,#townUpgradeLink{position:fixed;left:50%;transform:translateX(-50%);z-index:28;width:max-content;max-width:calc(100vw - 32px);margin:0;padding:10px 12px;border-radius:999px;pointer-events:auto;touch-action:manipulation;box-shadow:0 4px 16px rgba(0,0,0,.35)}
       #trailMarkerBtn{top:max(64px,calc(env(safe-area-inset-top) + 52px));background:rgba(14,19,16,.94)}
       #townUpgradeLink{top:max(112px,calc(env(safe-area-inset-top) + 100px));background:rgba(14,31,20,.96)}
-      .inventory-row{display:flex;align-items:center;justify-content:center;gap:12px}
+      .inventory-row{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+    }
+    .merchant-panel{position:fixed;z-index:1000;inset:0;display:block;background:rgba(6,13,9,.82);padding:max(18px,env(safe-area-inset-top)) 14px max(18px,env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+    .merchant-panel[hidden]{display:none!important}
+    .merchant-card{width:min(720px,100%);margin:0 auto;background:rgba(19,35,24,.99);border:1px solid rgba(210,179,106,.58);border-radius:24px;padding:20px;color:#f3ead5;box-shadow:0 22px 70px rgba(0,0,0,.5);-webkit-text-size-adjust:100%}
+    .merchant-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .merchant-card h2,.merchant-card h3{margin:4px 0 10px}
+    .merchant-card header button{border:0;background:transparent;color:#f4e3b9;font-size:34px;line-height:1;padding:0 4px;touch-action:manipulation}
+    .merchant-intro{color:#cbd4c8;margin:0 0 12px}
+    .merchant-stats{display:flex;flex-wrap:wrap;gap:10px 16px;margin:0 0 14px;font-size:14px;color:#e1c785}
+    .merchant-stats strong{color:#f4e3b9}
+    .merchant-items{display:grid;gap:8px;margin:0 0 16px}
+    .merchant-item,.merchant-empty{background:#263c2b;border-radius:11px;padding:12px;font-size:14px}
+    .merchant-item{display:grid;gap:8px;border:1px solid transparent;cursor:pointer;touch-action:manipulation}
+    .merchant-item.selected{border-color:#d2b36a;background:#2f4633}
+    .merchant-item strong{text-transform:capitalize;display:block}
+    .merchant-item small{display:block;color:#b8c6b8;margin-top:3px}
+    .merchant-item-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;color:#e1c785;font-size:13px}
+    .merchant-qty{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px}
+    .merchant-qty span{font-size:13px;color:#cbd4c8;margin-right:4px}
+    .merchant-qty button{min-height:44px;min-width:52px;padding:8px 12px;border:1px solid #526653;border-radius:12px;background:#28402e;color:#f3ead5;font-weight:800;touch-action:manipulation}
+    .merchant-qty button.active{background:#d2b36a;border-color:#d2b36a;color:#17231a}
+    .merchant-qty input{width:72px;min-height:44px;border:1px solid #526653;border-radius:12px;background:#1c3021;color:#f3ead5;font-weight:800;text-align:center;font-size:16px}
+    .merchant-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+    .merchant-actions button{min-height:48px;border:0;border-radius:12px;background:#d2b36a;color:#17231a;font-weight:900;font-size:14px;padding:10px;touch-action:manipulation}
+    .merchant-actions button.secondary{background:#28402e;border:1px solid #526653;color:#f3ead5}
+    .merchant-actions button:disabled{opacity:.45}
+    .merchant-receipt{margin:0;padding:12px 14px;border:1px solid #49604c;border-radius:12px;background:#25372a;color:#e5dfcf;font-size:14px;line-height:1.4}
+    .merchant-receipt[hidden]{display:none!important}
+    .merchant-confirm{margin:10px 0 0;padding:12px;border:1px solid #a9915d;border-radius:12px;background:#2d321f;display:grid;gap:10px}
+    .merchant-confirm[hidden]{display:none!important}
+    .merchant-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .merchant-confirm-actions button{min-height:46px;border:0;border-radius:12px;font-weight:900;touch-action:manipulation}
+    .merchant-confirm-actions .confirm-yes{background:#d2b36a;color:#17231a}
+    .merchant-confirm-actions .confirm-no{background:#3f2d27;border:1px solid #765044;color:#f3ead5}
+    @media(max-width:800px),(pointer:coarse){
+      .merchant-card{padding:16px;border-radius:20px;min-height:calc(100vh - 36px);min-height:calc(100dvh - 36px)}
+      .merchant-actions{grid-template-columns:1fr}
+      .merchant-qty button,.merchant-actions button,.merchant-confirm-actions button{min-height:52px}
     }
   </style>
   <script>document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});document.addEventListener('gesturechange',e=>e.preventDefault(),{passive:false});</script>
@@ -28,16 +66,45 @@
   <main id="app">
     <div id="world" aria-label="Interactive 3D world"></div>
     <section class="topbar" aria-label="World status"><div class="world-title"><div class="eyebrow">GPTWORLD · PUBLIC WORLD</div><h1>The First Settlement</h1></div><div class="status-strip"><span id="clock">06:00</span><span id="era">Founding Era</span><span id="online">1 traveler</span></div></section>
-    <section class="panel inventory" aria-label="Inventory"><h2>Pack</h2><button id="trailMarkerBtn" type="button" title="Place a persistent trail marker for 2 wood + 1 stone">Place Trail Marker · 2 🪵 + 1 🪨</button><a id="townUpgradeLink" href="./town.html">🏘 Town Upgrades</a><div class="inventory-row"><div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div><div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div><div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div></div></section>
+    <section class="panel inventory" aria-label="Inventory"><h2>Pack</h2><button id="trailMarkerBtn" type="button" title="Place a persistent trail marker for 2 wood + 1 stone">Place Trail Marker · 2 🪵 + 1 🪨</button><a id="townUpgradeLink" href="./town.html">🏘 Town Upgrades</a><div class="inventory-row"><div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div><div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div><div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div><div class="resource"><span>🪙</span><strong id="coinCount">0</strong><small>Coins</small></div></div></section>
     <section class="panel chronicle" aria-label="World chronicle"><div class="panel-heading"><h2>Chronicle</h2><button id="toggleChronicle" type="button" aria-expanded="true">Hide</button></div><div id="chronicleEntries" class="chronicle-entries" aria-live="polite"></div></section>
     <div id="prompt" class="prompt" hidden></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <section id="merchantPanel" class="merchant-panel" hidden aria-modal="true" role="dialog" aria-labelledby="merchantTitle">
+      <div class="merchant-card">
+        <header><div><div class="eyebrow">TOWN TRADE</div><h2 id="merchantTitle">Merchant</h2></div><button id="closeMerchant" type="button" aria-label="Close trade">×</button></header>
+        <p id="merchantIntro" class="merchant-intro">Sell crafted goods for coin.</p>
+        <div class="merchant-stats"><span>Budget <strong id="merchantBudget">0</strong></span><span>Your coins <strong id="merchantPlayerCoins">0</strong></span></div>
+        <h3>Eligible goods</h3>
+        <div id="merchantItems" class="merchant-items"></div>
+        <div class="merchant-qty" aria-label="Sell quantity">
+          <span>Qty</span>
+          <button type="button" data-qty="1" class="qty-chip active">1</button>
+          <button type="button" data-qty="10" class="qty-chip">10</button>
+          <button type="button" data-qty="all" class="qty-chip">All</button>
+          <input id="merchantQtyCustom" type="number" min="1" max="999" inputmode="numeric" placeholder="#" aria-label="Custom quantity" />
+        </div>
+        <div class="merchant-actions">
+          <button id="merchantSellOne" type="button">Sell One</button>
+          <button id="merchantSellSelected" type="button" class="secondary">Sell Selected</button>
+          <button id="merchantSellAll" type="button" class="secondary">Sell All Eligible</button>
+        </div>
+        <div id="merchantConfirm" class="merchant-confirm" hidden>
+          <div id="merchantConfirmText"></div>
+          <div class="merchant-confirm-actions">
+            <button id="merchantConfirmYes" class="confirm-yes" type="button">Confirm</button>
+            <button id="merchantConfirmNo" class="confirm-no" type="button">Cancel</button>
+          </div>
+        </div>
+        <div id="merchantReceipt" class="merchant-receipt" role="status" aria-live="polite" hidden></div>
+      </div>
+    </section>
     <section class="mobile-controls" aria-label="Movement controls">
       <div id="joystick" class="joystick" role="application" aria-label="Movement joystick"><div class="joystick-ring"></div><div id="joystickKnob" class="joystick-knob"></div></div>
       <button id="actionButton" class="action" type="button"><span>✦</span><strong>Interact</strong></button>
     </section>
     <section id="welcome" class="welcome" aria-modal="true" role="dialog" aria-labelledby="welcomeTitle"><div class="welcome-card"><div class="eyebrow">GPTWORLD · A WORLD THAT KEEPS CHANGING</div><h2 id="welcomeTitle">Enter the living world.</h2><p>GPTWorld does not reset when you leave. Weather and seasons continue, plants and animals live inside their own simulation, disasters can reshape the land, and the settlement changes through what travelers do.</p><p>Each device keeps one traveler and one personal world. Your progress returns automatically without a password.</p><div id="deviceStatus" class="device-status" role="status" aria-live="polite">Checking this device for a returning traveler…</div><div id="newTravelerForm"><label id="travelerNameLabel">Traveler name<input id="playerName" maxlength="20" autocomplete="nickname" value="" placeholder="Traveler name" /></label><div id="nameError" role="alert" hidden></div></div><div id="recoveryNotice" class="recovery-notice" hidden><strong>Save your recovery code</strong><span>Take a screenshot or store this somewhere safe. It restores this traveler if your browser data is erased.</span><code id="recoveryCode" class="recovery-code"></code><button id="copyRecoveryCode" class="secondary compact" type="button">Copy recovery code</button></div><div class="recovery-actions"><button id="recoverTraveler" class="secondary compact" type="button">Recover an existing traveler</button><div id="recoveryForm" hidden><label>Recovery code<input id="recoveryCodeInput" maxlength="30" autocomplete="off" placeholder="GW-XXXX-XXXX-XXXX-XXXX" /></label><button id="submitRecovery" class="secondary compact" type="button">Restore traveler on this device</button></div></div><button id="enterWorld" type="button" disabled>Checking device…</button><small class="device-note">Names must be appropriate. Clearing both website data and the recovery code can permanently disconnect this device from its traveler.</small></div></section>
   </main>
-  <script type="module" src="./main.js?v=sprint-interiors-2"></script>
+  <script type="module" src="./main.js?v=merchant-trade-1"></script>
   <script defer src="./day3.js?v=restore-storehouse-1"></script>
   <script defer src="./info-center.js?v=living-memory-1"></script>
   <script defer src="./wildlife-journal.js?v=1"></script>
