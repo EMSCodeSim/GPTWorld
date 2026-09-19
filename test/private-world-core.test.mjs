@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../netlify/lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,ownsWorld,privateLivingEntityView,privateObserverForLivingRenderer,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../netlify/lib/private-world-core.mjs';
 import {createPrivateWorldSnapshot,normalizeCachedPosition,snapshotToPrivateWorldPayload} from '../private-world-cache.mjs';
 import {WORLD_GATEWAY,isInsideWorldGateway} from '../world-gateway.mjs';
 
@@ -130,20 +130,54 @@ test('personal world synchronizes public weather, plants, and animal populations
   assert.notEqual(synced.species,ecosystem.species);
 });
 
+test('private living entities keep public behavior while gaining world-isolated identities',()=>{
+  const terrain=generatePrivateWorld(9123),entities=[
+    {id:'eco-animal-reed-runner-0',animalId:'reed-runner-0',part:'creature',x:12,z:4,heading:.5,behavior:'seeking food',foodTarget:'eco-plant-rivergrass-0'},
+    {id:'eco-plant-rivergrass-0-center',plantId:'plant-rivergrass-0-g1',clusterId:'eco-plant-rivergrass-0',part:'blade',x:-4,z:8,plantStage:'young'}
+  ];
+  const first=privateLivingEntityView(entities,{worldId:7,seed:9123,terrain}),again=privateLivingEntityView(entities,{worldId:7,seed:9123,terrain}),other=privateLivingEntityView(entities,{worldId:8,seed:9124,terrain:generatePrivateWorld(9124)});
+  assert.deepEqual(first,again);
+  assert.equal(first[0].behavior,'seeking food');
+  assert.match(first[0].id,/^private-7:/);
+  assert.match(first[0].animalId,/^private-7:/);
+  assert.match(first[0].foodTarget,/^private-7:/);
+  assert.match(first[1].plantId,/^private-7:/);
+  assert.notEqual(first[0].id,other[0].id);
+  assert.notDeepEqual({x:first[0].x,z:first[0].z},{x:other[0].x,z:other[0].z});
+  for(const entity of first){
+    assert.ok(Math.abs(entity.x)<=33.6&&Math.abs(entity.z)<=33.6);
+    assert.ok(Math.hypot(entity.x-terrain.water.x,entity.z-terrain.water.z)>=terrain.water.radius+.6);
+  }
+});
+
+test('private player position maps back to the shared renderer coordinate system',()=>{
+  const observer={x:6,z:-11},mapped=privateObserverForLivingRenderer(observer,9123);
+  assert.ok(Number.isFinite(mapped.x)&&Number.isFinite(mapped.z));
+  assert.notDeepEqual(mapped,observer);
+});
+
 test('private world uses the public living simulation and refreshes while occupied',async()=>{
-  const [server,client,publicResources]=await Promise.all([
+  const [server,client,publicResources,defaults]=await Promise.all([
     readFile(new URL('../netlify/functions/private-world.mjs',import.meta.url),'utf8'),
     readFile(new URL('../private-world.js',import.meta.url),'utf8'),
-    readFile(new URL('../netlify/functions/resource-state.mjs',import.meta.url),'utf8')
+    readFile(new URL('../netlify/functions/resource-state.mjs',import.meta.url),'utf8'),
+    readFile(new URL('../lib/resource-defaults.mjs',import.meta.url),'utf8')
   ]);
   assert.match(server,/ecologyRenderEntities\(living\.ecosystem/);
+  assert.match(server,/privateLivingEntityView\(sharedRules/);
+  assert.doesNotMatch(server,/filter\(entity=>!entity\.plantId\)/);
+  assert.match(server,/normalizePlant\(/);
   assert.match(server,/world_state WHERE key IN \('weather_sim','ecosystem','forest_pressure'\)/);
   assert.match(server,/regrow_minutes/);
   assert.match(client,/syncLivingEntities\(data\.world\.livingEntities/);
+  assert.match(client,/distanceToPlayer<7/);
+  assert.match(client,/classifyPrecipitation/);
+  assert.match(client,/createPineArt/);
   assert.match(client,/if\(time-lastLivingRefresh>12000\)refreshLivingWorld\(\)/);
-  assert.match(publicResources,/wood:\{max:6,regrowMinutes:60\}/);
-  assert.match(publicResources,/stone:\{max:4,regrowMinutes:90\}/);
-  assert.match(publicResources,/herbs:\{max:3,regrowMinutes:20\}/);
+  assert.match(publicResources,/from '\.\.\/\.\.\/lib\/resource-defaults\.mjs'/);
+  assert.match(defaults,/wood:\{max:6,regrowMinutes:60\}/);
+  assert.match(defaults,/stone:\{max:4,regrowMinutes:90\}/);
+  assert.match(defaults,/herbs:\{max:3,regrowMinutes:20\}/);
 });
 
 test('legacy private ecology upgrades without advancing simulation time',()=>{

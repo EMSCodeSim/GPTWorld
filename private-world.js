@@ -1,5 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
+import {createPineArt,createHerbArt} from './vegetation-art.js';
+import {classifyPrecipitation} from './lib/weather-visuals.mjs';
 
 const API='/.netlify/functions/private-world';
 const CRAFTING_API='/.netlify/functions/crafting';
@@ -92,12 +94,10 @@ function registerResource(object,visual,label){
 }
 
 function addTree(object){
-  const group=new THREE.Group(),growth=growthFor(object),scale=(object.scale||1)*(.62+growth*.42),palette=plantPalette();
+  const growth=growthFor(object),scale=(object.scale||1)*(.62+growth*.42);
+  const art=createPineArt(THREE,scale),group=art.group;
   group.position.set(object.x,0,object.z);
-  box(group,0x705039,[.48*scale,2.3*scale,.48*scale],[0,1.15*scale,0]);
-  const lower=new THREE.Mesh(new THREE.ConeGeometry(1.45*scale,2.45*scale,8),material(palette.leaf));lower.position.y=2.75*scale;lower.castShadow=true;group.add(lower);
-  const upper=new THREE.Mesh(new THREE.ConeGeometry(1.05*scale,2.2*scale,8),material(palette.leaf));upper.position.y=4.05*scale;upper.castShadow=true;group.add(upper);
-  group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
+  group.userData={growth,phase:hash01(object.id)*Math.PI*2,trunk:art.trunk,crown:art.crown};scene.add(group);plants.push(group);
   const stage=growth>.78?'mature':growth>.5?'growing':'young';
   registerResource(object,group,`${stage} tree`);
 }
@@ -109,10 +109,8 @@ function addRock(object){
 }
 
 function addHerbs(object){
-  const group=new THREE.Group(),growth=growthFor(object),palette=plantPalette();group.position.set(object.x,0,object.z);
-  for(let i=0;i<9;i++){const height=.68+growth*.48,blade=new THREE.Mesh(new THREE.ConeGeometry(.16,height,6),material(i%3?palette.herb:0x4d7b3b));blade.position.set((i%3-1)*.3,height/2,(Math.floor(i/3)-1)*.3);blade.rotation.z=(hash01(`${object.id}:${i}`)-.5)*.34;group.add(blade);}
-  for(const [x,z,c] of[[-.28,.1,0xe5c85f],[.2,-.18,0xd7e39a],[.34,.25,0xc98668]]){const bloom=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),material(c));bloom.position.set(x,1.02+growth*.22,z);group.add(bloom);}
-  group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
+  const growth=growthFor(object),group=createHerbArt(THREE,Math.max(.7,growth),String(object.id||'').length%2);
+  group.position.set(object.x,0,object.z);group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
   registerResource(object,group,'wild herbs');
 }
 
@@ -140,7 +138,7 @@ function addLivingPlant(entity){
   else if(part==='flower'){const mesh=new THREE.Mesh(new THREE.SphereGeometry(.5,9,7),material(entity.color||0xd8bd62));mesh.position.y=Math.max(.18,height*.8);mesh.scale.set(width,height,depth);group.add(mesh);}
   else box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
   group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);
-  if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' ');interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label}${entity.stage?` · ${String(entity.stage).replaceAll('-',' ')}`:''}. A living part of this world’s ecology.`});}
+  if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' '),stage=String(entity.plantStage||entity.stage||'mature').replaceAll('-',' '),health=Math.round(Number(entity.plantHealth??100)*(Number(entity.plantHealth??100)<=1?100:1)),available=Number(entity.harvestAvailable);interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label} · ${stage} · health ${health}%${Number.isFinite(available)?` · ${Math.max(0,Math.floor(available))} naturally available`:''}. Wildlife can feed here; gatherable plants are marked separately.`});}
   return group;
 }
 
@@ -252,13 +250,13 @@ function build(data){
 
 function statusForWeather(){const weather=String(currentEcology.weather||'clear');return weather==='clear'?'clear':weather.replace('heavy rain','raining heavily').replace('rain','raining');}
 function applyLivingVisuals(){
-  const weather=currentEcology.weather||'clear',snow=weather==='snow',wet=weather==='rain'||weather==='heavy rain';
+  const weatherClass=classifyPrecipitation(currentEcology.weather||'clear'),snow=weatherClass.snow,wet=weatherClass.wet;
   const sky=snow?0xaebbc1:wet?0x71858d:currentEcology.season==='Winter'?0x9eb5bb:0x8fb5be;
-  scene.background=color(sky);scene.fog=new THREE.Fog(sky,wet?28:40,wet?76:104);
+  scene.background=color(sky);scene.fog=new THREE.Fog(sky,weatherClass.foggy?28:40,weatherClass.foggy?76:104);
   ground.material.color.copy(color(plantPalette().ground)).lerp(color(0xdde5df),Number(currentEcology.snowCover||0)*.78);
   water.material.color.set(wet?0x385f71:0x4c8190);
   precipitation.visible=wet||snow;precipitation.material.color.set(snow?0xf4f7f6:0xaecfe0);precipitation.material.size=snow?.13:.07;
-  for(const cloud of clouds)cloud.visible=weather!=='clear';
+  for(const cloud of clouds)cloud.visible=!weatherClass.clear;
 }
 
 function updateStatus(){
@@ -271,7 +269,7 @@ function updateStatus(){
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 function craftingIcon(key){return `./assets/crafting/${encodeURIComponent(key)}.webp`;}
-function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&currentEcology?.weather!=='heavy rain';}
+function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&!classifyPrecipitation(currentEcology?.weather).wet;}
 function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}refreshCrateStorageLabel(sprite,item);}
 function updatePlacedItemState(itemId,changes){
   const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
@@ -378,7 +376,7 @@ function updateAnimals(dt,time){
     const data=animal.userData,distanceToPlayer=animal.position.distanceTo(player.position);
     let nearbyFire=null,fireDistance=Infinity;for(const sprite of placedCrafts.values()){if(!campfireBurning(sprite.userData.item))continue;const distance=animal.position.distanceTo(sprite.position);if(distance<7&&distance<fireDistance){nearbyFire=sprite;fireDistance=distance;}}
     if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
-    else if(distanceToPlayer<3.2){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
+    else if(distanceToPlayer<7){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
     else if(!data.serverDriven&&time>data.nextTurn){
       const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
       if(seekWater){const angle=hash01(`${data.phase}:water-shore`)*Math.PI*2,radius=Number(terrain.water.radius||0)+.9;data.behavior='seeking water';data.target.set(terrain.water.x+Math.cos(angle)*radius,0,terrain.water.z+Math.sin(angle)*radius);}

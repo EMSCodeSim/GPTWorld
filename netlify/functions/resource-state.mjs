@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
+import {RESOURCE_DEFAULTS} from '../../lib/resource-defaults.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -19,12 +20,6 @@ const HERB_POSITIONS=[[7,14],[-10,13],[17,-10],[-13,-3],[13,11]];
 TREE_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`tree-${i}`],{x,z}));
 ROCK_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`rock-${i}`],{x,z}));
 HERB_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`herb-${i}`],{x,z}));
-
-const RESOURCE_DEFAULTS = {
-  wood:{max:6,regrowMinutes:60},
-  stone:{max:4,regrowMinutes:90},
-  herbs:{max:3,regrowMinutes:20}
-};
 
 // Biological resources colonize new habitat after depletion. Stone deposits are finite.
 const MOBILE_RESOURCES=new Set(['wood','herbs']);
