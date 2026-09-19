@@ -10,6 +10,11 @@ const cleanName = (value) => String(value || 'Traveler').replace(/[<>]/g, '').tr
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const cleanInt = (value, max = 100000) => Math.max(0, Math.min(max, Math.floor(finite(value, 0))));
 
+const FIREBREAK_DEFAULT={wood:0,stone:0,woodGoal:6,stoneGoal:24,complete:false};
+async function ensureFirebreakProject(sql){
+  await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('firebreak_project',${JSON.stringify(FIREBREAK_DEFAULT)}::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
+}
+
 function entityArray(world) {
   const entities = world.world_entities;
   if (!entities || typeof entities !== 'object' || Array.isArray(entities)) return [];
@@ -42,6 +47,8 @@ export default async (req) => {
   const sql = neon(process.env.DATABASE_URL);
 
   try {
+    // Day 8 project state can initialize safely without advancing the narrative day.
+    await ensureFirebreakProject(sql);
     if (req.method === 'GET') {
       const url = new URL(req.url);
       const clientId = String(url.searchParams.get('clientId') || '').trim().slice(0, 80);
@@ -105,6 +112,71 @@ export default async (req) => {
         `;
         if (!result.length) return json({ ok:false, error:'not_enough_materials' },409);
         return json({ ok:true, inventory:{wood:Number(result[0].wood||0),stone:Number(result[0].stone||0),herbs:Number(result[0].herbs||0)}, render_entities:result[0].value });
+      }
+
+      if (body.action === 'contribute_firebreak') {
+        if (!(x <= -26 && z >= 5 && z <= 16)) return json({ok:false,error:'firebreak_out_of_range'},403);
+        const giveWood=Math.min(3,cleanInt(body.wood,3));
+        const giveStone=Math.min(8,cleanInt(body.stone,8));
+        if(giveWood+giveStone<1)return json({ok:false,error:'nothing_to_contribute'},400);
+        const result=await sql`
+          WITH project AS (
+            SELECT value FROM world_state WHERE key='firebreak_project' FOR UPDATE
+          ), calc AS (
+            SELECT
+              LEAST(${giveWood}::int,GREATEST(0,COALESCE((value->>'woodGoal')::int,6)-COALESCE((value->>'wood')::int,0))) AS accepted_wood,
+              LEAST(${giveStone}::int,GREATEST(0,COALESCE((value->>'stoneGoal')::int,24)-COALESCE((value->>'stone')::int,0))) AS accepted_stone,
+              COALESCE((value->>'wood')::int,0) AS current_wood,
+              COALESCE((value->>'stone')::int,0) AS current_stone,
+              COALESCE((value->>'woodGoal')::int,6) AS wood_goal,
+              COALESCE((value->>'stoneGoal')::int,24) AS stone_goal,
+              COALESCE((value->>'complete')::boolean,false) AS already_complete
+            FROM project
+          ), deduct AS (
+            UPDATE player_inventory pi SET wood=wood-calc.accepted_wood,stone=stone-calc.accepted_stone,updated_at=now()
+            FROM calc WHERE pi.player_id=${playerId} AND NOT calc.already_complete
+              AND pi.wood>=calc.accepted_wood AND pi.stone>=calc.accepted_stone
+              AND calc.accepted_wood+calc.accepted_stone>0
+            RETURNING calc.*,pi.wood AS inventory_wood,pi.stone AS inventory_stone,pi.herbs AS inventory_herbs
+          ), updated AS (
+            UPDATE world_state ws SET value=jsonb_build_object(
+              'wood',deduct.current_wood+deduct.accepted_wood,
+              'stone',deduct.current_stone+deduct.accepted_stone,
+              'woodGoal',deduct.wood_goal,'stoneGoal',deduct.stone_goal,
+              'complete',(deduct.current_wood+deduct.accepted_wood>=deduct.wood_goal AND deduct.current_stone+deduct.accepted_stone>=deduct.stone_goal)
+            ),updated_at=now()
+            FROM deduct WHERE ws.key='firebreak_project'
+            RETURNING ws.value,deduct.accepted_wood,deduct.accepted_stone,deduct.inventory_wood,deduct.inventory_stone,deduct.inventory_herbs
+          ), rendered AS (
+            UPDATE world_state ws SET value=jsonb_set(
+              COALESCE(ws.value,'{"entities":[]}'::jsonb),'{entities}',
+              COALESCE(ws.value->'entities','[]'::jsonb) || jsonb_build_array(
+                jsonb_build_object('id','western-firebreak','type','trail','points',jsonb_build_array(jsonb_build_array(-32,8),jsonb_build_array(-29.5,10.5),jsonb_build_array(-27,12.5)),'width',1.7,'color','#5f5141','label','Western firebreak'),
+                jsonb_build_object('id','western-firebreak-marker-a','type','object','x',-32.2,'z',8.2,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn'),
+                jsonb_build_object('id','western-firebreak-marker-b','type','object','x',-27.1,'z',12.4,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn')
+              )
+            ),updated_at=now()
+            FROM updated
+            WHERE ws.key='render_entities' AND (updated.value->>'complete')::boolean=true
+              AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(ws.value->'entities','[]'::jsonb)) e WHERE e->>'id'='western-firebreak')
+            RETURNING ws.value
+          ), logged AS (
+            INSERT INTO world_events(player_id,event_type,payload)
+            SELECT ${playerId},'firebreak_contribution',jsonb_build_object('wood',accepted_wood,'stone',accepted_stone,'complete',(value->>'complete')::boolean) FROM updated
+            UNION ALL
+            SELECT ${playerId},'western_firebreak_completed',jsonb_build_object('day',8,'location','timber_line') FROM updated WHERE (value->>'complete')::boolean=true
+            RETURNING id
+          )
+          SELECT value,accepted_wood,accepted_stone,inventory_wood,inventory_stone,inventory_herbs,(SELECT value FROM rendered LIMIT 1) AS render_entities FROM updated
+        `;
+        if(!result.length){
+          const currentRows=await sql`SELECT value FROM world_state WHERE key='firebreak_project' LIMIT 1`;
+          const current=currentRows[0]?.value||FIREBREAK_DEFAULT;
+          if(current.complete)return json({ok:true,firebreak:current,contributed:{wood:0,stone:0}});
+          return json({ok:false,error:'not_enough_materials'},409);
+        }
+        const row=result[0];
+        return json({ok:true,firebreak:row.value,contributed:{wood:Number(row.accepted_wood||0),stone:Number(row.accepted_stone||0)},inventory:{wood:Number(row.inventory_wood||0),stone:Number(row.inventory_stone||0),herbs:Number(row.inventory_herbs||0)},render_entities:row.render_entities||null});
       }
 
       if (body.action === 'contribute_bridge') {
