@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
+import {PRIVATE_INTERIOR_SPAWN_KEY,interiorEntryUrl,rememberOutdoorPosition} from './lib/interior-core.mjs';
 
 const API='/.netlify/functions/private-world';
 const CRAFTING_API='/.netlify/functions/crafting';
@@ -26,16 +27,20 @@ const statusEls={clock:$('privateClock'),season:$('season'),weather:$('weather')
 const inventoryEls={wood:$('woodCount'),stone:$('stoneCount'),herbs:$('herbCount')};
 const syncStateEl=$('syncState');
 const craftingPanel=$('craftingPanel'),craftingResult=$('craftingResult'),craftingSkills=$('craftingSkills'),craftingRecipes=$('craftingRecipes'),craftedItems=$('craftedItems'),craftButton=$('craftButton'),closeCrafting=$('closeCrafting');
+const constructionPanel=$('constructionPanel'),houseBlueprint=$('houseBlueprint');
 const craftedUsePanel=$('craftedUsePanel'),craftedUseTitle=$('craftedUseTitle'),craftedUseIcon=$('craftedUseIcon'),craftedUseStatus=$('craftedUseStatus'),craftedUseControls=$('craftedUseControls'),closeCraftedUse=$('closeCraftedUse');
 
 let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
-let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,livingRefreshBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
+let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,livingRefreshBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,houseBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null;
+let previousSkills=[];
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
 const placedCrafts=new Map();
 const livingEntityObjects=new Map();
+const homesteadBuildings=new Map();
+const homesteadDoors=[];
 const craftRaycaster=new THREE.Raycaster(),craftPointer=new THREE.Vector2();
 let craftTapStart=null;
 
@@ -204,6 +209,7 @@ function refreshCrateStorageLabel(sprite,item){
 }
 
 function addPlacedCraft(item){
+  if(item?.metadata?.interior===true)return;
   if(placedCrafts.has(String(item.id)))return;
   const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
@@ -211,6 +217,47 @@ function addPlacedCraft(item){
   if(item.key==='campfire-kit'){const fireGroup=makeCampfireFlame(item);sprite.userData.fireGroup=fireGroup;sprite.userData.fireLight=fireGroup.userData.light;}
   scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);refreshCrateStorageLabel(sprite,item);
   interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
+}
+
+function addHomesteadBuilding(building){
+  if(!building?.id||homesteadBuildings.has(String(building.id)))return;
+  const width=Number(building.width||7),depth=Number(building.depth||6),x=Number(building.x||0),z=Number(building.z||0);
+  const group=new THREE.Group();group.position.set(x,0,z);
+  box(group,0x8f7354,[width,3.1,depth],[0,1.55,0]);
+  box(group,0x5a3d2c,[width+.35,.28,depth+.35],[0,3.2,0]);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,2.05,4),material(0x6b4a33));
+  roof.position.y=4.15;roof.rotation.y=Math.PI/4;roof.castShadow=true;roof.receiveShadow=true;group.add(roof);
+  box(group,0x3f2c22,[.18,1.35,width*.72],[-width/2+.12,2.55,0]);
+  box(group,0x3f2c22,[.18,1.35,width*.72],[width/2-.12,2.55,0]);
+  const door=box(group,0x4b3422,[1.2,2.1,.2],[0,1.05,depth/2+.12]);
+  door.castShadow=false;door.userData.buildingId=building.key||'homestead';door.userData.buildingKey=building.key||'homestead';door.userData.buildingRecordId=String(building.id);door.userData.buildingLabel='your homestead';
+  homesteadDoors.push(door);scene.add(group);
+  blockers.push({x,z,halfX:width/2*.9,halfZ:depth/2*.9});
+  const interactable={type:'building',label:'your homestead',building,object:group,radius:3.5};
+  interactables.push(interactable);
+  homesteadBuildings.set(String(building.id),{building,group,door,interactable});
+  return group;
+}
+
+function enterHomestead(building){
+  if(!building?.id||!running)return;
+  const position=rememberOutdoorPosition(currentPosition(),building.key||'homestead');
+  try{sessionStorage.setItem(PRIVATE_INTERIOR_SPAWN_KEY,JSON.stringify(position));}catch{}
+  const url=interiorEntryUrl('homestead','./interior.html',{from:'private',buildingId:String(building.id)});
+  if(!url){showToast('Your homestead interior could not open.');return;}
+  running=false;window.location.assign(url);
+}
+
+function restorePrivateInteriorSpawn(data){
+  const params=new URLSearchParams(location.search);
+  if(params.get('from')!=='private-interior')return data;
+  try{
+    const saved=JSON.parse(sessionStorage.getItem(PRIVATE_INTERIOR_SPAWN_KEY)||'null');
+    if(saved&&Number.isFinite(Number(saved.x))&&Number.isFinite(Number(saved.z))){
+      data.session={...data.session,position:{x:Number(saved.x),z:Number(saved.z)}};
+    }
+  }catch{}
+  return data;
 }
 function removePlacedCraft(itemId){
   const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}if(sprite.userData.storageLabel){scene.remove(sprite.userData.storageLabel);sprite.userData.storageLabel.material.map?.dispose();sprite.userData.storageLabel.material.dispose();}placedCrafts.delete(id);
@@ -225,6 +272,7 @@ function makePrecipitation(){
 }
 
 function build(data){
+  data=restorePrivateInteriorSpawn(data);
   loadedPayload=data;terrain=data.world.terrain;currentEcology=data.world.ecology;worldSeed=data.world.seed;
   resourceStates.clear();for(const node of data.world.resources||[])resourceStates.set(node.nodeId,node);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.1,210);
@@ -240,7 +288,9 @@ function build(data){
   syncLivingEntities(data.world.livingEntities||[]);
   for(let i=0;i<4;i++)addCloud(i);makePrecipitation();
   player=makeHumanoid();player.position.set(Number(data.session.position.x)||0,0,Number(data.session.position.z)||8);scene.add(player);
-  for(const item of data.world.placedItems||[])addPlacedCraft(item);
+  for(const item of data.world.placedItems||[]){if(item?.metadata?.interior===true)continue;addPlacedCraft(item);}
+  homesteadBuildings.clear();homesteadDoors.length=0;
+  for(const building of data.world.buildings||[])addHomesteadBuilding(building);
   camera.position.set(player.position.x+12,14,player.position.z+12);clock=new THREE.Clock();
   $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
@@ -275,27 +325,130 @@ function updatePlacedItemState(itemId,changes){
   const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
   if(loadedPayload?.world){const saved=(loadedPayload.world.placedItems||[]).find(entry=>String(entry.id)===String(itemId));if(saved)Object.assign(saved,changes);cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}return item;
 }
-function canAfford(recipe){return Object.entries(recipe.inputs).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);}
+function canAfford(recipe){
+  if(recipe.locked||recipe.unlocked===false)return false;
+  return Object.entries(recipe.inputs||{}).every(([resource,amount])=>Number(craftingData?.inventory?.[resource]||0)>=amount);
+}
+function skillLabel(key){return String(key||'').replace(/^./,letter=>letter.toUpperCase());}
+function recipeForItem(item){return (craftingData?.recipes||[]).find(recipe=>recipe.key===item.key)||null;}
+function isComponentItem(item){
+  const recipe=recipeForItem(item);
+  return Boolean(item?.metadata?.component||recipe?.component||recipe?.category==='components');
+}
+function isPlaceableItem(item){
+  if(item?.placed||isComponentItem(item))return false;
+  const recipe=recipeForItem(item);
+  if(recipe)return recipe.placeable!==false;
+  return !['healing-poultice','weather-tonic','trail-rations','seed-pouch','wooden-beam','wooden-door','stone-foundation','iron-fittings'].includes(item.key);
+}
+function showUnlockToasts(unlocks=[]){
+  for(const unlock of unlocks){
+    const message=unlock.message||`${skillLabel(unlock.skill)} unlock: ${unlock.name}`;
+    showToast(message);
+    const title=document.createElement('strong'),detail=document.createElement('span');
+    title.textContent='Recipe unlocked';detail.textContent=message;
+    craftingResult.dataset.outcome='success';craftingResult.classList.add('unlock-toast');
+    craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;
+  }
+}
 function showCraftingResult(data,recipe){
   const title=document.createElement('strong'),detail=document.createElement('span'),before=Number(data.skill.before),after=Number(data.skill.value),gain=Math.max(0,after-before);
+  craftingResult.classList.remove('unlock-toast');
   craftingResult.dataset.outcome=data.success?'success':'failure';
   title.textContent=data.success?`Success — ${data.quality} ${recipe.name}`:`Attempt failed — ${recipe.name}`;
-  detail.textContent=`${data.skill.key[0].toUpperCase()+data.skill.key.slice(1)} ${before.toFixed(2)} → ${after.toFixed(2)} (+${gain.toFixed(2)}). ${data.success?'Item added to your possessions.':'Some materials were lost.'}`;
+  detail.textContent=`${skillLabel(data.skill.key)} ${before.toFixed(2)} → ${after.toFixed(2)} (+${gain.toFixed(2)}). ${data.success?'Item added to your possessions.':'Some materials were lost.'}`;
   craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;craftingResult.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(data.unlocks?.length)showUnlockToasts(data.unlocks);
 }
 function showCraftingError(message){
   const title=document.createElement('strong'),detail=document.createElement('span');title.textContent='Crafting could not complete';detail.textContent=message;
+  craftingResult.classList.remove('unlock-toast');
   craftingResult.dataset.outcome='failure';craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;craftingResult.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function renderConstruction(){
+  if(!houseBlueprint)return;
+  const house=craftingData?.house;
+  if(!house){houseBlueprint.replaceChildren(Object.assign(document.createElement('div'),{className:'house-empty',textContent:'Homestead blueprints unlock with Construction skill.'}));return;}
+  const card=document.createElement('article');card.className=`house-blueprint-card${house.locked?' locked':''}`;
+  const heading=document.createElement('div');heading.className='house-heading';
+  const title=document.createElement('strong');title.textContent=house.name||'Basic Homestead';
+  const skill=document.createElement('span');skill.textContent=house.locked?`Locked · need Construction ${house.requiredSkill}`:`Construction ${Number(house.currentSkill||0).toFixed(1)} / ${house.requiredSkill}`;
+  heading.append(title,skill);
+  const description=document.createElement('p');description.textContent=house.description||'A private walkable cabin.';
+  const materials=document.createElement('ul');materials.className='house-checklist';
+  for(const [resource,amount] of Object.entries(house.materials||{})){
+    const have=Number(house.inventory?.[resource]??craftingData?.inventory?.[resource]??0);
+    const row=document.createElement('li');row.className=have>=amount?'ready':'missing';
+    row.innerHTML=`<span>${amount} ${resource}</span><span>${have}/${amount}</span>`;
+    materials.append(row);
+  }
+  const components=document.createElement('ul');components.className='house-checklist';
+  for(const need of house.components||[]){
+    const owned=Number(need.owned||0),amount=Number(need.amount||1);
+    const name=need.recipe?.name||need.key;
+    const row=document.createElement('li');row.className=owned>=amount?'ready':'missing';
+    row.innerHTML=`<span>${name}</span><span>${owned}/${amount}</span>`;
+    components.append(row);
+  }
+  const meta=document.createElement('div');meta.className='house-meta';
+  const chance=document.createElement('span');chance.textContent=`${Math.round(Number(house.chance||0)*100)}% estimated success`;
+  const result=document.createElement('span');result.textContent='Result: walkable homestead cabin';
+  meta.append(chance,result);
+  const button=document.createElement('button');button.type='button';
+  button.textContent=house.locked?`Requires Construction ${house.requiredSkill}`:house.canAttempt?'Build homestead':'Need materials or components';
+  button.disabled=houseBusy||craftBusy||!house.canAttempt;
+  button.addEventListener('click',()=>buildHouse());
+  card.append(heading,description,materials,components,meta,button);
+  houseBlueprint.replaceChildren(card);
 }
 function renderCrafting(){
   if(!craftingData)return;
-  craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skill.key[0].toUpperCase()+skill.key.slice(1);progress.textContent=`${skill.value.toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
-  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{const card=document.createElement('article');card.className='recipe-card';const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');image.className='recipe-icon';image.src=craftingIcon(recipe.key);image.alt='';image.loading='lazy';title.textContent=recipe.name;description.textContent=recipe.description;meta.className='recipe-meta';cost.textContent=resourceText(recipe.inputs);chance.textContent=`${Math.round(recipe.chance*100)}% success`;button.type='button';button.textContent=canAfford(recipe)?'Craft item':'Need materials';button.disabled=craftBusy||!canAfford(recipe);button.addEventListener('click',()=>craftRecipe(recipe));meta.append(cost,chance);content.append(title,description,meta,button);card.append(image,content);return card;}));
-  craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{const row=document.createElement('div');row.className='crafted-item';const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),button=document.createElement('button');image.src=craftingIcon(item.key);image.alt='';image.loading='lazy';title.textContent=`${item.quality} ${item.name}`;detail.textContent=item.placed?'Placed in your world · approach it to pick it up':`${item.profession} · ${item.durability}/${item.maxDurability} durability`;button.type='button';button.textContent=item.placed?'Placed':'Place';button.disabled=itemBusy||Boolean(item.placed);button.addEventListener('click',()=>placeCraftedItem(item));content.append(title,detail);row.append(image,content,button);return row;}):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your bag is empty. Crafted items will appear here.'})]));
+  craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skillLabel(skill.key);progress.textContent=`${Number(skill.value).toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
+  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{
+    const locked=Boolean(recipe.locked||recipe.unlocked===false);
+    const card=document.createElement('article');card.className=`recipe-card${locked?' locked':''}`;
+    const image=document.createElement('img'),content=document.createElement('div'),profession=document.createElement('div'),title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');
+    image.className='recipe-icon';image.src=craftingIcon(recipe.key);image.alt='';image.loading='lazy';
+    profession.className='recipe-profession';profession.textContent=`${skillLabel(recipe.skill)}${recipe.requiredSkill?` · skill ${recipe.requiredSkill}+`:''}`;
+    title.textContent=recipe.name;
+    description.textContent=locked?`Locked · need ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`:recipe.description;
+    meta.className='recipe-meta';
+    cost.textContent=locked?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`:resourceText(recipe.inputs);
+    chance.textContent=locked?'Locked':`${Math.round(Number(recipe.chance||0)*100)}% success`;
+    button.type='button';
+    if(locked){button.textContent=`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`;button.disabled=true;}
+    else{button.textContent=canAfford(recipe)?'Craft item':'Need materials';button.disabled=craftBusy||!canAfford(recipe);button.addEventListener('click',()=>craftRecipe(recipe));}
+    meta.append(cost,chance);content.append(profession,title,description,meta,button);card.append(image,content);return card;
+  }));
+  renderConstruction();
+  craftedItems.replaceChildren(...(craftingData.items.length?craftingData.items.map(item=>{
+    const row=document.createElement('div');row.className='crafted-item';
+    const image=document.createElement('img'),content=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),button=document.createElement('button');
+    image.src=craftingIcon(item.key);image.alt='';image.loading='lazy';
+    title.textContent=`${item.quality} ${item.name}`;
+    const component=isComponentItem(item),placeable=isPlaceableItem(item);
+    detail.textContent=item.placed?'Placed in your world · approach it to pick it up':component?`${item.profession} · construction component · held in bag`:`${item.profession} · ${item.durability}/${item.maxDurability} durability`;
+    button.type='button';
+    if(item.placed){button.textContent='Placed';button.disabled=true;}
+    else if(component){button.textContent='Held';button.disabled=true;}
+    else if(!placeable){button.textContent='Held';button.disabled=true;}
+    else{
+      const house=currentHomestead();
+      if(house&&['wooden-crate','stone-hearth','reed-mat','campfire-kit'].includes(item.key)){
+        button.textContent='Install in house';button.disabled=itemBusy;button.addEventListener('click',()=>installInteriorFurniture(item,house));
+      }else{button.textContent='Place';button.disabled=itemBusy;button.addEventListener('click',()=>placeCraftedItem(item));}
+    }
+    content.append(title,detail);row.append(image,content,button);return row;
+  }):[Object.assign(document.createElement('div'),{className:'crafted-empty',textContent:'Your bag is empty. Crafted items will appear here.'})]));
 }
 async function loadCrafting(){
   if(!navigator.onLine){showToast('Reconnect to open your authoritative crafting ledger.');return false;}
-  try{const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');craftingData=data;renderCrafting();craftingResult.hidden=true;return true;}catch(error){showCraftingError(error.message==='crafting_migration_required'?'The crafting database is still updating. Close the bag and try again shortly.':'The bag could not sync. Check your connection, then close and reopen it.');return false;}
+  try{
+    const response=await fetch(`${CRAFTING_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'crafting_load_failed');
+    previousSkills=(craftingData?.skills||data.skills||[]).map(skill=>({key:skill.key,value:Number(skill.value)}));
+    craftingData=data;renderCrafting();craftingResult.hidden=true;craftingResult.classList.remove('unlock-toast');return true;
+  }catch(error){showCraftingError(error.message==='crafting_migration_required'?'The crafting database is still updating. Close the bag and try again shortly.':'The bag could not sync. Check your connection, then close and reopen it.');return false;}
 }
 async function openCrafting(){
   craftingPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();craftingResult.dataset.outcome='loading';craftingResult.hidden=false;craftingResult.innerHTML='<strong>Opening your bag…</strong><span>Syncing skills, recipes, and crafted possessions.</span>';
@@ -333,19 +486,62 @@ async function useCraftedItem(item,action,extra={}){
   finally{itemBusy=false;renderCraftedUse(item);}
 }
 async function craftRecipe(recipe){
-  if(craftBusy||!canAfford(recipe))return;craftBusy=true;renderCrafting();
+  if(craftBusy||!canAfford(recipe)||recipe.locked||recipe.unlocked===false)return;craftBusy=true;renderCrafting();
   try{
     const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,recipeKey:recipe.key,idempotencyKey:requestKey(`craft-${recipe.key}`)})}),data=await response.json();
     if(!response.ok||!data.ok)throw Error(data.error||'craft_failed');
     showCraftingResult(data,recipe);
     await loadCrafting();for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(craftingData.inventory?.[key]||0);
-  }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='private_world_required'?'Craft inside your personal world.':'Please try again. No success was recorded.');}
+  }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='recipe_locked'?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}.`:error.message==='private_world_required'?'Craft inside your personal world.':'Please try again. No success was recorded.');}
   finally{craftBusy=false;renderCrafting();}
 }
 async function placeCraftedItem(item){
-  if(itemBusy||item.placed)return;itemBusy=true;renderCrafting();await savePosition();
+  if(itemBusy||item.placed||!isPlaceableItem(item))return;itemBusy=true;renderCrafting();await savePosition();
   const position={x:clamp(player.position.x+Math.sin(player.rotation.y)*2.6,-32,32),z:clamp(player.position.z+Math.cos(player.rotation.y)*2.6,-32,32),rotation:player.rotation.y};
   try{const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'place_item',itemId:item.id,position,idempotencyKey:requestKey(`place-${item.id}`)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'place_failed');const placed={...data.item,...data.item.placed};addPlacedCraft(placed);if(loadedPayload?.world){loadedPayload.world.placedItems=[...(loadedPayload.world.placedItems||[]).filter(entry=>String(entry.id)!==String(item.id)),placed];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}await loadCrafting();showCraftingError(`${item.name} was placed nearby. Close your bag to see it.`);craftingResult.dataset.outcome='success';craftingResult.firstElementChild.textContent=`Placed — ${item.name}`;}catch{showCraftingError('Move to a clear nearby spot and try placing the item again.');}finally{itemBusy=false;renderCrafting();}
+}
+function currentHomestead(){
+  const fromPayload=(loadedPayload?.world?.buildings||[]).find(building=>building.key==='homestead'||building.type==='house');
+  if(fromPayload)return fromPayload;
+  for(const record of homesteadBuildings.values())return record.building;
+  return (craftingData?.buildings||[]).find(building=>building.key==='homestead')||null;
+}
+async function installInteriorFurniture(item,house){
+  if(itemBusy||item.placed||!house?.id)return;itemBusy=true;renderCrafting();
+  const slots=[[-3.2,2.1],[3.1,-2.4],[-1.5,2.6],[2.8,2.5],[0,-2.8]];
+  const index=Math.abs(Number(item.id)||0)%slots.length,position={x:slots[index][0],z:slots[index][1],rotation:0};
+  try{
+    const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'place_interior_furniture',itemId:item.id,buildingId:house.id,position,idempotencyKey:requestKey(`interior-${item.id}`)})}),data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'furniture_failed');
+    await loadCrafting();
+    showCraftingError(`${item.name} was installed inside your homestead. Enter the cabin to see it.`);
+    craftingResult.dataset.outcome='success';craftingResult.firstElementChild.textContent=`Installed — ${item.name}`;
+  }catch{showCraftingError('Could not install that item in your house. Try again after the cabin is built.');}
+  finally{itemBusy=false;renderCrafting();}
+}
+async function buildHouse(){
+  const house=craftingData?.house;if(houseBusy||craftBusy||!house?.canAttempt)return;houseBusy=true;renderCrafting();await savePosition();
+  const position={x:clamp(player.position.x+Math.sin(player.rotation.y)*4.2,-28,28),z:clamp(player.position.z+Math.cos(player.rotation.y)*4.2,-28,28)};
+  try{
+    const response=await fetch(CRAFTING_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action:'build_house',position,idempotencyKey:requestKey('build-house')})}),data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'build_failed');
+    if(data.inventory){for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory[key]||0);if(loadedPayload)loadedPayload.inventory={...data.inventory};}
+    const title=document.createElement('strong'),detail=document.createElement('span');
+    craftingResult.classList.remove('unlock-toast');
+    if(data.success&&data.building){
+      addHomesteadBuilding(data.building);
+      if(loadedPayload?.world){loadedPayload.world.buildings=[...(loadedPayload.world.buildings||[]).filter(entry=>String(entry.id)!==String(data.building.id)),data.building];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}
+      craftingResult.dataset.outcome='success';title.textContent='Homestead raised';detail.textContent=`Success (${Math.round(Number(data.chance||0)*100)}% roll). Approach the door to enter your cabin.`;
+    }else{
+      craftingResult.dataset.outcome='failure';title.textContent='Construction faltered';
+      const spent=data.materialsSpent||{};detail.textContent=`The frame failed (${Math.round(Number(data.chance||0)*100)}% chance). Lost ${spent.wood||0} wood, ${spent.stone||0} stone, ${spent.herbs||0} herbs.${data.componentsConsumed?' Components were also spent.':' Components were spared.'}`;
+    }
+    craftingResult.replaceChildren(title,detail);craftingResult.hidden=false;
+    if(data.unlocks?.length)showUnlockToasts(data.unlocks);
+    await loadCrafting();
+  }catch(error){
+    showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='missing_components'?'Craft the required components first.':error.message==='house_already_built'?'You already have a homestead here.':error.message==='invalid_build_site'?'Move to a clearer build site away from water and other buildings.':error.message==='construction_skill_locked'?'Construction skill is still too low.':error.message==='private_world_required'?'Build inside your personal world.':'The homestead could not be built. Try again.');
+  }finally{houseBusy=false;renderCrafting();}
 }
 async function pickupCraftedItem(item){
   if(itemBusy)return;itemBusy=true;actionButton.disabled=true;await savePosition();
@@ -417,7 +613,7 @@ function updateEnvironment(dt,time){
 }
 
 function plantDescription(item,node){const plant=node?.plant;if(!plant)return node?.remaining>0?`${item.label} · ${node.remaining}/${node.maxAmount} available`:`${item.label} is depleted`;const stage=String(plant.stage||'mature'),health=Math.round(Number(plant.health??100)),available=Math.floor(Number(plant.resources??node.remaining??0)),reason=stage==='dead'?'Dead. A new plant may establish here later.':available<=0?'Depleted and recovering.':'Ready to harvest.';return `${item.label} · ${stage} · health ${health}% · ${available}/${node.maxAmount} available. ${reason}`;}
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.placedItemId?`Use ${best.label}`:node?`Inspect ${best.label} · ${node.remaining}/${node.maxAmount}`:`Inspect ${best.label}`;}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.type==='building'?`Enter ${best.label}`:best.placedItemId?`Use ${best.label}`:node?`Inspect ${best.label} · ${node.remaining}/${node.maxAmount}`:`Inspect ${best.label}`;}
 async function gather(item){
   const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
   if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
@@ -433,10 +629,15 @@ async function gather(item){
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
-function interact(){if(!nearest)return;if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function interact(){if(!nearest)return;if(nearest.type==='building'){enterHomestead(nearest.building);return;}if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
 function openPlacedCraftFromTap(event){
   if(!running||!craftTapStart||!craftingPanel.hidden||!craftedUsePanel.hidden)return;const distance=Math.hypot(event.clientX-craftTapStart.x,event.clientY-craftTapStart.y);craftTapStart=null;if(distance>12)return;
   const bounds=renderer.domElement.getBoundingClientRect();craftPointer.set((event.clientX-bounds.left)/bounds.width*2-1,-((event.clientY-bounds.top)/bounds.height)*2+1);craftRaycaster.setFromCamera(craftPointer,camera);
+  const doorHit=craftRaycaster.intersectObjects(homesteadDoors,false)[0];
+  if(doorHit?.object?.userData?.buildingRecordId){
+    const record=homesteadBuildings.get(String(doorHit.object.userData.buildingRecordId));
+    if(record){if(player.position.distanceTo(record.group.position)>5){showToast('Move closer to enter your homestead.');return;}enterHomestead(record.building);return;}
+  }
   const hit=craftRaycaster.intersectObjects([...placedCrafts.values()],false)[0];if(!hit)return;const sprite=hit.object,item=sprite.userData.item;if(player.position.distanceTo(sprite.position)>5){showToast(`Move closer to use ${item.name}.`);return;}openCraftedUse(item);
 }
 function currentPosition(){return{x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))};}

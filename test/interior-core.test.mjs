@@ -23,11 +23,13 @@ test('town buildings unlock playable interiors only at level 2+',()=>{
   assert.equal(canEnterBuilding(2),true);
   assert.equal(canEnterBuilding(3),true);
   assert.equal(canEnterBuilding('2'),true);
+  assert.equal(canEnterBuilding(1,'homestead'),true);
   assert.equal(normalizeBuildingLevel(99),3);
   for(const id of Object.keys(BUILDING_INTERIORS)){
     assert.ok(BUILDING_EXTERIORS[id],'exterior spawn exists for '+id);
     assert.ok(interiorEntryUrl(id)?.includes(`building=${id}`));
   }
+  assert.ok(interiorEntryUrl('homestead','./interior.html',{from:'private'})?.includes('from=private'));
 });
 
 test('entering records outdoor position and exiting resumes the public world',()=>{
@@ -102,7 +104,17 @@ test('public client saves outdoor spawn and auto-resumes after interior exit',as
   assert.match(interior,/interactionResult/);
   assert.match(interior,/resolveInteriorObjects/);
   assert.match(interior,/isInsideExitThreshold/);
+  assert.match(interior,/loadPrivateHomestead/);
+  assert.match(interior,/PRIVATE_INTERIOR_SPAWN_KEY/);
+  assert.match(interior,/fromPrivate/);
   const html=await readFile(new URL('../interior.html',import.meta.url),'utf8');
   assert.match(html,/from=interior/);
   assert.match(html,/user-scalable=no/);
+});
+
+test('homestead reuses town interior architecture for private cabins',()=>{
+  assert.ok(BUILDING_INTERIORS.homestead.alwaysOpen);
+  assert.ok(BUILDING_INTERIORS.homestead.private);
+  assert.equal(loadingOutcome({buildingId:'homestead',level:1}).ok,true);
+  assert.ok(resolveInteriorObjects('homestead',2).length>=3);
 });

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — My World</title>
   <link rel="stylesheet" href="./styles.css?v=living-worlds-5" />
-  <link rel="stylesheet" href="./private-world.css?v=living-worlds-14" />
+  <link rel="stylesheet" href="./private-world.css?v=living-worlds-15" />
 </head>
 <body>
   <main id="app">
@@ -25,6 +25,10 @@
         <div id="craftingResult" class="crafting-result" role="status" aria-live="polite" hidden></div>
         <div id="craftingSkills" class="crafting-skills"></div>
         <div id="craftingRecipes" class="crafting-recipes"></div>
+        <section id="constructionPanel" class="construction-panel" aria-label="Homestead construction">
+          <h3>Homestead construction</h3>
+          <div id="houseBlueprint" class="house-blueprint"></div>
+        </section>
         <h3>Crafted possessions</h3><div id="craftedItems" class="crafted-items"></div>
       </div>
     </section>
@@ -40,6 +44,6 @@
     <section id="loading" class="welcome" aria-modal="true" role="dialog"><div class="welcome-card"><div class="eyebrow">PRIVATE LIVING WORLD</div><h2 id="loadingTitle">Opening your world…</h2><p id="loadingMessage">Loading its persistent landscape and catching up bounded offline ecology.</p><button id="retry" type="button" hidden>Try again</button><a class="loading-return" href="./index.html">Return to Public Town</a></div></section>
   </main>
   <script src="./private-world-shell.js?v=living-worlds-10"></script>
-  <script type="module" src="./private-world.js?v=shared-clock-1"></script>
+  <script type="module" src="./private-world.js?v=construction-2"></script>
 </body>
 </html>
