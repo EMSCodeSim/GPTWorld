@@ -212,6 +212,19 @@ test('private gathering migration is additive and idempotent',async()=>{
   assert.doesNotMatch(sql,/\btruncate\b/);
 });
 
+test('private plant lifecycle backfill is additive and preserves legacy resources',async()=>{
+  const sql=(await readFile(new URL('../migrations/010_private_plant_lifecycle_backfill.sql',import.meta.url),'utf8')).toLowerCase();
+  assert.match(sql,/update private_world_resources/);
+  assert.match(sql,/lifecycleversion/);
+  assert.match(sql,/resource_type in \('wood', 'herbs'\)/);
+  assert.match(sql,/metadata.*->'plant' is null/s);
+  assert.match(sql,/remaining/);
+  assert.match(sql,/generation/);
+  assert.doesNotMatch(sql,/\bdrop\s+(table|column|database)\b/);
+  assert.doesNotMatch(sql,/\btruncate\b/);
+  assert.doesNotMatch(sql,/delete\s+from/);
+});
+
 test('private gathering remains server-authoritative and records world history',async()=>{
   const server=await readFile(new URL('../netlify/functions/private-world.mjs',import.meta.url),'utf8');
   assert.match(server,/current_world_type='private'/);
