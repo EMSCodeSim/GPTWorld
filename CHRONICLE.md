@@ -61,3 +61,11 @@ Sustained cutting pushed the nearby forest into critical pressure. When the sett
 A narrow logging spur now branches from the western survey route. A timber marker and two heavier pine stands make that decision visible in the shared landscape. The stands yield more wood than ordinary pines, but recover far more slowly.
 
 The settlement has gained another source of timber, but the cost of expansion is no longer abstract: the new route is a persistent scar in a forest already under pressure, and what travelers cut there will shape what follows.
+
+## Day 8 — The Western Firebreak
+
+Repeated wildfire reached the same western woods that travelers had already pushed into for timber. Rather than extending the logging line again, the settlement began a shared defensive project along the route.
+
+Travelers can contribute their own wood and stone to mark and clear a Western Firebreak. The project is recorded in the shared world, and when the final materials are committed the cleared line and its boundary cairns become persistent parts of the playable landscape.
+
+The firebreak does not command the weather or stop the autonomous disaster system. It is a practical mark of how the settlement is beginning to respond to consequences created by both the living world and its own expansion.
