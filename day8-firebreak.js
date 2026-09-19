@@ -1,3 +1,4 @@
+(function(){
 const API='/.netlify/functions/world-v2';
 const GAME_KEY='gptworld-day1';
 const CLIENT_KEY='gptworld-client-id';
@@ -99,3 +100,5 @@ ensureUI();
 setInterval(()=>{render();refresh()},1000);
 window.addEventListener('focus',()=>{lastFetch=0;refresh()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){lastFetch=0;refresh()}});
+
+})();

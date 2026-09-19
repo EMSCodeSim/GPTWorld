@@ -1,7 +1,7 @@
 import {neon} from '@neondatabase/serverless';
-import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
+import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateLivingEntityView,privateObserverForLivingRenderer,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
-import {harvestPlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
+import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const text=(value,max=80)=>String(value||'').trim().slice(0,max);
@@ -86,7 +86,9 @@ async function worldPayload(sql,player,world,catchUp,resources){
   const living=Object.fromEntries(livingRows.map(row=>[row.key,row.value]));
   const ecology=synchronizePrivateLivingState(world.ecology_state,living.weather_sim,living.ecosystem);
   const observer={x:Number(session.private_x),z:Number(session.private_z)};
-  const livingEntities=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,observer,living.forest_pressure).filter(entity=>!entity.plantId);
+  const rendererObserver=privateObserverForLivingRenderer(observer,world.seed);
+  const sharedRules=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,rendererObserver,living.forest_pressure);
+  const livingEntities=privateLivingEntityView(sharedRules,{worldId:world.id,seed:world.seed,terrain:world.terrain_state});
   return{ok:true,world:{id:world.id,name:world.name,seed:Number(world.seed),terrain:world.terrain_state,ecology,livingEntities,resources,placedItems:placedItems.map(item=>({id:String(item.id),key:item.item_key,name:item.display_name,quality:item.quality,x:Number(item.placed_x),z:Number(item.placed_z),rotation:Number(item.placed_rotation||0),placedAt:item.placed_at,metadata:item.metadata||{},storage:item.item_key==='wooden-crate'?{wood:Number(item.stored_wood||0),stone:Number(item.stored_stone||0),herbs:Number(item.stored_herbs||0),capacity:Number(item.capacity||60)}:null})),lastSimulatedAt:world.last_simulated_at},session:{worldType:session.current_world_type,position:observer},inventory:{wood:Number(player.wood||0),stone:Number(player.stone||0),herbs:Number(player.herbs||0)},catchUp:{steps:catchUp?.steps||0,capped:Boolean(catchUp?.capped)}};
 }
 
@@ -95,9 +97,11 @@ async function gatherResource(sql,player,world,key,nodeId){
   if(prior.length)return prior[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:prior[0].response;
   const targetRows=await sql`SELECT node_id,resource_type,x,z,max_amount,remaining,regrow_at,generation,metadata FROM private_world_resources WHERE world_id=${world.id} AND node_id=${nodeId} LIMIT 1`;
   const targetRow=targetRows[0];if(!targetRow)return{ok:false,error:'invalid_resource_node'};
-  const targetPlant=(targetRow.resource_type==='wood'||targetRow.resource_type==='herbs')?harvestPlant(targetRow.metadata?.plant,{amount:1,year:0,playerId:player.id}):null;
+  const plantKind=targetRow.resource_type==='wood'||targetRow.resource_type==='herbs';
+  const normalizedPlant=plantKind?normalizePlant(targetRow.metadata?.plant,{id:`${world.id}:${targetRow.node_id}`,speciesId:targetRow.resource_type==='wood'?'pine':'wild-herbs',year:0,slot:0,maxResources:Number(targetRow.max_amount||1),legacyMature:true}):null;
+  const targetPlant=normalizedPlant?harvestPlant(normalizedPlant,{amount:1,year:0,playerId:player.id}):null;
   if(targetPlant&&!targetPlant.ok)return{ok:false,error:targetPlant.error,node:privateResourceView(targetRows)[0]};
-  const nextMetadata={...(targetRow.metadata||{}),plant:targetPlant?.plant||targetRow.metadata?.plant,lastGrowthAt:new Date().toISOString()};if(targetPlant?.plant?.stage==='dead')nextMetadata.replacementAt=new Date(Date.now()+24*60*60*1000).toISOString();
+  const nextMetadata={...(targetRow.metadata||{}),plant:targetPlant?.plant||normalizedPlant||targetRow.metadata?.plant,lastGrowthAt:new Date().toISOString()};if(targetPlant?.plant?.stage==='dead')nextMetadata.replacementAt=new Date(Date.now()+24*60*60*1000).toISOString();
   const claim=await sql`
     INSERT INTO private_world_action_receipts(player_id,world_id,idempotency_key,action,response)
     SELECT ${player.id},r.world_id,${key},'gather_resource','{"ok":false,"error":"pending"}'::jsonb

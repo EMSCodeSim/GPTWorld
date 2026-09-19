@@ -1,10 +1,14 @@
+import {RESOURCE_DEFAULTS,privateKindToResource} from '../../lib/resource-defaults.mjs';
+
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const PRIVATE_RESOURCE_RULES=Object.freeze({
-  tree:{resource:'wood',maxAmount:6,regrowMinutes:60},
-  rock:{resource:'stone',maxAmount:4,regrowMinutes:90},
-  herbs:{resource:'herbs',maxAmount:3,regrowMinutes:20}
+  tree:{resource:'wood',maxAmount:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},
+  rock:{resource:'stone',maxAmount:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},
+  herbs:{resource:'herbs',maxAmount:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes}
 });
+
+export{RESOURCE_DEFAULTS,privateKindToResource};
 
 export function seedFromPlayerId(playerId){
   let x=BigInt(playerId||1)*6364136223846793005n+1442695040888963407n;
@@ -98,6 +102,49 @@ export function synchronizePrivateLivingState(privateState,sharedWeather,sharedE
     sharedWeatherTick:Number(weather.tick||0),
     sharedEcologyYear:Number(ecosystem.simulatedYear||0)
   };
+}
+
+function privateLivingTransform(seed){
+  const angle=((Math.abs(Number(seed)||1)%360)/180)*Math.PI;
+  return{angle,cos:Math.cos(angle),sin:Math.sin(angle),scale:.9};
+}
+
+function privateLivingId(worldId,value){
+  if(value===null||value===undefined||value==='')return value;
+  return`private-${worldId}:${String(value)}`;
+}
+
+function privateLandPoint(x,z,terrain){
+  const half=Math.max(4,Number(terrain?.size||70)/2-1.4);
+  let px=clamp(Number(x),-half,half),pz=clamp(Number(z),-half,half);
+  const water=terrain?.water;
+  if(!water)return{x:px,z:pz};
+  const dx=px-Number(water.x||0),dz=pz-Number(water.z||0),distance=Math.hypot(dx,dz),shore=Number(water.radius||0)+.65;
+  if(distance>=shore)return{x:px,z:pz};
+  const directionX=distance>.01?dx/distance:1,directionZ=distance>.01?dz/distance:0;
+  px=clamp(Number(water.x||0)+directionX*shore,-half,half);
+  pz=clamp(Number(water.z||0)+directionZ*shore,-half,half);
+  return{x:px,z:pz};
+}
+
+export function privateObserverForLivingRenderer(observer,seed){
+  const {cos,sin,scale}=privateLivingTransform(seed),x=Number(observer?.x||0)/scale,z=Number(observer?.z||0)/scale;
+  return{x:Number((x*cos+z*sin).toFixed(4)),z:Number((-x*sin+z*cos).toFixed(4))};
+}
+
+export function privateLivingEntityView(entities,{worldId,seed,terrain}={}){
+  const {angle,cos,sin,scale}=privateLivingTransform(seed);
+  return(entities||[]).map(entity=>{
+    const sourceX=Number(entity?.x||0),sourceZ=Number(entity?.z||0);
+    const point=privateLandPoint((sourceX*cos-sourceZ*sin)*scale,(sourceX*sin+sourceZ*cos)*scale,terrain);
+    const next={...entity,id:privateLivingId(worldId,entity.id),x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};
+    for(const key of['animalId','plantId','clusterId','foodTarget','consumedPlant','target']){
+      if(typeof entity[key]==='string')next[key]=privateLivingId(worldId,entity[key]);
+    }
+    if(Number.isFinite(Number(entity.heading)))next.heading=Number((Number(entity.heading)+angle).toFixed(4));
+    next.privateWorldId=String(worldId);
+    return next;
+  });
 }
 
 export function advancePrivateEcology(input,lastSimulatedAt,now=new Date()){

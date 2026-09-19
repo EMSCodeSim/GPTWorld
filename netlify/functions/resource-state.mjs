@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
+import {RESOURCE_DEFAULTS,proposeStoneDeposit,isValidStoneDepositPosition} from '../../lib/resource-defaults.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -9,7 +10,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 
 const DEFAULT_NODE_CONFIG = {
   'tree-0':{resource:'wood',max:6,regrowMinutes:60},'tree-1':{resource:'wood',max:6,regrowMinutes:60},'tree-2':{resource:'wood',max:6,regrowMinutes:60},'tree-3':{resource:'wood',max:6,regrowMinutes:60},'tree-4':{resource:'wood',max:6,regrowMinutes:60},'tree-5':{resource:'wood',max:6,regrowMinutes:60},'tree-6':{resource:'wood',max:6,regrowMinutes:60},'tree-7':{resource:'wood',max:6,regrowMinutes:60},'tree-8':{resource:'wood',max:6,regrowMinutes:60},'tree-9':{resource:'wood',max:6,regrowMinutes:60},'tree-10':{resource:'wood',max:6,regrowMinutes:60},'tree-11':{resource:'wood',max:6,regrowMinutes:60},'tree-12':{resource:'wood',max:6,regrowMinutes:60},'tree-13':{resource:'wood',max:6,regrowMinutes:60},'tree-14':{resource:'wood',max:6,regrowMinutes:60},'tree-15':{resource:'wood',max:6,regrowMinutes:60},'tree-16':{resource:'wood',max:6,regrowMinutes:60},'tree-17':{resource:'wood',max:6,regrowMinutes:60},'tree-18':{resource:'wood',max:6,regrowMinutes:60},'tree-19':{resource:'wood',max:6,regrowMinutes:60},'tree-20':{resource:'wood',max:6,regrowMinutes:60},'tree-21':{resource:'wood',max:6,regrowMinutes:60},'tree-22':{resource:'wood',max:6,regrowMinutes:60},
-  'rock-0':{resource:'stone',max:4,regrowMinutes:90},'rock-1':{resource:'stone',max:4,regrowMinutes:90},'rock-2':{resource:'stone',max:4,regrowMinutes:90},'rock-3':{resource:'stone',max:4,regrowMinutes:90},'rock-4':{resource:'stone',max:4,regrowMinutes:90},
+  'rock-0':{resource:'stone',max:12,regrowMinutes:480},'rock-1':{resource:'stone',max:12,regrowMinutes:480},'rock-2':{resource:'stone',max:12,regrowMinutes:480},'rock-3':{resource:'stone',max:12,regrowMinutes:480},'rock-4':{resource:'stone',max:12,regrowMinutes:480},
   'herb-0':{resource:'herbs',max:3,regrowMinutes:20},'herb-1':{resource:'herbs',max:3,regrowMinutes:20},'herb-2':{resource:'herbs',max:3,regrowMinutes:20},'herb-3':{resource:'herbs',max:3,regrowMinutes:20},'herb-4':{resource:'herbs',max:3,regrowMinutes:20}
 };
 
@@ -19,12 +20,6 @@ const HERB_POSITIONS=[[7,14],[-10,13],[17,-10],[-13,-3],[13,11]];
 TREE_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`tree-${i}`],{x,z}));
 ROCK_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`rock-${i}`],{x,z}));
 HERB_POSITIONS.forEach(([x,z],i)=>Object.assign(DEFAULT_NODE_CONFIG[`herb-${i}`],{x,z}));
-
-const RESOURCE_DEFAULTS = {
-  wood:{max:6,regrowMinutes:60},
-  stone:{max:4,regrowMinutes:90},
-  herbs:{max:3,regrowMinutes:20}
-};
 
 // Biological resources colonize new habitat after depletion. Stone deposits are finite.
 const MOBILE_RESOURCES=new Set(['wood','herbs']);
@@ -176,7 +171,31 @@ async function resourceNodes(sql,config){
     out[id]=resourceLifecycle(base,{nodeId:id,resource:cfg.resource,max:cfg.max,generation,now:new Date(),legacyMature:true});
     if(JSON.stringify(s)!==JSON.stringify(out[id]))await sql`UPDATE world_state SET value=jsonb_set(value,ARRAY[${id}::text],${JSON.stringify(out[id])}::jsonb,true),updated_at=now() WHERE key='resource_nodes' AND value->${id} IS NOT DISTINCT FROM ${stored[id]?JSON.stringify(s):null}::jsonb`;
   }
+  await maybeSpawnStoneDeposit(sql,config,out,now);
   return out;
+}
+
+async function maybeSpawnStoneDeposit(sql,config,nodes,now=Date.now()){
+  const existing=Object.entries(nodes).map(([nodeId,node])=>({...node,nodeId,id:nodeId}));
+  const proposal=proposeStoneDeposit({seed:existing.length+7,existing,now});
+  if(!proposal||config[proposal.id]||!isValidStoneDepositPosition(proposal.x,proposal.z))return;
+  await sql`INSERT INTO world_state(key,value,updated_at) VALUES('render_entities','[]'::jsonb,now()) ON CONFLICT(key) DO NOTHING`;
+  const inserted=await sql`
+    UPDATE world_state SET value=CASE
+      WHEN jsonb_typeof(value)='array' THEN value||${JSON.stringify([proposal])}::jsonb
+      WHEN jsonb_typeof(value->'entities')='array' THEN jsonb_set(value,'{entities}',(value->'entities')||${JSON.stringify([proposal])}::jsonb,true)
+      ELSE jsonb_build_array(${JSON.stringify(proposal)}::jsonb)
+    END,updated_at=now()
+    WHERE key='render_entities'
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(value)='array' THEN value WHEN jsonb_typeof(value->'entities')='array' THEN value->'entities' ELSE '[]'::jsonb END) entity
+        WHERE entity->>'id'=${proposal.id}
+      )
+    RETURNING value`;
+  if(!inserted.length)return;
+  config[proposal.id]={resource:'stone',max:proposal.max,regrowMinutes:proposal.regrowMinutes,x:proposal.x,z:proposal.z};
+  nodes[proposal.id]=resourceLifecycle({resource:'stone',max:proposal.max,remaining:proposal.max,regrowAt:null,generation:1,x:proposal.x,z:proposal.z},{nodeId:proposal.id,resource:'stone',max:proposal.max,generation:1,now:new Date(),legacyMature:true});
+  await sql`UPDATE world_state SET value=jsonb_set(COALESCE(value,'{}'::jsonb),ARRAY[${proposal.id}::text],${JSON.stringify(nodes[proposal.id])}::jsonb,true),updated_at=now() WHERE key='resource_nodes'`;
 }
 
 export default async (req) => {
@@ -241,7 +260,7 @@ export default async (req) => {
               'resource',${cfg.resource}::text,
               'max',${cfg.max}::int,
               'remaining',CASE WHEN ${nextPlant?true:false}::boolean THEN floor(${Number(nextPlant?.resources||0)}::numeric)::int ELSE GREATEST(0,calc.before_count-${amount}::int) END,
-              'regrowAt','null'::jsonb,
+              'regrowAt',CASE WHEN ${cfg.resource==='stone'}::boolean AND GREATEST(0,calc.before_count-${amount}::int)<=0 THEN to_jsonb(to_char(now()+make_interval(mins=>${cfg.regrowMinutes}),'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) WHEN ${cfg.resource==='stone'}::boolean THEN calc.value->${nodeId}->'regrowAt' ELSE 'null'::jsonb END,
               'generation',COALESCE((calc.value->${nodeId}->>'generation')::int,0),
               'x',calc.value->${nodeId}->'x','z',calc.value->${nodeId}->'z',
               'plant',CASE WHEN ${nextPlant?true:false}::boolean THEN ${JSON.stringify(nextPlant)}::jsonb ELSE calc.value->${nodeId}->'plant' END,
