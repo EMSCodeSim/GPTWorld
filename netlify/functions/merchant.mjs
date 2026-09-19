@@ -11,6 +11,7 @@ import {
   isStackableCrafted,
   splitStackPlan
 } from '../lib/economy-core.mjs';
+import {economySchemaReady,ensureEconomySchema} from '../lib/economy-schema.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const clean=(value,max=100)=>String(value||'').trim().slice(0,max);
@@ -21,6 +22,14 @@ const isEconomyMigration=error=>{
   return /merchant_|inventory_action_receipts|player_crafted_items|player_inventory|column ["']?coins|\bcoins\b|quantity|does not exist|undefined_column/i.test(msg);
 };
 const plural=(name,n)=>n===1?name:(/[sxz]$|ch$|sh$/i.test(name)?`${name}es`:name.endsWith('y')&&!/[aeiou]y$/i.test(name)?`${name.slice(0,-1)}ies`:`${name}s`);
+
+let schemaReady=false;
+async function ensureSchema(sql){
+  if(schemaReady)return;
+  if(await economySchemaReady(sql)){schemaReady=true;return;}
+  await ensureEconomySchema(sql);
+  schemaReady=true;
+}
 
 async function context(sql,clientId){
   try{
@@ -243,7 +252,12 @@ export default async req=>{
   if(!process.env.DATABASE_URL)return reply({ok:false,error:'database_not_configured'},503);
   const sql=neon(process.env.DATABASE_URL);
   try{
-    const url=new URL(req.url),body=req.method==='POST'?await req.json():{},clientId=clean(req.method==='GET'?url.searchParams.get('clientId'):body.clientId,80);
+    await ensureSchema(sql);
+    const url=new URL(req.url),body=req.method==='POST'?await req.json().catch(()=>({})):{},clientId=clean(req.method==='GET'?url.searchParams.get('clientId'):body.clientId,80);
+    if(req.method==='POST'&&clean(body.action,40)==='apply_schema'){
+      await ensureEconomySchema(sql);schemaReady=true;
+      return reply({ok:true,schema:'economy-009',applied:true});
+    }
     if(!clientId)return reply({ok:false,error:'client_id_required'},400);
     const actor=await context(sql,clientId);if(!actor)return reply({ok:false,error:'player_not_registered'},409);
     if(req.method==='GET'){
@@ -273,7 +287,15 @@ export default async req=>{
     return reply({ok:false,error:'invalid_action'},400);
   }catch(error){
     console.error('GPTWorld merchant error',error);
-    if(error?.code==='economy_migration_required'||isEconomyMigration(error))return reply({ok:false,error:'economy_migration_required'},503);
+    if(error?.code==='economy_migration_required'||isEconomyMigration(error)){
+      try{
+        await ensureEconomySchema(sql);schemaReady=true;
+        return reply({ok:false,error:'economy_schema_applied_retry'},503);
+      }catch(schemaError){
+        console.error('GPTWorld economy schema apply failed',schemaError);
+        return reply({ok:false,error:'economy_migration_required'},503);
+      }
+    }
     return reply({ok:false,error:'merchant_failed'},500);
   }
 };
