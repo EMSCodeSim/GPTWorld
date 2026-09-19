@@ -41,6 +41,10 @@ const safeInt=(value,fallback,min,max)=>{
   const n=Math.round(Number(value));
   return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
 };
+const safeCoordinate=(value)=>{
+  const n=Number(value);
+  return Number.isFinite(n)?Math.max(-64,Math.min(64,n)):null;
+};
 
 const forestStage=(pressure)=>pressure>=70?'critical':pressure>=45?'stressed':pressure>=20?'watched':'stable';
 const forestPressureScore=(harvested,depletedSites,mitigation=0,expansion=0)=>Math.max(0,Math.min(100,harvested*2+depletedSites*8-mitigation+expansion*8));
@@ -105,10 +109,15 @@ async function nodeConfig(sql){
     const resource=String(entity?.resource||'').trim().toLowerCase();
     if(!id||config[id]||!RESOURCE_DEFAULTS[resource])continue;
     const defaults=RESOURCE_DEFAULTS[resource];
+    const x=safeCoordinate(entity.x),z=safeCoordinate(entity.z);
+    // Dynamic resources are playable world objects: without a valid server position
+    // they must not be registered as authoritative gathering nodes.
+    if(x===null||z===null)continue;
     config[id]={
       resource,
       max:safeInt(entity.max,defaults.max,1,100),
-      regrowMinutes:safeInt(entity.regrowMinutes,defaults.regrowMinutes,1,10080)
+      regrowMinutes:safeInt(entity.regrowMinutes,defaults.regrowMinutes,1,10080),
+      x,z
     };
   }
   return config;
