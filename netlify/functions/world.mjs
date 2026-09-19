@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { advanceIndividuals } from '../../lib/individual-wildlife.mjs';
-import { advancePlantIndividuals } from '../../lib/individual-plants.mjs';
+import { advancePlantIndividuals, harvestIndividualPlant } from '../../lib/individual-plants.mjs';
 import { advanceAnimalSpecies } from '../../lib/animal-needs.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {

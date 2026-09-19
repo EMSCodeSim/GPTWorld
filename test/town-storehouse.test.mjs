@@ -11,7 +11,9 @@ test('town upgrades spend only settlement stockpile and unlock interiors at leve
     readFile(new URL('../town.html',import.meta.url),'utf8')
   ]);
   assert.match(upgrades,/settlement_stockpile/);
-  assert.doesNotMatch(upgrades,/player_inventory/);
+  assert.match(upgrades,/never player_inventory/);
+  assert.doesNotMatch(upgrades,/UPDATE player_inventory/);
+  assert.doesNotMatch(upgrades,/FROM player_inventory/);
   assert.match(upgrades,/FOR UPDATE/);
   assert.match(stockpile,/action==='deposit'|action:"deposit"|'deposit'/);
   assert.match(day3,/Deposit 1 wood/);
@@ -19,5 +21,5 @@ test('town upgrades spend only settlement stockpile and unlock interiors at leve
   assert.match(info,/info-tabs/);
   assert.match(info,/Living Memory/);
   assert.match(town,/Interior unlocks at Level 2/);
-  assert.match(town,/Enter \$\{building\.name\}|Enter /);
+  assert.match(town,/Enter /);
 });

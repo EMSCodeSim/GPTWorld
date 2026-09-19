@@ -51,7 +51,7 @@ test('plant individuals advance on the world sim and harvest through resource-st
     readFile(new URL('../lib/individual-plants.mjs',import.meta.url),'utf8')
   ]);
   assert.match(world,/advancePlantIndividuals/);
-  assert.doesNotMatch(world,/harvestIndividualPlant/);
+  assert.match(world,/harvestIndividualPlant/);
   assert.match(resources,/gatherIndividualPlant/);
   assert.match(resources,/nodeId\.startsWith\('plant-'\)/);
   assert.match(plants,/export function harvestIndividualPlant/);
