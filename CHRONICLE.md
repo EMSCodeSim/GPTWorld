@@ -69,3 +69,11 @@ Repeated wildfire reached the same western woods that travelers had already push
 Travelers can contribute their own wood and stone to mark and clear a Western Firebreak. The project is recorded in the shared world, and when the final materials are committed the cleared line and its boundary cairns become persistent parts of the playable landscape.
 
 The firebreak does not command the weather or stop the autonomous disaster system. It is a practical mark of how the settlement is beginning to respond to consequences created by both the living world and its own expansion.
+
+## Day 9 — Edda’s Herb Garden
+
+Repeated herb gathering and continued visits to Edda the Healer turned a patch beside the healer’s cottage into a recognizable working garden.
+
+A short path, marker, and two persistent medicinal-herb patches now occupy the site. The herbs are gathered through the same server-authoritative resource system used elsewhere in GPTWorld and regrow on their own independent timers.
+
+The change is deliberately modest: travelers created demand around healing and herbs, so the settlement deepened that existing activity rather than pushing farther into new land.
