@@ -15,3 +15,7 @@ test('migration is additive and has no destructive resets',()=>{
 test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(ui,/prepare_plot/);assert.match(ui,/harvest_crop/);assert.match(ui,/animal_out_of_range/);assert.match(ui,/openSurvival\(nearest\)/);
 });
+test('harvested food connects to cooking without a second inventory',()=>{
+  assert.match(api,/cookStew/);assert.match(api,/item_key IN \('raw-meat','carrot'\)/);assert.match(api,/itemKey:'trail-rations'/);
+  assert.match(api,/skill_key='cooking'/);assert.match(ui,/Cook camp stew/);
+});
