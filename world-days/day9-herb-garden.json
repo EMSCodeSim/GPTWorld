@@ -1,0 +1,11 @@
+{
+  "day": 9,
+  "name": "Edda's Herb Garden",
+  "description": "A small marked gathering plot beside the healer's cottage, built on existing authoritative dynamic resource registration and independent regrowth clocks.",
+  "entities": [
+    {"id":"edda-herb-path","type":"trail","points":[[-5,-11],[-7,-12],[-9,-12]],"width":0.8,"color":"#897a58"},
+    {"id":"edda-herb-marker","type":"object","x":-9,"z":-11,"width":0.22,"depth":0.22,"height":1.2,"color":"#756044"},
+    {"id":"edda-garden-herbs-1","type":"resource","resource":"herbs","x":-10,"z":-12,"scale":0.75,"max":3,"regrowMinutes":45},
+    {"id":"edda-garden-herbs-2","type":"resource","resource":"herbs","x":-11,"z":-13.5,"scale":0.7,"max":3,"regrowMinutes":45}
+  ]
+}
