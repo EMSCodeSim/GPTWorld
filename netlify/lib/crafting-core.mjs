@@ -8,6 +8,7 @@ export const CRAFTING_SKILLS=Object.freeze([
   {key:'tailoring',name:'Tailoring'},
   {key:'cooking',name:'Cooking'},
   {key:'farming',name:'Farming'},
+  {key:'hunting',name:'Hunting'},
   {key:'construction',name:'Construction'}
 ]);
 
@@ -43,7 +44,10 @@ export const CRAFTING_RECIPES=Object.freeze([
   {key:'iron-fittings',name:'Iron Fittings',description:'Hinges, nails, and brackets forged from trail metal.',skill:'blacksmithing',minSkill:20,difficulty:20,station:'Field Crafting',category:'components',inputs:{wood:1,stone:8,herbs:0},durability:75,placeable:false,component:true},
   {key:'reed-mat',name:'Reed Mat',description:'Woven floor covering for a finished cabin.',skill:'tailoring',minSkill:10,difficulty:10,station:'Field Crafting',category:'furniture',inputs:{wood:0,stone:0,herbs:5},durability:30,placeable:true},
   {key:'trail-rations',name:'Trail Rations',description:'Preserved food for long work days.',skill:'cooking',minSkill:0,difficulty:6,station:'Field Crafting',category:'basic',inputs:{wood:0,stone:0,herbs:4},durability:1,placeable:false},
-  {key:'seed-pouch',name:'Seed Pouch',description:'Sorted seeds ready for a homestead garden bed.',skill:'farming',minSkill:10,difficulty:12,station:'Field Crafting',category:'farm',inputs:{wood:1,stone:0,herbs:4},durability:20,placeable:false}
+  {key:'seed-pouch',name:'Seed Pouch',description:'Sorted seeds ready for a homestead garden bed.',skill:'farming',minSkill:0,difficulty:0,station:'Field Crafting',category:'farm',inputs:{wood:1,stone:0,herbs:2},durability:20,placeable:false},
+  {key:'basic-bow',name:'Basic Bow',description:'A simple hunting bow for approaching and harvesting wildlife.',skill:'hunting',minSkill:0,difficulty:0,station:'Field Crafting',category:'hunting',inputs:{wood:4,stone:0,herbs:2},durability:45,placeable:false},
+  {key:'reinforced-bow',name:'Reinforced Bow',description:'A steadier bow with better hunting odds.',skill:'hunting',minSkill:30,difficulty:24,station:'Field Crafting',category:'hunting',inputs:{wood:7,stone:2,herbs:3},durability:75,placeable:false},
+  {key:'hunting-trap',name:'Hunting Trap',description:'A reusable trail trap unlocked by experienced hunters.',skill:'hunting',minSkill:55,difficulty:36,station:'Field Crafting',category:'hunting',inputs:{wood:5,stone:5,herbs:2},durability:60,placeable:false}
 ]);
 
 /** Configurable homestead blueprint — Construction 80+. */

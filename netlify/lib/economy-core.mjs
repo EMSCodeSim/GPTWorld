@@ -8,6 +8,7 @@ export const MATERIAL_KEYS=Object.freeze(['wood','stone','herbs']);
 /** Crafted item_keys that stack when quality + durability match and item is unplaced. */
 export const STACKABLE_CRAFTED_KEYS=Object.freeze(new Set([
   'healing-poultice','weather-tonic','trail-rations','seed-pouch',
+  'wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide',
   'wooden-beam','wooden-door','stone-foundation','iron-fittings'
 ]));
 
@@ -37,7 +38,8 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'iron-fittings':13,
   'reed-mat':5,
   'trail-rations':3,
-  'seed-pouch':4
+  'seed-pouch':4,
+  'wheat':2,'carrot':2,'potato':3,'pumpkin':5,'farm-herbs':4,'raw-meat':5,'hide':7
 });
 
 /**
@@ -53,7 +55,7 @@ export const MERCHANTS=Object.freeze([
     x:5.8,z:5.2,
     outfit:0x6a5a3e,
     lines:['“I’ll take honest goods for fair coin.”','“Stack what you can. Trade what you don’t need.”'],
-    accepts:Object.freeze(['healing-poultice','weather-tonic','trail-rations','seed-pouch','reed-mat','wooden-beam','wooden-door','stone-foundation','iron-fittings','campfire-kit','stone-hammer','wooden-crate','stone-hearth']),
+    accepts:Object.freeze(['healing-poultice','weather-tonic','trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','reed-mat','wooden-beam','wooden-door','stone-foundation','iron-fittings','campfire-kit','stone-hammer','wooden-crate','stone-hearth']),
     specialtyMod:0.72,
     defaultBudget:180,
     replenishAmount:180
@@ -105,7 +107,7 @@ export const MERCHANTS=Object.freeze([
     x:-3.2,z:-6.2,
     outfit:0x5f6b48,
     lines:['“Food, seed, and trail remedies keep the valley alive.”'],
-    accepts:Object.freeze(['trail-rations','seed-pouch','healing-poultice','weather-tonic']),
+    accepts:Object.freeze(['trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','healing-poultice','weather-tonic']),
     specialtyMod:0.9,
     defaultBudget:100,
     replenishAmount:100
