@@ -77,3 +77,11 @@ Repeated herb gathering and continued visits to Edda the Healer turned a patch b
 A short path, marker, and two persistent medicinal-herb patches now occupy the site. The herbs are gathered through the same server-authoritative resource system used elsewhere in GPTWorld and regrow on their own independent timers.
 
 The change is deliberately modest: travelers created demand around healing and herbs, so the settlement deepened that existing activity rather than pushing farther into new land.
+
+## Day 10 — The Game Trail
+
+With traveler activity quiet, the settlement avoided another major project. Instead, scouts followed signs of the valley's moving wildlife beyond the western survey route.
+
+A narrow game trail, a simple field marker, scrub, and a rock outcrop now persist southwest of the mapped route. They do not force the ecosystem to produce animals or resources; they simply make the observed route part of the playable landscape while wildlife continues to live on its own autonomous clock.
+
+The change reflects a world that can deepen even on a quiet day: existing ecology creates reasons to explore without requiring a new town, a new economy, or a scripted event.
