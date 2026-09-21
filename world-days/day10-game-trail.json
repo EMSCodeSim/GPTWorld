@@ -1,0 +1,40 @@
+{
+  "day": 10,
+  "title": "The Game Trail",
+  "reason": "Player activity was light after Day 9, while the autonomous ecosystem continued to show large grazer populations and predator pressure. The settlement responds conservatively by marking an observed wildlife route instead of expanding settlement infrastructure.",
+  "entities": [
+    {
+      "id": "western-game-trail",
+      "type": "trail",
+      "color": "#766a50",
+      "width": 0.62,
+      "points": [[-33,-1.5],[-34.5,-4],[-35.5,-7],[-36,-10]]
+    },
+    {
+      "id": "game-trail-marker",
+      "type": "object",
+      "x": -35.4,
+      "z": -7.1,
+      "width": 0.22,
+      "height": 1.35,
+      "depth": 0.22,
+      "color": "#69523a"
+    },
+    {
+      "id": "game-trail-scrub-1",
+      "type": "vegetation",
+      "kind": "herbs",
+      "x": -34.7,
+      "z": -5.8,
+      "scale": 0.55
+    },
+    {
+      "id": "game-trail-rock-1",
+      "type": "vegetation",
+      "kind": "rock",
+      "x": -35.8,
+      "z": -8.7,
+      "scale": 0.62
+    }
+  ]
+}
