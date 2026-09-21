@@ -52,6 +52,17 @@ test('dead tree does not regrow and replacement gets a new stable identity',()=>
   const after=resourceLifecycle(dead,{nodeId:'tree-0',resource:'wood',max:6,now:new Date('2026-01-03T00:00:00Z')});assert.equal(after.plant.stage,'seed');assert.equal(after.plant.id,'tree-0:plant:2');assert.equal(after.remaining,0);
 });
 
+test('replacement trees visibly progress from seed to mature within one real day',()=>{
+  const seed={plant:{lifecycleVersion:2,id:'tree-0:plant:2',speciesId:'pine-tree',age:0,health:100,resources:0,maxResources:6,stage:'seed'},generation:2,lastGrowthAt:'2026-01-03T00:00:00Z',replacementAt:null};
+  const sprout=resourceLifecycle(seed,{nodeId:'tree-0',resource:'wood',max:6,now:new Date('2026-01-03T06:00:00Z')});
+  assert.equal(sprout.plant.stage,'sprout');
+  assert.equal(sprout.remaining,1);
+  const mature=resourceLifecycle(sprout,{nodeId:'tree-0',resource:'wood',max:6,now:new Date('2026-01-04T00:00:00Z')});
+  assert.equal(mature.plant.stage,'mature');
+  assert.equal(mature.remaining,6);
+});
+
+
 test('world identity isolates otherwise identical plant sites',()=>{
   const a=normalizePlant(null,{id:'private-10:tree-0:plant:1',speciesId:'pine-tree',legacyMature:true,maxResources:6});
   const b=normalizePlant(null,{id:'private-11:tree-0:plant:1',speciesId:'pine-tree',legacyMature:true,maxResources:6});
