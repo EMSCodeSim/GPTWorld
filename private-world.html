@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — My World</title>
   <link rel="stylesheet" href="./styles.css?v=living-worlds-5" />
-  <link rel="stylesheet" href="./private-world.css?v=farming-hunting-1" />
+  <link rel="stylesheet" href="./private-world.css?v=hunting-ux-1" />
 </head>
 <body>
   <main id="app">
@@ -15,7 +15,7 @@
       <div class="world-title"><div class="eyebrow">GPTWORLD · MY WORLD</div><h1 id="worldName">Living Homestead</h1></div>
       <div class="status-strip"><span id="privateClock">08:00</span><span id="season">Spring</span><span id="weather">Clear</span><span id="temperature">13°C</span><span id="syncState" class="sync-state" data-state="connecting" role="status" aria-live="polite">Connecting</span></div>
     </section>
-    <div class="world-actions"><button id="skillsButton" class="craft-button" type="button">Farm & Hunt</button><button id="craftButton" class="craft-button" type="button">Craft</button><button id="returnTown" class="return-town" type="button">Return to Town</button></div>
+    <div class="world-actions"><button id="skillsButton" class="craft-button" type="button">Farm</button><button id="huntButton" class="craft-button hunt-button" type="button">Hunt</button><button id="craftButton" class="craft-button" type="button">Craft</button><button id="returnTown" class="return-town" type="button">Return to Town</button></div>
     <section class="panel inventory" aria-label="Inventory"><h2>Pack</h2><div class="inventory-row"><div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div><div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div><div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div><div class="resource"><span>🪙</span><strong id="coinCount">0</strong><small>Coins</small></div></div></section>
     <div id="prompt" class="prompt" hidden></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
     <section id="craftingPanel" class="crafting-panel" hidden aria-modal="true" role="dialog" aria-labelledby="craftingTitle">
@@ -55,6 +55,6 @@
     <section id="loading" class="welcome" aria-modal="true" role="dialog"><div class="welcome-card"><div class="eyebrow">PRIVATE LIVING WORLD</div><h2 id="loadingTitle">Opening your world…</h2><p id="loadingMessage">Loading its persistent landscape and catching up bounded offline ecology.</p><button id="retry" type="button" hidden>Try again</button><a class="loading-return" href="./index.html">Return to Public Town</a></div></section>
   </main>
   <script src="./private-world-shell.js?v=living-worlds-10"></script>
-  <script type="module" src="./private-world.js?v=farming-hunting-2"></script>
+  <script type="module" src="./private-world.js?v=hunting-ux-1"></script>
 </body>
 </html>
