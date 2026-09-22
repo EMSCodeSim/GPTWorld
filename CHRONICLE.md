@@ -85,3 +85,11 @@ With traveler activity quiet, the settlement avoided another major project. Inst
 A narrow game trail, a simple field marker, scrub, and a rock outcrop now persist southwest of the mapped route. They do not force the ecosystem to produce animals or resources; they simply make the observed route part of the playable landscape while wildlife continues to live on its own autonomous clock.
 
 The change reflects a world that can deepen even on a quiet day: existing ecology creates reasons to explore without requiring a new town, a new economy, or a scripted event.
+
+## Day 11 — The Burn Scar
+
+Repeated wildfire and concentrated timber gathering finally left a practical consequence travelers could use. Beyond the Timber Line, a narrow marked route now enters a small burned patch where limited deadfall can be salvaged.
+
+Two persistent deadfall piles provide a small amount of wood through the same server-authoritative resource system as the rest of the world. They recover only very slowly, keeping the scar a consequence of fire rather than a new infinite forest.
+
+Day 11 ties player harvesting to the autonomous world's fire history: the landscape now shows damage, offers a modest opportunity, and continues to recover on its own clocks.
