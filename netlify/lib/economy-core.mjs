@@ -57,7 +57,8 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'bedroll':5,'rope-coil':6,'woven-basket':9,'canvas-screen':14,'padded-bedroll':16,'decorated-rug':24,
   'herb-broth':5,'field-meal':7,'preserved-rations':10,'hearth-feast':15,
   'garden-stakes':6,'irrigation-kit':12,'scarecrow-kit':13,'raised-bed-kit':16,'seed-chest':22,
-  'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30
+  'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30,
+  'basic-bow':10,'reinforced-bow':20,'hunting-trap':16
 });
 
 /**
@@ -73,15 +74,7 @@ export const MERCHANTS=Object.freeze([
     x:5.8,z:5.2,
     outfit:0x6a5a3e,
     lines:['“I’ll take honest goods for fair coin.”','“Stack what you can. Trade what you don’t need.”'],
-    accepts:Object.freeze(['healing-poultice','weather-tonic','trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','reed-mat','wooden-beam','wooden-door','stone-foundation','iron-fittings','campfire-kit','stone-hammer','wooden-crate','stone-hearth',
-      'rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest',
-      'stone-block','stone-wall-kit','kiln-kit','stone-counter','chimney-kit','arch-stone','masterwork-hearth',
-      'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
-      'forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools',
-      'bedroll','rope-coil','woven-basket','canvas-screen','padded-bedroll','decorated-rug',
-      'herb-broth','field-meal','preserved-rations','hearth-feast',
-      'garden-stakes','irrigation-kit','scarecrow-kit','raised-bed-kit','seed-chest',
-      'skinning-knife','hide-rack','hunter-blind','composite-bow']),
+    accepts:Object.freeze(Object.keys(ITEM_BASE_VALUE)),
     specialtyMod:0.72,
     defaultBudget:180,
     replenishAmount:180
@@ -126,6 +119,23 @@ export const MERCHANTS=Object.freeze([
     replenishAmount:120
   },
   {
+    key:'outfitter',
+    name:'Mara the Outfitter',
+    title:'Hunter & trail outfitter',
+    building:'storehouse',
+    x:3.7,z:7.2,
+    outfit:0x5a4937,
+    lines:['“Bows, traps, hides, and trail gear. I’ll find a use for them.”'],
+    accepts:Object.freeze([
+      'basic-bow','reinforced-bow','composite-bow','hunting-trap','skinning-knife','hide-rack','hunter-blind',
+      'hide','raw-meat','bedroll','padded-bedroll','rope-coil','canvas-screen',
+      'trail-rations','field-meal','preserved-rations','hearth-feast'
+    ]),
+    specialtyMod:0.92,
+    defaultBudget:180,
+    replenishAmount:180
+  },
+  {
     key:'provisioner',
     name:'Nessa the Provisioner',
     title:'Provisioner',
@@ -135,7 +145,7 @@ export const MERCHANTS=Object.freeze([
     lines:['“Food, seed, and trail remedies keep the valley alive.”'],
     accepts:Object.freeze(['trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','healing-poultice','weather-tonic',
       'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
-      'herb-broth','field-meal','preserved-rations','hearth-feast','garden-stakes','irrigation-kit','raised-bed-kit']),
+      'herb-broth','field-meal','preserved-rations','hearth-feast','garden-stakes','irrigation-kit','raised-bed-kit','scarecrow-kit','seed-chest']),
     specialtyMod:0.9,
     defaultBudget:100,
     replenishAmount:100
