@@ -22,8 +22,8 @@ jobs:
           set -euo pipefail
           release_url="https://gptlife.netlify.app/.netlify/functions/day12-release"
           result=""
-          for attempt in 1 2 3 4 5 6; do
-            result="$(curl -fsS -X POST --max-time 30 "$release_url" || true)"
+          for attempt in 1 2 3; do
+            result="$(curl -sS -X POST --max-time 30 "$release_url" || true)"
             echo "Release attempt $attempt: $result"
             if RESULT="$result" python3 -c 'import json,os,sys; d=json.loads(os.environ["RESULT"]); sys.exit(0 if d.get("ok") is True and (d.get("released") is True or d.get("already_released") is True) else 1)'; then
               break
