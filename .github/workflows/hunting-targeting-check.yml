@@ -21,3 +21,5 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: node --test test/survival-core.test.mjs test/survival-contract.test.mjs
       - run: npm run check
+
+# rerun after composite-bow test adjustment
