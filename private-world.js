@@ -194,8 +194,12 @@ function addFarmPlot(plot){
   scene.add(group);farmPlotObjects.set(String(plot.id),group);interactables.push({type:'farm',label:plot.cropKey?`${plot.cropKey.replaceAll('-',' ')} plot`:'prepared plot',plotId:String(plot.id),object:group,radius:3});
 }
 function syncFarmPlots(plots=[]){removeFarmPlots();for(const plot of plots)addFarmPlot(plot);}
-function animalDistance(animal){return Math.hypot(Number(player?.position?.x||0)-Number(animal?.x||0),Number(player?.position?.z||0)-Number(animal?.z||0));}
-function bestBow(){const gear=new Set(survivalData?.equipment||[]);return gear.has('reinforced-bow')?'reinforced-bow':gear.has('basic-bow')?'basic-bow':null;}
+function animalDistance(animal,target=null){
+  const position=target?.object?.position;
+  const x=Number(position?.x??animal?.x??0),z=Number(position?.z??animal?.z??0);
+  return Math.hypot(Number(player?.position?.x||0)-x,Number(player?.position?.z||0)-z);
+}
+function bestBow(){const gear=new Set(survivalData?.equipment||[]);return gear.has('composite-bow')?'composite-bow':gear.has('reinforced-bow')?'reinforced-bow':gear.has('basic-bow')?'basic-bow':null;}
 function clearHuntMarker(){if(huntMarker?.parent)huntMarker.parent.remove(huntMarker);huntMarker?.geometry?.dispose?.();huntMarker?.material?.dispose?.();huntMarker=null;}
 function markHuntTarget(target){
   clearHuntMarker();if(!target?.object)return;
@@ -207,7 +211,7 @@ function nearestHuntTarget(){
   let best=null,bestDistance=Infinity;
   for(const animal of survivalData.animals){
     const target=interactables.find(item=>item.type==='animal'&&String(item.livingEntityId)===String(animal.id));
-    if(!target)continue;const distance=animalDistance(animal);if(distance<bestDistance){best={animal,target,distance};bestDistance=distance;}
+    if(!target)continue;const distance=animalDistance(animal,target);if(distance<bestDistance){best={animal,target,distance};bestDistance=distance;}
   }
   return best;
 }
@@ -227,10 +231,11 @@ function renderSurvival(){
     let animal=survivalTarget?.type==='animal'?survivalData.animals.find(item=>String(item.id)===String(survivalTarget.livingEntityId)):null;
     if(!animal){const nearest=chooseNearestAnimal();animal=nearest?.animal||null;}
     if(animal){
-      const distance=animalDistance(animal),inRange=distance<=5,bow=bestBow(),label=String(animal.species||'wildlife').replaceAll('-',' ');
+      const distance=animalDistance(animal,survivalTarget),inRange=distance<=5,bow=bestBow(),label=String(animal.species||'wildlife').replaceAll('-',' ');
       const card=document.createElement('div');card.className='hunt-target-card';
       card.innerHTML=`<strong>🎯 ${label}</strong><span>${distance.toFixed(1)} m away · ${animal.behavior||'roaming'}</span><small>${inRange?'In range — take your shot.':'Move within 5 m to hunt.'}</small>`;actions.push(card);
-      const hunt=survivalButton(bow?`🏹 Hunt with ${bow==='reinforced-bow'?'Reinforced Bow':'Basic Bow'}`:'🏹 Craft a bow to hunt',()=>survivalAction('hunt',{animalId:animal.id,equipment:bow}),!bow||!inRange);
+      const bowLabel=bow==='composite-bow'?'Composite Bow':bow==='reinforced-bow'?'Reinforced Bow':'Basic Bow';
+      const hunt=survivalButton(bow?`🏹 Hunt with ${bowLabel}`:'🏹 Craft a bow to hunt',()=>survivalAction('hunt',{animalId:animal.id,equipment:bow}),!bow||!inRange);
       hunt.classList.add('hunt-primary');actions.push(hunt);
       actions.push(survivalButton('👣 Read tracks',()=>survivalAction('track',{animalId:animal.id})));
       const next=survivalButton('Find nearest animal',()=>{chooseNearestAnimal();renderSurvival();});next.classList.add('hunt-secondary');actions.push(next);
@@ -251,7 +256,7 @@ function renderSurvival(){
   huntCatalog.previousElementSibling.style.display=survivalMode==='hunt'?'':'none';huntCatalog.style.display=survivalMode==='hunt'?'':'none';
 }
 async function loadSurvival(){const response=await fetch(`${SURVIVAL_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'survival_load_failed');survivalData=data;syncFarmPlots(data.plots);renderSurvival();return data;}
-async function openSurvival(target=null,mode='farm'){survivalMode=mode;survivalTarget=target;survivalPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();survivalResult.hidden=true;$('survivalTitle').textContent=mode==='hunt'?'Hunting':'Farming';try{await savePosition();await loadSurvival();if(mode==='hunt'&&!survivalTarget)chooseNearestAnimal();renderSurvival();}catch(error){survivalMessage(error.message==='survival_migration_required'?'The farming and hunting database update is not installed yet.':'Could not sync the living-land ledger.');}}
+async function openSurvival(target=null,mode='farm'){survivalMode=mode;survivalTarget=target;survivalPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();survivalResult.hidden=true;$('survivalTitle').textContent=mode==='hunt'?'Hunting':'Farming';try{await savePosition();await loadSurvival();if(mode==='hunt'&&!target)chooseNearestAnimal();renderSurvival();}catch(error){survivalMessage(error.message==='survival_migration_required'?'The farming and hunting database update is not installed yet.':'Could not sync the living-land ledger.');}}
 function hideSurvival(){survivalPanel.hidden=true;survivalTarget=null;clearHuntMarker();}
 async function survivalAction(action,extra={}){if(survivalBusy)return;survivalBusy=true;renderSurvival();try{await savePosition();const response=await fetch(SURVIVAL_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action,...extra,idempotencyKey:requestKey(action)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'action_failed');survivalMessage(action==='cook_stew'?`Cooked ${data.reward.quantity} Trail Rations and gained Cooking XP.`:action==='track'?`${data.animal.species} tracks are ${data.animal.distance}m away; it is ${data.animal.behavior}.`:action==='hunt'?(data.success?`Clean hit — ${data.rewards.map(item=>`${item.quantity} ${item.name}`).join(', ')}. Hunting skill ${Number(data.skillValue||0).toFixed(1)}.`:`Missed shot — the animal escaped. Hunting skill ${Number(data.skillValue||0).toFixed(1)}; wait briefly before trying again.`):action==='harvest_crop'?`Harvested ${data.reward.quantity} ${data.reward.name}. Farming XP gained.`:`${action.replaceAll('_',' ')} complete.`,true);if(action==='hunt'&&data.success){const object=livingEntityObjects.get(String(data.animalId));if(object)removeLivingEntity(String(data.animalId));}await loadSurvival();if(survivalMode==='hunt'&&!survivalData.animals.some(item=>String(item.id)===String(survivalTarget?.livingEntityId)))chooseNearestAnimal();if(craftingData)await loadCrafting();}catch(error){const messages={plant_failed:'You need a Seed Pouch, an empty nearby plot, and a private-world session.',crop_not_ready:'This crop is still growing.',animal_out_of_range:'Move closer to the animal.',equipment_required:'Craft and carry an appropriate bow first.',animal_already_harvested:'This animal has already been harvested; ecology recovery takes time.',hunt_cooldown:'The animal is alert. Wait a moment before tracking it again.',cooking_ingredients_required:'Camp stew needs one Raw Meat and one Carrot.',plot_too_close:'Choose a clearer spot away from another plot.',invalid_plot_site:'Prepare soil on dry, clear land.'};survivalMessage(messages[error.message]||'That action could not be completed safely.');}finally{survivalBusy=false;renderSurvival();}}
 
@@ -713,14 +718,16 @@ function updateAnimals(dt,time){
   for(const animal of animals){
     const data=animal.userData,distanceToPlayer=animal.position.distanceTo(player.position);
     let nearbyFire=null,fireDistance=Infinity;for(const sprite of placedCrafts.values()){if(!campfireBurning(sprite.userData.item))continue;const distance=animal.position.distanceTo(sprite.position);if(distance<7&&distance<fireDistance){nearbyFire=sprite;fireDistance=distance;}}
-    if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
-    else if(distanceToPlayer<7){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
-    else if(!data.serverDriven&&time>data.nextTurn){
-      const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
-      if(seekWater){const angle=hash01(`${data.phase}:water-shore`)*Math.PI*2,radius=Number(terrain.water.radius||0)+.9;data.behavior='seeking water';data.target.set(terrain.water.x+Math.cos(angle)*radius,0,terrain.water.z+Math.sin(angle)*radius);}
-      else if(forage>.42){data.behavior='grazing';const angle=hash01(`${Math.floor(time/5000)}:${data.phase}`)*Math.PI*2;data.target.copy(data.home).add(new THREE.Vector3(Math.cos(angle)*7,0,Math.sin(angle)*7));}
-      else{data.behavior='foraging';const angle=hash01(`${Math.floor(time/6500)}:${data.phase}:f`)*Math.PI*2;data.target.set(Math.cos(angle)*24,0,Math.sin(angle)*24);}
-      data.nextTurn=time+4200+hash01(`${time}:${data.phase}`)*4200;
+    if(!data.serverDriven){
+      if(nearbyFire){data.behavior='avoiding fire';data.target.copy(animal.position).sub(nearbyFire.position).normalize().multiplyScalar(9).add(animal.position);data.nextTurn=time+3000;}
+      else if(distanceToPlayer<7){data.behavior='fleeing';data.target.copy(animal.position).sub(player.position).normalize().multiplyScalar(7).add(animal.position);data.nextTurn=time+2500;}
+      else if(time>data.nextTurn){
+        const seekWater=drought>.58&&hash01(`${worldSeed}:${Math.floor(time/7000)}:${data.phase}`)>.45;
+        if(seekWater){const angle=hash01(`${data.phase}:water-shore`)*Math.PI*2,radius=Number(terrain.water.radius||0)+.9;data.behavior='seeking water';data.target.set(terrain.water.x+Math.cos(angle)*radius,0,terrain.water.z+Math.sin(angle)*radius);}
+        else if(forage>.42){data.behavior='grazing';const angle=hash01(`${Math.floor(time/5000)}:${data.phase}`)*Math.PI*2;data.target.copy(data.home).add(new THREE.Vector3(Math.cos(angle)*7,0,Math.sin(angle)*7));}
+        else{data.behavior='foraging';const angle=hash01(`${Math.floor(time/6500)}:${data.phase}:f`)*Math.PI*2;data.target.set(Math.cos(angle)*24,0,Math.sin(angle)*24);}
+        data.nextTurn=time+4200+hash01(`${time}:${data.phase}`)*4200;
+      }
     }
     const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();const distance=dt*data.speed*(data.behavior==='fleeing'?2.3:1),candidate={x:animal.position.x+offset.x*distance,z:animal.position.z+offset.z*distance},land=animalLandPosition(animal.position,candidate);animal.position.x=land.x;animal.position.z=land.z;animal.rotation.y=Math.atan2(offset.x,offset.z);}
     const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
