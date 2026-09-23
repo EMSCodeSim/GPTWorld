@@ -32,6 +32,24 @@ test('crafting professions include construction and preserve starter recipes',()
   assert.equal(craftingRecipe('not-real'),null);
 });
 
+test('expanded crafting progression covers every active profession and high-skill tiers',()=>{
+  assert.ok(CRAFTING_RECIPES.length>=50);
+  for(const skill of ['carpentry','masonry','herbalism','blacksmithing','tailoring','cooking','farming','hunting']){
+    assert.ok(CRAFTING_RECIPES.some(recipe=>recipe.skill===skill),`missing recipes for ${skill}`);
+  }
+  assert.equal(craftingRecipe('workbench').minSkill,50);
+  assert.equal(craftingRecipe('roof-truss').minSkill,70);
+  assert.equal(craftingRecipe('masterwork-chest').minSkill,90);
+  assert.equal(craftingRecipe('masterwork-hearth').minSkill,90);
+  assert.equal(craftingRecipe('masterwork-elixir').minSkill,90);
+  assert.equal(craftingRecipe('masterwork-tools').minSkill,80);
+  assert.equal(craftingRecipe('decorated-rug').minSkill,80);
+  assert.equal(craftingRecipe('composite-bow').minSkill,70);
+  const highCarpentry=recipesForSkillView([{key:'carpentry',value:90}]);
+  assert.equal(highCarpentry.find(recipe=>recipe.key==='masterwork-chest').unlocked,true);
+  assert.equal(recipesForSkillView([{key:'carpentry',value:89}]).find(recipe=>recipe.key==='masterwork-chest').unlocked,false);
+});
+
 test('recipe skill gates and progressive unlock bands',()=>{
   assert.equal(recipeUnlocked(craftingRecipe('wooden-crate'),9),false);
   assert.equal(recipeUnlocked(craftingRecipe('wooden-crate'),10),true);
