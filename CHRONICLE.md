@@ -93,3 +93,11 @@ Repeated wildfire and concentrated timber gathering finally left a practical con
 Two persistent deadfall piles provide a small amount of wood through the same server-authoritative resource system as the rest of the world. They recover only very slowly, keeping the scar a consequence of fire rather than a new infinite forest.
 
 Day 11 ties player harvesting to the autonomous world's fire history: the landscape now shows damage, offers a modest opportunity, and continues to recover on its own clocks.
+
+## Day 12 — The Firebreak Stone Spur
+
+The forest remained under critical pressure while travelers continued cutting ordinary trees, and the Western Firebreak still had no contributed materials. At the same time, wildfire remained active in the autonomous disaster system.
+
+Rather than open another timber route, the settlement marked a short stone spur beside the firebreak. Two small scree deposits now provide a modest local source of stone through the same server-authoritative gathering system used elsewhere in the world.
+
+The spur does not complete the firebreak for travelers or alter the wildfire clock. It makes the unfinished shared defense project more practical to support while leaving its completion—and the permanent cleared line it will create—in player hands.
