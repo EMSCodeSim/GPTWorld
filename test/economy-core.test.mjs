@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {CRAFTING_RECIPES} from '../netlify/lib/crafting-core.mjs';
 import {
   DEFAULT_MAX_STACK,
   ITEM_BASE_VALUE,
@@ -64,6 +65,22 @@ test('merchant sale quotes are server-side and respect budgets',()=>{
   assert.equal(broke.error,'merchant_insufficient_funds');
   const reject=saleQuote({merchant:merchantByKey('provisioner'),itemKey:'iron-fittings',quality:'standard',quantity:1,merchantBudget:100});
   assert.equal(reject.ok,false);
+});
+
+test('town merchants cover the full priced crafting catalog',()=>{
+  const general=merchantByKey('general');
+  const outfitter=merchantByKey('outfitter');
+  assert.ok(general);
+  assert.ok(outfitter);
+  for(const recipe of CRAFTING_RECIPES){
+    assert.ok(ITEM_BASE_VALUE[recipe.key]>0,`missing sell price for ${recipe.key}`);
+    assert.ok(general.accepts.includes(recipe.key),`general merchant does not accept ${recipe.key}`);
+  }
+  for(const key of ['basic-bow','reinforced-bow','hunting-trap','composite-bow','hide-rack','hunter-blind']){
+    assert.ok(outfitter.accepts.includes(key),`outfitter does not accept ${key}`);
+  }
+  assert.ok(merchantByKey('provisioner').accepts.includes('scarecrow-kit'));
+  assert.ok(merchantByKey('provisioner').accepts.includes('seed-chest'));
 });
 
 test('all configured merchants have unique keys and accept lists',()=>{
