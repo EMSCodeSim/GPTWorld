@@ -22,6 +22,8 @@ test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(api,/snapshotAt/);
   assert.match(ui,/syncHuntSnapshotAnimals/);
   assert.match(ui,/snapshotAt:survivalData\.generatedAt/);
+  assert.match(ui,/async function syncPositionNow/);
+  assert.match(ui,/const synced=await syncPositionNow\(\)/);
 });
 test('harvested food connects to cooking without a second inventory',()=>{
   assert.match(api,/cookStew/);assert.match(api,/item_key IN \('raw-meat','carrot'\)/);assert.match(api,/itemKey:'trail-rations'/);
