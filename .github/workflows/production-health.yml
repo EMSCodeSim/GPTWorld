@@ -1,0 +1,43 @@
+name: Production Health Check
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  production-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for production deploy
+        run: sleep 45
+      - name: Verify GPTWorld production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://gptlife.netlify.app/.netlify/functions/health"
+          body=""
+          for attempt in {1..8}; do
+            body="$(curl -fsS --max-time 20 "$url" || true)"
+            echo "Attempt $attempt: $body"
+            if python3 - "$body" <<'PY'
+import json, sys
+try:
+    data=json.loads(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+ok = data.get("ok") is True and data.get("status") == "healthy"
+checks = data.get("checks") or {}
+required = ["database","required_tables","current_day","shared_world_state","players_table","inventory_table","inventory_ownership","world_events_table"]
+raise SystemExit(0 if ok and all(checks.get(k) is True for k in required) else 1)
+PY
+            then
+              echo "GPTWorld production health VERIFIED DIRECT."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Production health did not verify healthy."
+          exit 1
