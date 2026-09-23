@@ -1,9 +1,9 @@
-const CACHE_NAME='gptworld-private-shell-v13';
+const CACHE_NAME='gptworld-private-shell-v14';
 const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 const PRIVATE_SHELL=[
   './private-world.html',
   './private-world-shell.js?v=living-worlds-10',
-  './private-world.js?v=living-worlds-15',
+  './private-world.js?v=crafting-art-1',
   './private-world-cache.mjs?v=living-worlds-5',
   './private-world.css?v=living-worlds-14',
   './styles.css?v=living-worlds-5',
@@ -13,6 +13,14 @@ const PRIVATE_SHELL=[
   './assets/crafting/stone-hearth.webp',
   './assets/crafting/healing-poultice.webp',
   './assets/crafting/weather-tonic.webp',
+  './lib/crafting-art-sheet-1.mjs',
+  './lib/crafting-art-sheet-2.mjs',
+  './lib/crafting-art-sheet-3.mjs',
+  './lib/crafting-art-sheet-4.mjs',
+  './lib/crafting-art-sheet-5.mjs',
+  './lib/crafting-art-sheet-6.mjs',
+  './lib/crafting-art-sheet-7.mjs',
+  './lib/crafting-art-sheet-8.mjs',
   THREE_URL
 ];
 
@@ -27,7 +35,7 @@ self.addEventListener('activate',event=>{
 function isPrivateAsset(url){
   if(url.href===THREE_URL)return true;
   if(url.origin!==self.location.origin)return false;
-  return /\/(private-world(?:-cache|-shell)?\.(?:html|js|mjs|css)|styles\.css)$/.test(url.pathname)||url.pathname.includes('/assets/crafting/');
+  return /\/(private-world(?:-cache|-shell)?\.(?:html|js|mjs|css)|styles\.css)$/.test(url.pathname)||url.pathname.includes('/assets/crafting/')||url.pathname.includes('/lib/crafting-art-sheet-');
 }
 
 self.addEventListener('fetch',event=>{
