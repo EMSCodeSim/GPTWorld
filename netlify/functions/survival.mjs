@@ -15,19 +15,20 @@ async function context(sql,clientId){
   return rows[0]||null;
 }
 async function ensureSkills(sql,playerId){for(const key of CRAFTING_SKILL_KEYS)await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${playerId},${key}) ON CONFLICT(player_id,skill_key) DO NOTHING`;}
-async function livingAnimals(sql,actor){
+async function livingAnimals(sql,actor,atMs=Date.now()){
   const rows=await sql`SELECT key,value FROM world_state WHERE key IN ('weather_sim','ecosystem','forest_pressure')`;
   const living=Object.fromEntries(rows.map(row=>[row.key,row.value]));
   const ecology=synchronizePrivateLivingState(actor.ecology_state,living.weather_sim,living.ecosystem);
   const observer=privateObserverForLivingRenderer({x:Number(actor.private_x),z:Number(actor.private_z)},actor.seed);
-  const rendered=ecologyRenderEntities(living.ecosystem,Date.now(),living.weather_sim,observer,living.forest_pressure);
+  const rendered=ecologyRenderEntities(living.ecosystem,Number(atMs)||Date.now(),living.weather_sim,observer,living.forest_pressure);
   const animals=privateLivingEntityView(rendered,{worldId:actor.world_id,seed:actor.seed,terrain:actor.terrain_state}).filter(entity=>entity.part==='creature');
   return{animals,ecology};
 }
 function plotView(row,ecology){const advanced=advanceCrop(row,{weather:ecology?.weather,temperature:ecology?.temperature,now:new Date()});return{id:String(row.id),x:Number(row.x),z:Number(row.z),cropKey:row.crop_key,stage:advanced.stage,progress:advanced.progress,moisture:advanced.moisture,health:advanced.health,plantedAt:row.planted_at,wateredAt:row.watered_at,harvestCount:Number(row.harvest_count||0)};}
 async function payload(sql,actor){
+  const generatedAt=Date.now();
   await ensureSkills(sql,actor.id);const [{animals,ecology},plots,skills,items,hunted]=await Promise.all([
-    livingAnimals(sql,actor),
+    livingAnimals(sql,actor,generatedAt),
     sql`SELECT * FROM private_farm_plots WHERE world_id=${actor.world_id} AND player_id=${actor.id} ORDER BY created_at`,
     sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key IN ('farming','hunting') ORDER BY skill_key`,
     sql`SELECT item_key,COALESCE(quantity,1) AS quantity FROM player_crafted_items WHERE player_id=${actor.id} AND placed_at IS NULL`,
@@ -39,7 +40,7 @@ async function payload(sql,actor){
   const equipment=[...new Set(items.filter(row=>['basic-bow','reinforced-bow','composite-bow','hunting-trap'].includes(row.item_key)&&Number(row.quantity)>0).map(row=>row.item_key))];
   const bag={};
   for(const row of items)bag[row.item_key]=(bag[row.item_key]||0)+Number(row.quantity||0);
-  return{ok:true,skills:skills.map(row=>({key:row.skill_key,value:Number(row.skill_value),attempts:Number(row.attempts)})),crops:CROPS.map(crop=>({...crop,unlocked:cropUnlocked(crop.key,skillMap.farming||0)})),huntUnlocks:HUNT_UNLOCKS.map(unlock=>({...unlock,unlocked:(skillMap.hunting||0)>=unlock.level})),plots:advancedPlots,animals:animals.filter(animal=>!blocked.has(String(animal.id))).map(animal=>({id:String(animal.id),species:String(animal.speciesName||animal.species||'wildlife'),kind:String(animal.kind||'herbivore'),x:Number(animal.x),z:Number(animal.z),behavior:animal.behavior||'roaming',injury:Number(animal.injury||0)})),equipment,bag,ecology:{weather:ecology.weather,temperature:ecology.temperatureC??ecology.temperature}};
+  return{ok:true,generatedAt,skills:skills.map(row=>({key:row.skill_key,value:Number(row.skill_value),attempts:Number(row.attempts)})),crops:CROPS.map(crop=>({...crop,unlocked:cropUnlocked(crop.key,skillMap.farming||0)})),huntUnlocks:HUNT_UNLOCKS.map(unlock=>({...unlock,unlocked:(skillMap.hunting||0)>=unlock.level})),plots:advancedPlots,animals:animals.filter(animal=>!blocked.has(String(animal.id))).map(animal=>({id:String(animal.id),species:String(animal.speciesName||animal.species||'wildlife'),kind:String(animal.kind||'herbivore'),x:Number(animal.x),z:Number(animal.z),behavior:animal.behavior||'roaming',injury:Number(animal.injury||0)})),equipment,bag,ecology:{weather:ecology.weather,temperature:ecology.temperatureC??ecology.temperature}};
 }
 async function claim(sql,actor,key,action){const prior=await sql`SELECT response FROM survival_action_receipts WHERE player_id=${actor.id} AND idempotency_key=${key}`;if(prior.length)return{prior:prior[0].response};const made=await sql`INSERT INTO survival_action_receipts(player_id,idempotency_key,action,response) VALUES(${actor.id},${key},${action},'{"ok":false,"error":"pending"}'::jsonb) ON CONFLICT DO NOTHING RETURNING player_id`;return made.length?{}:{prior:{ok:false,error:'action_in_progress'}};}
 async function finish(sql,actor,key,response){await sql`UPDATE survival_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key}`;return response;}
@@ -79,8 +80,9 @@ async function harvestCrop(sql,actor,plotId,ecology){
   const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${reward.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='farming' RETURNING skill_value`;
   return{ok:true,action:'harvest_crop',reward,skillValue:Number(skill[0]?.skill_value||0),plot:plotView(cleared[0],ecology)};
 }
-async function hunt(sql,actor,key,animalId,equipment){
-  const {animals}=await livingAnimals(sql,actor),animal=animals.find(row=>String(row.id)===animalId);if(!animal)return{ok:false,error:'animal_not_found'};
+async function hunt(sql,actor,key,animalId,equipment,snapshotAt){
+  const now=Date.now(),requested=Number(snapshotAt),snapshotTime=Number.isFinite(requested)&&requested<=now+5000&&now-requested<=30000?requested:now;
+  const {animals}=await livingAnimals(sql,actor,snapshotTime),animal=animals.find(row=>String(row.id)===animalId);if(!animal)return{ok:false,error:'animal_not_found'};
   const distance=Math.hypot(Number(actor.private_x)-Number(animal.x),Number(actor.private_z)-Number(animal.z));if(distance>5)return{ok:false,error:'animal_out_of_range'};
   const gear=await sql`SELECT id FROM player_crafted_items WHERE player_id=${actor.id} AND item_key=${equipment} AND placed_at IS NULL AND quantity>0 LIMIT 1`;if(!gear.length)return{ok:false,error:'equipment_required'};
   const old=await sql`SELECT status,respawn_after,updated_at FROM private_hunting_state WHERE world_id=${actor.world_id} AND animal_id=${animalId}`;if(old[0]?.status==='harvested'&&(!old[0].respawn_after||new Date(old[0].respawn_after)>new Date()))return{ok:false,error:'animal_already_harvested'};if(old[0]?.status==='active'&&Date.now()-new Date(old[0].updated_at).getTime()<15000)return{ok:false,error:'hunt_cooldown'};
@@ -109,7 +111,7 @@ export default async req=>{
   if(!process.env.DATABASE_URL)return reply({ok:false,error:'database_not_configured'},503);const sql=neon(process.env.DATABASE_URL);
   try{const url=new URL(req.url),body=req.method==='POST'?await req.json().catch(()=>({})):{},clientId=clean(req.method==='GET'?url.searchParams.get('clientId'):body.clientId,80);if(!clientId)return reply({ok:false,error:'client_id_required'},400);const actor=await context(sql,clientId);if(!actor)return reply({ok:false,error:'private_world_not_found'},409);await ensureSkills(sql,actor.id);if(req.method==='GET')return reply(await payload(sql,actor));if(req.method!=='POST')return reply({ok:false,error:'method_not_allowed'},405);if(actor.current_world_type!=='private')return reply({ok:false,error:'private_world_required'},409);
     const action=clean(body.action,40),key=clean(body.idempotencyKey,100);if(!key)return reply({ok:false,error:'idempotency_key_required'},400);const claimed=await claim(sql,actor,key,action);if(claimed.prior)return reply(claimed.prior,claimed.prior.ok?200:409);let result;
-    if(action==='prepare_plot')result=await preparePlot(sql,actor,key,body.position);else if(action==='plant')result=await plant(sql,actor,clean(body.plotId,30),clean(body.cropKey,30));else if(action==='water')result=await water(sql,actor,clean(body.plotId,30));else if(action==='harvest_crop'){const {ecology}=await livingAnimals(sql,actor);result=await harvestCrop(sql,actor,clean(body.plotId,30),ecology);}else if(action==='track'){const {animals}=await livingAnimals(sql,actor),animal=animals.find(row=>String(row.id)===clean(body.animalId,100));result=animal?{ok:true,action:'track',animal:{id:String(animal.id),species:animal.speciesName||animal.species,behavior:animal.behavior,distance:Number(Math.hypot(Number(actor.private_x)-Number(animal.x),Number(actor.private_z)-Number(animal.z)).toFixed(1))}}:{ok:false,error:'animal_not_found'};}else if(action==='hunt')result=await hunt(sql,actor,key,clean(body.animalId,100),clean(body.equipment,30)||'basic-bow');else if(action==='cook_stew')result=await cookStew(sql,actor);else result={ok:false,error:'unknown_action'};
+    if(action==='prepare_plot')result=await preparePlot(sql,actor,key,body.position);else if(action==='plant')result=await plant(sql,actor,clean(body.plotId,30),clean(body.cropKey,30));else if(action==='water')result=await water(sql,actor,clean(body.plotId,30));else if(action==='harvest_crop'){const {ecology}=await livingAnimals(sql,actor);result=await harvestCrop(sql,actor,clean(body.plotId,30),ecology);}else if(action==='track'){const now=Date.now(),requested=Number(body.snapshotAt),snapshotTime=Number.isFinite(requested)&&requested<=now+5000&&now-requested<=30000?requested:now;const {animals}=await livingAnimals(sql,actor,snapshotTime),animal=animals.find(row=>String(row.id)===clean(body.animalId,100));result=animal?{ok:true,action:'track',animal:{id:String(animal.id),species:animal.speciesName||animal.species,behavior:animal.behavior,distance:Number(Math.hypot(Number(actor.private_x)-Number(animal.x),Number(actor.private_z)-Number(animal.z)).toFixed(1))}}:{ok:false,error:'animal_not_found'};}else if(action==='hunt')result=await hunt(sql,actor,key,clean(body.animalId,100),clean(body.equipment,30)||'basic-bow',body.snapshotAt);else if(action==='cook_stew')result=await cookStew(sql,actor);else result={ok:false,error:'unknown_action'};
     await finish(sql,actor,key,result);return reply(result,result.ok?200:409);
   }catch(error){console.error('GPTWorld survival error',error);return reply({ok:false,error:/private_farm_plots|private_hunting_state|survival_action_receipts/.test(String(error?.message))?'survival_migration_required':'survival_failed'},500);}
 };
