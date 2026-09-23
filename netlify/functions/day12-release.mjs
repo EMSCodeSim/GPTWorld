@@ -109,7 +109,7 @@ export default async (req) => {
       ),
       day_updated AS (
         UPDATE world_state ws
-        SET value = jsonb_build_object('day', ${DAY}, 'era', COALESCE(day_gate.value->>'era', 'Founding Era')),
+        SET value = jsonb_build_object('day', ${DAY}::int, 'era', COALESCE(day_gate.value->>'era', 'Founding Era')),
             updated_at = now()
         FROM day_gate, render_updated
         WHERE ws.key = 'current_day'
@@ -119,7 +119,7 @@ export default async (req) => {
         INSERT INTO world_events (player_id, event_type, payload)
         SELECT NULL, 'day12_firebreak_stone_spur_opened',
           jsonb_build_object(
-            'day', ${DAY},
+            'day', ${DAY}::int,
             'reason', 'critical forest pressure and an unfinished wildfire defense project',
             'stoneNodes', 2,
             'stonePerNode', 5,
