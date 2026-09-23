@@ -1,0 +1,37 @@
+name: Crafting Artwork Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/crafting-artwork-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: node --check private-world.js
+      - name: Validate generated artwork modules
+        run: |
+          node --input-type=module <<'NODE'
+          const mods = await Promise.all(Array.from({length:8},(_,i)=>import(`./lib/crafting-art-sheet-${i+1}.mjs`)));
+          for (const [i,mod] of mods.entries()) {
+            const value=mod.default;
+            if (!value.startsWith('data:image/webp;base64,')) throw new Error(`sheet ${i+1}: invalid prefix`);
+            const b64=value.slice(value.indexOf(',')+1);
+            const bytes=Buffer.from(b64,'base64');
+            if (bytes.length<1000 || bytes.subarray(0,4).toString()!=='RIFF' || bytes.subarray(8,12).toString()!=='WEBP') {
+              throw new Error(`sheet ${i+1}: invalid webp`);
+            }
+            console.log(`sheet ${i+1}: ${bytes.length} bytes OK`);
+          }
+          NODE
+      - run: npm run check
