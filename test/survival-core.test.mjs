@@ -27,6 +27,7 @@ test('harvest yields scale and return seed for replanting',()=>{
 
 test('hunting equipment and skill improve odds with deterministic result',()=>{
   assert.ok(huntChance({skill:60,equipment:'reinforced-bow',distance:2})>huntChance({skill:0,equipment:'basic-bow',distance:5}));
+  assert.ok(huntChance({skill:70,equipment:'composite-bow',distance:2})>huntChance({skill:70,equipment:'reinforced-bow',distance:2}));
   const a=resolveHunt({key:'same-request',species:'reed-runner',skill:20}),b=resolveHunt({key:'same-request',species:'reed-runner',skill:20});
   assert.deepEqual(a,b);assert.ok(a.xp>0);if(a.success)assert.deepEqual(a.rewards.map(x=>x.key),['raw-meat','hide']);
 });
