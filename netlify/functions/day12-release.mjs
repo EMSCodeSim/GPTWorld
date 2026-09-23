@@ -148,6 +148,6 @@ export default async (req) => {
     });
   } catch (error) {
     console.error('GPTWorld Day 12 release failed', error);
-    return json({ ok: false, error: 'day12_release_failed' }, 500);
+    return json({ ok: false, error: 'day12_release_failed', detail: String(error?.message || error).slice(0, 500) }, 500);
   }
 };
