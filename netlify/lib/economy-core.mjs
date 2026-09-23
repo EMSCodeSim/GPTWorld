@@ -8,13 +8,23 @@ export const MATERIAL_KEYS=Object.freeze(['wood','stone','herbs']);
 /** Crafted item_keys that stack when quality + durability match and item is unplaced. */
 export const STACKABLE_CRAFTED_KEYS=Object.freeze(new Set([
   'healing-poultice','weather-tonic','trail-rations','seed-pouch',
+  'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
+  'herb-broth','field-meal','preserved-rations','hearth-feast',
+  'bedroll','rope-coil','padded-bedroll','garden-stakes','irrigation-kit','raised-bed-kit',
   'wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide',
-  'wooden-beam','wooden-door','stone-foundation','iron-fittings'
+  'wooden-beam','wooden-door','stone-foundation','iron-fittings','shelter-frame','cabin-frame','roof-truss',
+  'stone-block','chimney-kit','arch-stone','reinforced-fittings','iron-latch-set'
 ]));
 
 /** Never stack these (unique / stateful / buildings / placeable furniture). */
 export const NON_STACKABLE_CRAFTED_KEYS=Object.freeze(new Set([
   'wooden-crate','campfire-kit','stone-hammer','stone-hearth','reed-mat',
+  'rough-stool','fence-panel','workbench','masterwork-chest',
+  'stone-wall-kit','kiln-kit','stone-counter','masterwork-hearth',
+  'forged-knife','hand-axe','smith-tool-set','masterwork-tools',
+  'woven-basket','canvas-screen','decorated-rug',
+  'scarecrow-kit','seed-chest','skinning-knife','hide-rack','hunter-blind',
+  'basic-bow','reinforced-bow','hunting-trap','composite-bow',
   'basic-house','homestead'
 ]));
 
@@ -39,7 +49,15 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'reed-mat':5,
   'trail-rations':3,
   'seed-pouch':4,
-  'wheat':2,'carrot':2,'potato':3,'pumpkin':5,'farm-herbs':4,'raw-meat':5,'hide':7
+  'wheat':2,'carrot':2,'potato':3,'pumpkin':5,'farm-herbs':4,'raw-meat':5,'hide':7,
+  'rough-stool':8,'fence-panel':11,'shelter-frame':14,'workbench':20,'cabin-frame':24,'roof-truss':28,'masterwork-chest':40,
+  'stone-block':7,'stone-wall-kit':15,'kiln-kit':20,'stone-counter':23,'chimney-kit':26,'arch-stone':30,'masterwork-hearth':42,
+  'antiseptic-salve':8,'insect-repellent':9,'warming-balm':11,'restorative-tonic':14,'field-medicine-kit':20,'masterwork-elixir':30,
+  'forged-knife':10,'hand-axe':15,'smith-tool-set':19,'reinforced-fittings':22,'iron-latch-set':24,'masterwork-tools':38,
+  'bedroll':5,'rope-coil':6,'woven-basket':9,'canvas-screen':14,'padded-bedroll':16,'decorated-rug':24,
+  'herb-broth':5,'field-meal':7,'preserved-rations':10,'hearth-feast':15,
+  'garden-stakes':6,'irrigation-kit':12,'scarecrow-kit':13,'raised-bed-kit':16,'seed-chest':22,
+  'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30
 });
 
 /**
@@ -55,7 +73,15 @@ export const MERCHANTS=Object.freeze([
     x:5.8,z:5.2,
     outfit:0x6a5a3e,
     lines:['“I’ll take honest goods for fair coin.”','“Stack what you can. Trade what you don’t need.”'],
-    accepts:Object.freeze(['healing-poultice','weather-tonic','trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','reed-mat','wooden-beam','wooden-door','stone-foundation','iron-fittings','campfire-kit','stone-hammer','wooden-crate','stone-hearth']),
+    accepts:Object.freeze(['healing-poultice','weather-tonic','trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','reed-mat','wooden-beam','wooden-door','stone-foundation','iron-fittings','campfire-kit','stone-hammer','wooden-crate','stone-hearth',
+      'rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest',
+      'stone-block','stone-wall-kit','kiln-kit','stone-counter','chimney-kit','arch-stone','masterwork-hearth',
+      'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
+      'forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools',
+      'bedroll','rope-coil','woven-basket','canvas-screen','padded-bedroll','decorated-rug',
+      'herb-broth','field-meal','preserved-rations','hearth-feast',
+      'garden-stakes','irrigation-kit','scarecrow-kit','raised-bed-kit','seed-chest',
+      'skinning-knife','hide-rack','hunter-blind','composite-bow']),
     specialtyMod:0.72,
     defaultBudget:180,
     replenishAmount:180
@@ -68,7 +94,7 @@ export const MERCHANTS=Object.freeze([
     x:6.2,z:-6.5,
     outfit:0x7a5a40,
     lines:['“Bring me timber work. I’ll pay for clean joins.”'],
-    accepts:Object.freeze(['wooden-beam','wooden-door','wooden-crate','reed-mat','campfire-kit']),
+    accepts:Object.freeze(['wooden-beam','wooden-door','wooden-crate','reed-mat','campfire-kit','rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest','woven-basket','canvas-screen','decorated-rug']),
     specialtyMod:0.88,
     defaultBudget:140,
     replenishAmount:140
@@ -81,7 +107,7 @@ export const MERCHANTS=Object.freeze([
     x:11,z:1.2,
     outfit:0x455c6b,
     lines:['“Metal and tools, if they’re sound.”'],
-    accepts:Object.freeze(['iron-fittings','stone-hammer']),
+    accepts:Object.freeze(['iron-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife']),
     specialtyMod:0.9,
     defaultBudget:120,
     replenishAmount:120
@@ -94,7 +120,7 @@ export const MERCHANTS=Object.freeze([
     x:-4.2,z:6.4,
     outfit:0x6b6a68,
     lines:['“Stone that holds is worth coin.”'],
-    accepts:Object.freeze(['stone-foundation','stone-hearth','stone-hammer']),
+    accepts:Object.freeze(['stone-foundation','stone-hearth','stone-hammer','stone-block','stone-wall-kit','kiln-kit','stone-counter','chimney-kit','arch-stone','masterwork-hearth']),
     specialtyMod:0.88,
     defaultBudget:120,
     replenishAmount:120
@@ -107,7 +133,9 @@ export const MERCHANTS=Object.freeze([
     x:-3.2,z:-6.2,
     outfit:0x5f6b48,
     lines:['“Food, seed, and trail remedies keep the valley alive.”'],
-    accepts:Object.freeze(['trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','healing-poultice','weather-tonic']),
+    accepts:Object.freeze(['trail-rations','seed-pouch','wheat','carrot','potato','pumpkin','farm-herbs','raw-meat','hide','healing-poultice','weather-tonic',
+      'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
+      'herb-broth','field-meal','preserved-rations','hearth-feast','garden-stakes','irrigation-kit','raised-bed-kit']),
     specialtyMod:0.9,
     defaultBudget:100,
     replenishAmount:100
