@@ -18,6 +18,10 @@ test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(ui,/animalDistance\(animal,target\)/);
   assert.match(ui,/if\(!data\.serverDriven\)/);
   assert.match(ui,/gear\.has\('composite-bow'\)/);
+  assert.match(api,/generatedAt/);
+  assert.match(api,/snapshotAt/);
+  assert.match(ui,/syncHuntSnapshotAnimals/);
+  assert.match(ui,/snapshotAt:survivalData\.generatedAt/);
 });
 test('harvested food connects to cooking without a second inventory',()=>{
   assert.match(api,/cookStew/);assert.match(api,/item_key IN \('raw-meat','carrot'\)/);assert.match(api,/itemKey:'trail-rations'/);
