@@ -3,6 +3,14 @@ import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQu
 import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
 import {PRIVATE_INTERIOR_SPAWN_KEY,interiorEntryUrl,rememberOutdoorPosition} from './lib/interior-core.mjs';
+import craftingArtSheet1 from './lib/crafting-art-sheet-1.mjs';
+import craftingArtSheet2 from './lib/crafting-art-sheet-2.mjs';
+import craftingArtSheet3 from './lib/crafting-art-sheet-3.mjs';
+import craftingArtSheet4 from './lib/crafting-art-sheet-4.mjs';
+import craftingArtSheet5 from './lib/crafting-art-sheet-5.mjs';
+import craftingArtSheet6 from './lib/crafting-art-sheet-6.mjs';
+import craftingArtSheet7 from './lib/crafting-art-sheet-7.mjs';
+import craftingArtSheet8 from './lib/crafting-art-sheet-8.mjs';
 
 const API='/.netlify/functions/private-world';
 const CRAFTING_API='/.netlify/functions/crafting';
@@ -394,8 +402,36 @@ function updateStatus(){
 function showToast(message){toastEl.textContent=message;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3400);}
 function resourceText(inputs){return Object.entries(inputs).filter(([,amount])=>amount>0).map(([resource,amount])=>`${amount} ${resource}`).join(' · ');}
 const CRAFTING_ART=new Set(['campfire-kit','healing-poultice','stone-hammer','stone-hearth','weather-tonic','wooden-crate']);
-const ITEM_SYMBOLS={'seed-pouch':'🌱','basic-bow':'🏹','reinforced-bow':'🏹','hunting-trap':'🪤',wheat:'🌾',carrot:'🥕',potato:'🥔',pumpkin:'🎃','farm-herbs':'🌿','raw-meat':'🥩',hide:'🟫','trail-rations':'🥣','wooden-beam':'🪵','wooden-door':'🚪','stone-foundation':'🧱','iron-fittings':'⚙️','reed-mat':'🧺'};
-function craftingIcon(key){if(CRAFTING_ART.has(key))return `./assets/crafting/${encodeURIComponent(key)}.webp`;const symbol=ITEM_SYMBOLS[key]||'🛠️',svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><radialGradient id="g"><stop stop-color="#49634b"/><stop offset="1" stop-color="#1a2d20"/></radialGradient></defs><rect width="160" height="160" rx="24" fill="url(#g)"/><text x="80" y="103" text-anchor="middle" font-size="72">${symbol}</text></svg>`;return`data:image/svg+xml,${encodeURIComponent(svg)}`;}
+const ITEM_SYMBOLS={'seed-pouch':'🌱','reinforced-bow':'🏹',wheat:'🌾',carrot:'🥕',potato:'🥔',pumpkin:'🎃','farm-herbs':'🌿','raw-meat':'🥩',hide:'🟫','trail-rations':'🥣','wooden-beam':'🪵','wooden-door':'🚪','stone-foundation':'🧱','iron-fittings':'⚙️','reed-mat':'🧺'};
+const GENERATED_CRAFTING_ART=Object.freeze({
+  'rough-stool':[craftingArtSheet1,0,0],'fence-panel':[craftingArtSheet1,1,0],'shelter-frame':[craftingArtSheet1,2,0],
+  'workbench':[craftingArtSheet1,0,1],'cabin-frame':[craftingArtSheet1,1,1],'roof-truss':[craftingArtSheet1,2,1],
+  'masterwork-chest':[craftingArtSheet2,0,0],'stone-block':[craftingArtSheet2,1,0],'stone-wall-kit':[craftingArtSheet2,2,0],
+  'kiln-kit':[craftingArtSheet2,0,1],'stone-counter':[craftingArtSheet2,1,1],'chimney-kit':[craftingArtSheet2,2,1],
+  'arch-stone':[craftingArtSheet3,0,0],'masterwork-hearth':[craftingArtSheet3,1,0],'antiseptic-salve':[craftingArtSheet3,2,0],
+  'insect-repellent':[craftingArtSheet3,0,1],'warming-balm':[craftingArtSheet3,1,1],'restorative-tonic':[craftingArtSheet3,2,1],
+  'field-medicine-kit':[craftingArtSheet4,0,0],'masterwork-elixir':[craftingArtSheet4,1,0],'forged-knife':[craftingArtSheet4,2,0],
+  'hand-axe':[craftingArtSheet4,0,1],'smith-tool-set':[craftingArtSheet4,1,1],'reinforced-fittings':[craftingArtSheet4,2,1],
+  'iron-latch-set':[craftingArtSheet5,0,0],'masterwork-tools':[craftingArtSheet5,1,0],'bedroll':[craftingArtSheet5,2,0],
+  'rope-coil':[craftingArtSheet5,0,1],'woven-basket':[craftingArtSheet5,1,1],'canvas-screen':[craftingArtSheet5,2,1],
+  'padded-bedroll':[craftingArtSheet6,0,0],'decorated-rug':[craftingArtSheet6,1,0],'herb-broth':[craftingArtSheet6,2,0],
+  'field-meal':[craftingArtSheet6,0,1],'preserved-rations':[craftingArtSheet6,1,1],'hearth-feast':[craftingArtSheet6,2,1],
+  'garden-stakes':[craftingArtSheet7,0,0],'irrigation-kit':[craftingArtSheet7,1,0],'scarecrow-kit':[craftingArtSheet7,2,0],
+  'raised-bed-kit':[craftingArtSheet7,0,1],'seed-chest':[craftingArtSheet7,1,1],'skinning-knife':[craftingArtSheet7,2,1],
+  'hide-rack':[craftingArtSheet8,0,0],'hunter-blind':[craftingArtSheet8,1,0],'composite-bow':[craftingArtSheet8,2,0],
+  'basic-bow':[craftingArtSheet8,0,1],'hunting-trap':[craftingArtSheet8,1,1]
+});
+function generatedCraftingIcon(key){
+  const art=GENERATED_CRAFTING_ART[key];if(!art)return null;
+  const [sheet,col,row]=art,cell=64;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><image href="${sheet}" width="192" height="128" x="${-col*cell}" y="${-row*cell}" preserveAspectRatio="none"/></svg>`;
+  return`data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+function craftingIcon(key){
+  const generated=generatedCraftingIcon(key);if(generated)return generated;
+  if(CRAFTING_ART.has(key))return `./assets/crafting/${encodeURIComponent(key)}.webp`;
+  const symbol=ITEM_SYMBOLS[key]||'🛠️',svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><radialGradient id="g"><stop stop-color="#49634b"/><stop offset="1" stop-color="#1a2d20"/></radialGradient></defs><rect width="160" height="160" rx="24" fill="url(#g)"/><text x="80" y="103" text-anchor="middle" font-size="72">${symbol}</text></svg>`;return`data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
 function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&!classifyPrecipitation(currentEcology?.weather).wet;}
 function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}refreshCrateStorageLabel(sprite,item);}
 function updatePlacedItemState(itemId,changes){
