@@ -13,7 +13,11 @@ test('migration is additive and has no destructive resets',()=>{
   assert.match(migration,/CREATE TABLE IF NOT EXISTS private_farm_plots/);assert.match(migration,/CREATE TABLE IF NOT EXISTS private_hunting_state/);assert.doesNotMatch(migration,/DROP TABLE|TRUNCATE/);
 });
 test('mobile private world exposes contextual farming and hunting actions',()=>{
-  assert.match(ui,/prepare_plot/);assert.match(ui,/harvest_crop/);assert.match(ui,/animal_out_of_range/);assert.match(ui,/openSurvival\(nearest\)/);
+  assert.match(ui,/prepare_plot/);assert.match(ui,/harvest_crop/);assert.match(ui,/animal_out_of_range/);assert.match(ui,/openSurvival\(nearest/);
+  assert.match(ui,/animalDistance\(animal,target=null\)/);
+  assert.match(ui,/animalDistance\(animal,target\)/);
+  assert.match(ui,/if\(!data\.serverDriven\)/);
+  assert.match(ui,/gear\.has\('composite-bow'\)/);
 });
 test('harvested food connects to cooking without a second inventory',()=>{
   assert.match(api,/cookStew/);assert.match(api,/item_key IN \('raw-meat','carrot'\)/);assert.match(api,/itemKey:'trail-rations'/);
