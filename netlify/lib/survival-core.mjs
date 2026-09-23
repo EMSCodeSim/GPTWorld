@@ -11,7 +11,8 @@ export const HUNT_UNLOCKS=Object.freeze([
   {level:0,key:'tracking',name:'Basic tracking'},
   {level:0,key:'basic-bow',name:'Basic bow'},
   {level:30,key:'reinforced-bow',name:'Reinforced bow'},
-  {level:55,key:'hunting-trap',name:'Hunting trap'}
+  {level:55,key:'hunting-trap',name:'Hunting trap'},
+  {level:70,key:'composite-bow',name:'Composite bow'}
 ]);
 export const CROP_STAGES=Object.freeze(['seed','sprout','young','mature','ready','dead']);
 
@@ -37,7 +38,7 @@ export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18}
 export function cropHarvest(cropKey,skill=0,health=100){const crop=cropByKey(cropKey);if(!crop)return null;const bonus=Math.floor(clamp(skill,0,100)/35),quantity=Math.max(1,Math.round(crop.yield*(clamp(health,10,100)/100))+bonus);return{itemKey:crop.key,name:crop.name,quantity,xp:Number((crop.xp+quantity*.12).toFixed(2)),seedPouches:1};}
 
 export function huntChance({skill=0,equipment='basic-bow',distance=0,injury=0}={}){
-  const equipmentBonus=equipment==='reinforced-bow'?.18:equipment==='hunting-trap'?.12:0;
+  const equipmentBonus=equipment==='composite-bow'?.26:equipment==='reinforced-bow'?.18:equipment==='hunting-trap'?.12:0;
   return Number(clamp(.58+clamp(skill,0,100)*.003+equipmentBonus-clamp(distance-2,0,6)*.055+clamp(injury,0,1)*.12,.18,.95).toFixed(3));
 }
 export function deterministicRoll(key){let hash=2166136261;for(const char of String(key)){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return(hash>>>0)/4294967296;}
