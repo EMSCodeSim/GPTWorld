@@ -45,6 +45,7 @@ let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
 let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,livingRefreshBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,houseBusy=false,survivalBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null,survivalData=null,survivalTarget=null;
 let previousSkills=[];
+let craftingSkillFilter='all';
 let survivalMode='farm',huntMarker=null;
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
@@ -530,8 +531,11 @@ function renderConstruction(){
 }
 function renderCrafting(){
   if(!craftingData)return;
-  craftingSkills.replaceChildren(...craftingData.skills.map(skill=>{const card=document.createElement('div');card.className='crafting-skill';const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skillLabel(skill.key);progress.textContent=`${Number(skill.value).toFixed(2)} skill · ${skill.attempts} attempts`;card.append(name,progress);return card;}));
-  craftingRecipes.replaceChildren(...craftingData.recipes.map(recipe=>{
+  const allButton=document.createElement('button');allButton.type='button';allButton.className=`crafting-skill filter-button${craftingSkillFilter==='all'?' active':''}`;allButton.dataset.skill='all';allButton.setAttribute('aria-pressed',craftingSkillFilter==='all'?'true':'false');allButton.append(Object.assign(document.createElement('strong'),{textContent:'All'}),Object.assign(document.createElement('span'),{textContent:`${craftingData.recipes.length} recipes`}));allButton.addEventListener('click',()=>{craftingSkillFilter='all';renderCrafting();});
+  const skillButtons=craftingData.skills.map(skill=>{const card=document.createElement('button');card.type='button';card.className=`crafting-skill filter-button${craftingSkillFilter===skill.key?' active':''}`;card.dataset.skill=skill.key;card.setAttribute('aria-pressed',craftingSkillFilter===skill.key?'true':'false');const name=document.createElement('strong'),progress=document.createElement('span');name.textContent=skillLabel(skill.key);const count=craftingData.recipes.filter(recipe=>recipe.skill===skill.key).length;progress.textContent=`${Number(skill.value).toFixed(2)} skill · ${count} recipes`;card.append(name,progress);card.addEventListener('click',()=>{craftingSkillFilter=craftingSkillFilter===skill.key?'all':skill.key;renderCrafting();});return card;});
+  craftingSkills.replaceChildren(allButton,...skillButtons);
+  const visibleRecipes=craftingSkillFilter==='all'?craftingData.recipes:craftingData.recipes.filter(recipe=>recipe.skill===craftingSkillFilter);
+  craftingRecipes.replaceChildren(...visibleRecipes.map(recipe=>{
     const locked=Boolean(recipe.locked||recipe.unlocked===false);
     const card=document.createElement('article');card.className=`recipe-card${locked?' locked':''}`;
     const image=document.createElement('img'),content=document.createElement('div'),profession=document.createElement('div'),title=document.createElement('h3'),description=document.createElement('p'),meta=document.createElement('div'),cost=document.createElement('span'),chance=document.createElement('span'),button=document.createElement('button');
