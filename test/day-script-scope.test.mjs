@@ -11,5 +11,5 @@ test('classic day scripts do not collide on shared const names',async()=>{
   assert.match(day3,/^const GAME_KEY=/m);
   assert.match(day8,/^\(function\(\)\{/m);
   assert.match(day8,/const GAME_KEY=/);
-  assert.match(index,/day8-firebreak\.js\?v=day8-scope-1/);
+  assert.match(index,/day8-firebreak\.js\?v=day13-staging-1/);
 });
