@@ -21,7 +21,7 @@ jobs:
           set -euo pipefail
           body="$(curl -fsS -X POST --max-time 30 https://gptlife.netlify.app/.netlify/functions/day13-release)"
           echo "$body"
-          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); sys.exit(0 if d.get("ok") is True and int(d.get("day",{}).get("day",d.get("day",0)))==13 else 1)'
+          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); day=d.get("day",0); day=day.get("day",0) if isinstance(day,dict) else day; sys.exit(0 if d.get("ok") is True and int(day)==13 else 1)'
       - name: Verify post-release health and state
         run: |
           set -euo pipefail
