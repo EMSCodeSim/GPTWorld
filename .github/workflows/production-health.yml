@@ -24,16 +24,6 @@ jobs:
             echo "Attempt $attempt: $body"
             if BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); c=d.get("checks") or {}; req=["database","required_tables","current_day","shared_world_state","players_table","inventory_table","inventory_ownership","world_events_table"]; sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and all(c.get(k) is True for k in req) else 1)'; then
               echo "GPTWorld production health VERIFIED DIRECT."
-              memory="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/world-memory)"
-              MEMORY="$memory" python3 - <<'PY'
-          import json,os
-          d=json.loads(os.environ['MEMORY'])
-          out={k:d.get(k) for k in ['generated_at','current_day','population','activity_24h']}
-          out['active_projects']=d.get('evolution_context',{}).get('active_projects',[])
-          out['recent_events']=d.get('recent_events',[])[:20]
-          out['pressures']=d.get('living_memory',{}).get('pressures',[])
-          print('WORLD_OBSERVATION='+json.dumps(out,separators=(',',':')))
-          PY
               exit 0
             fi
             sleep 15
