@@ -16,7 +16,7 @@ export default async req=>{
     const payload=JSON.stringify([ENTITY]);
     const result=await sql`
       WITH day_gate AS (
-        SELECT value FROM world_state WHERE key='current_day' AND COALESCE((value->>'day')::int,0)=${DAY-1} FOR UPDATE
+        SELECT value FROM world_state WHERE key='current_day' AND COALESCE((value->>'day')::int,0)=${DAY-1}::int FOR UPDATE
       ), render_locked AS (
         SELECT value FROM world_state WHERE key='render_entities' FOR UPDATE
       ), render_updated AS (
@@ -31,11 +31,11 @@ export default async req=>{
           WHERE e->>'id'='firebreak-staging-cairn'
         ) RETURNING ws.value
       ), day_updated AS (
-        UPDATE world_state ws SET value=jsonb_build_object('day',${DAY},'era',COALESCE(day_gate.value->>'era','Founding Era')),updated_at=now()
+        UPDATE world_state ws SET value=jsonb_build_object('day',${DAY}::int,'era',COALESCE(day_gate.value->>'era','Founding Era')),updated_at=now()
         FROM day_gate,render_updated WHERE ws.key='current_day' RETURNING ws.value
       ), logged AS (
         INSERT INTO world_events(player_id,event_type,payload)
-        SELECT NULL,'day13_firebreak_staging_opened',jsonb_build_object('day',${DAY},'reason','travelers exhausted both new scree deposits but the firebreak remained unfunded','stagingPoint','firebreak-staging-cairn')
+        SELECT NULL,'day13_firebreak_staging_opened',jsonb_build_object('day',${DAY}::int,'reason','travelers exhausted both new scree deposits but the firebreak remained unfunded','stagingPoint','firebreak-staging-cairn')
         FROM day_updated RETURNING id
       )
       SELECT day_updated.value AS day,(SELECT id FROM logged LIMIT 1) AS event_id FROM day_updated`;
