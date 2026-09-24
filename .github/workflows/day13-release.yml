@@ -1,0 +1,32 @@
+name: Day 13 Production Release
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for production deploy
+        run: sleep 55
+      - name: Verify pre-release health
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$body"
+          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and int(d.get("world",{}).get("current_day",{}).get("day",0)) in (12,13) else 1)'
+      - name: Release Day 13
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS -X POST --max-time 30 https://gptlife.netlify.app/.netlify/functions/day13-release)"
+          echo "$body"
+          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); sys.exit(0 if d.get("ok") is True and int(d.get("day",{}).get("day",d.get("day",0)))==13 else 1)'
+      - name: Verify post-release health and state
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$health"
+          HEALTH="$health" python3 -c 'import json,os,sys; d=json.loads(os.environ["HEALTH"]); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and int(d.get("world",{}).get("current_day",{}).get("day",0))==13 else 1)'
+          memory="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          MEMORY="$memory" python3 -c 'import json,os,sys; d=json.loads(os.environ["MEMORY"]); r=d.get("world",{}).get("render_entities",[]); r=r.get("entities",[]) if isinstance(r,dict) else r; ids={str(x.get("id")) for x in r if isinstance(x,dict)}; print("staging_present", "firebreak-staging-cairn" in ids); sys.exit(0 if d.get("ok") is True and int(d.get("current_day",{}).get("day",0))==13 and "firebreak-staging-cairn" in ids else 1)'
