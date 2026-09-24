@@ -1,0 +1,28 @@
+name: Day 13 Observe
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/day13-observe.yml']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify health and read world memory
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$health"
+          HEALTH="$health" python3 -c 'import json,os,sys; d=json.loads(os.environ["HEALTH"]); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" else 1)'
+          memory="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          MEMORY="$memory" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['MEMORY'])
+          out={k:d.get(k) for k in ['generated_at','current_day','population','activity_24h']}
+          out['active_projects']=d.get('evolution_context',{}).get('active_projects',[])
+          out['completed_projects']=d.get('evolution_context',{}).get('completed_projects',[])
+          out['recent_events']=d.get('recent_events',[])[:20]
+          out['pressures']=d.get('living_memory',{}).get('pressures',[])
+          print(json.dumps(out,separators=(',',':')))
+          PY
