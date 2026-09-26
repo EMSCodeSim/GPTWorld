@@ -1,4 +1,6 @@
 import { neon } from '@neondatabase/serverless';
+import {pickActiveEvent,eventStillActive,mergeEventDemandBias} from '../lib/living-events-core.mjs';
+import {normalizeDemand,tickDemand} from '../lib/town-projects-core.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const dbUrl=()=>globalThis.Netlify?.env?.get?.('DATABASE_URL')||process.env.DATABASE_URL;
@@ -69,6 +71,8 @@ export default async req=>{
       ('living_weather','{}'::jsonb,now()),
       ('settlement_needs','{"last_tick":-1,"status":"stable","score":50}'::jsonb,now()),
       ('npc_life','{"version":1,"memories":{}}'::jsonb,now()),
+      ('living_world_event','{}'::jsonb,now()),
+      ('town_demand','{"version":1,"wood":55,"stone":45,"herbs":40,"food":50,"tools":35,"furniture":30,"clothing":25,"construction":40,"crafted":35}'::jsonb,now()),
       ('world_aging',jsonb_build_object('version',1,'bornAt',extract(epoch from now())*1000,'travel','{}'::jsonb,'rainExposure',0,'milestones','[]'::jsonb),now())
       ON CONFLICT (key) DO NOTHING`;
 
@@ -94,7 +98,7 @@ export default async req=>{
     if(req.method!=='GET')return json({ok:false,error:'method_not_allowed'},405);
 
     const now=Date.now(),weatherBucket=Math.floor(now/(3*hourMs)),needsBucket=Math.floor(now/(6*hourMs)),hour=new Date().getUTCHours();
-    let rows=await sql`SELECT key,value FROM world_state WHERE key IN ('living_weather','settlement_needs','npc_life','settlement_stockpile','world_aging')`;
+    let rows=await sql`SELECT key,value FROM world_state WHERE key IN ('living_weather','settlement_needs','npc_life','settlement_stockpile','world_aging','living_world_event','town_demand','ecosystem')`;
     let world=Object.fromEntries(rows.map(r=>[r.key,r.value]));
 
     if(Number(world.living_weather?.bucket)!==weatherBucket){
@@ -123,6 +127,46 @@ export default async req=>{
 
     const recent=await sql`SELECT we.id,we.event_type,we.payload,we.created_at,p.display_name FROM world_events we LEFT JOIN players p ON p.id=we.player_id ORDER BY we.created_at DESC LIMIT 40`;
     const nextNpc=npcState(hour,world.npc_life||{},recent.reverse(),world.living_weather||{},world.settlement_needs||{}); await sql`UPDATE world_state SET value=${JSON.stringify(nextNpc)}::jsonb,updated_at=now() WHERE key='npc_life'`; world.npc_life=nextNpc;
-    return json({ok:true,weather:world.living_weather,needs:world.settlement_needs,npcs:world.npc_life,aging,stockpile:world.settlement_stockpile||{}});
+
+    // Condition-driven living events with real gameplay effects (demand / crop / hunt modifiers).
+    let activeEvent=eventStillActive(world.living_world_event,now)?world.living_world_event:null;
+    if(!activeEvent||Number(activeEvent.bucket)!==Math.floor(now/(6*hourMs))){
+      let unlocks=[],completedCount=0;
+      try{
+        const projectRows=await sql`SELECT status,unlocks FROM town_projects`;
+        completedCount=projectRows.filter(row=>row.status==='complete').length;
+        unlocks=projectRows.filter(row=>row.status==='complete').flatMap(row=>Array.isArray(row.unlocks)?row.unlocks:[]);
+      }catch{/* town_projects may not be migrated yet */}
+      const picked=pickActiveEvent({
+        weather:world.living_weather||{},
+        needs:world.settlement_needs||{},
+        stockpile:world.settlement_stockpile||{},
+        ecosystem:world.ecosystem||{},
+        unlocks,
+        completedCount,
+        hour
+      },now);
+      if(picked&&picked.key!==activeEvent?.key){
+        await sql`UPDATE world_state SET value=${JSON.stringify(picked)}::jsonb,updated_at=now() WHERE key='living_world_event'`;
+        await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (NULL,'living_world_event',${JSON.stringify({key:picked.key,name:picked.name,summary:picked.summary,effects:picked.effects})}::jsonb)`;
+        try{
+          await sql`INSERT INTO town_history(event_key,title,summary,game_day,payload) VALUES(${`event:${picked.key}:${picked.bucket}`},${picked.name},${picked.summary},NULL,${JSON.stringify({eventKey:picked.key,effects:picked.effects})}::jsonb) ON CONFLICT (event_key) DO NOTHING`;
+        }catch{/* history table optional until migration */}
+        activeEvent=picked;
+      }else if(!picked){
+        activeEvent=null;
+        await sql`UPDATE world_state SET value='{}'::jsonb,updated_at=now() WHERE key='living_world_event'`;
+      }
+    }
+
+    let demand=normalizeDemand(world.town_demand||{});
+    if(Number(demand.lastTick)!==needsBucket){
+      demand=tickDemand(demand,{stockpile:world.settlement_stockpile||{},needs:world.settlement_needs||{},eventBias:activeEvent?.effects?.demandBias||null});
+      if(activeEvent)demand=mergeEventDemandBias(demand,activeEvent);
+      demand.lastTick=needsBucket;
+      await sql`UPDATE world_state SET value=${JSON.stringify(demand)}::jsonb,updated_at=now() WHERE key='town_demand'`;
+    }
+
+    return json({ok:true,weather:world.living_weather,needs:world.settlement_needs,npcs:world.npc_life,aging,stockpile:world.settlement_stockpile||{},event:activeEvent,demand});
   }catch(err){console.error('living systems error',err);return json({ok:false,error:'living_systems_failed',detail:String(err?.message||err).slice(0,180)},500)}
 };

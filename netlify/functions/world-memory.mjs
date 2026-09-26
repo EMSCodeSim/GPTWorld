@@ -8,7 +8,8 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 const meaningfulTypes = new Set([
   'resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed',
   'bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced',
-  'weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen'
+  'weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen',
+  'town_project_contribution','town_project_completed','living_world_event'
 ]);
 
 function eventStory(event){
@@ -27,6 +28,9 @@ function eventStory(event){
   if(type==='weather_changed')return{...base,title:'Weather changed',what:`Conditions shifted to ${p.condition||'new weather'}.`,why:'The live weather simulation continued advancing.',next:'Moisture, temperature, and wind can affect ecology and disaster risk.'};
   if(type==='forest_pressure_changed')return{...base,title:`Forest pressure became ${p.stage||'visible'}`,what:`Repeated cutting moved forest pressure from ${p.from||'stable'} to ${p.stage||'a new stage'} (${Number(p.pressure||0)}%).`,why:'Harvesting accumulated into a shared ecological consequence.',next:'Wildlife will shift and residents can now choose how the settlement responds.'};
   if(type==='forest_response_chosen')return{...base,title:'A forest response entered history',what:`${actor} supported ${String(p.label||p.choice||'a forest response').toLowerCase()}.`,why:'The settlement had to choose between timber growth and habitat recovery.',next:String(p.effect||'The decision now influences forest pressure and future regrowth.')};
+  if(type==='town_project_contribution')return{...base,title:'A community project gained materials',what:`${actor} contributed ${Number(p.amount||1)} ${String(p.resource||'supplies').replaceAll('_',' ')} to ${String(p.projectKey||'a town project').replaceAll('_',' ')}.`,why:'Private production feeds public construction through shared projects.',next:p.complete?'Requirements are met and construction can complete.':'More contributions are still needed.'};
+  if(type==='town_project_completed')return{...base,title:`Community project completed: ${String(p.projectKey||'town project').replaceAll('_',' ')}`,what:`The settlement finished ${String(p.projectKey||'a community project').replaceAll('_',' ')}.`,why:'Travelers pooled personal resources into a lasting public structure.',next:`Unlocked: ${(Array.isArray(p.unlocks)?p.unlocks:[]).join(', ')||'new town capabilities'}.`};
+  if(type==='living_world_event')return{...base,title:p.name||'A living world event began',what:String(p.summary||'World conditions produced a temporary event.'),why:'Events emerge from weather, shortages, ecology, and town progress — not flavor text alone.',next:'Gameplay systems apply the event’s effects until it ends.'};
   return{...base,title:type.replaceAll('_',' '),what:`${actor} caused a recorded world event.`,why:'The event was preserved in the shared world ledger.',next:'Future evolution can use this event as evidence.'};
 }
 
@@ -53,7 +57,7 @@ export default async (req) => {
   try {
     const [worldRows, recentEvents, activityRows, populationRows] = await Promise.all([
       sql`SELECT key, value, updated_at FROM world_state ORDER BY key`,
-      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id WHERE we.event_type IN ('resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed','bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced','weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen') ORDER BY we.created_at DESC LIMIT 50`,
+      sql`SELECT we.id, we.event_type, we.payload, we.created_at, p.display_name FROM world_events we LEFT JOIN players p ON p.id = we.player_id WHERE we.event_type IN ('resource_gathered','stockpile_deposit','town_building_upgraded','trail_marker_placed','bridge_contribution','western_crossing_completed','sim_interaction','ecosystem_year_advanced','weather_changed','settlement_consumption','world_aging_milestone','forest_pressure_changed','forest_response_chosen','town_project_contribution','town_project_completed','living_world_event') ORDER BY we.created_at DESC LIMIT 50`,
       sql`SELECT event_type, count(*)::int AS count, max(created_at) AS last_seen_at FROM world_events WHERE created_at > now() - interval '24 hours' GROUP BY event_type ORDER BY count(*) DESC, event_type ASC`,
       sql`SELECT count(*)::int AS known_players, count(*) FILTER (WHERE last_seen_at > now() - interval '24 hours')::int AS active_24h, count(*) FILTER (WHERE last_seen_at > now() - interval '90 seconds')::int AS online_now FROM players`
     ]);
