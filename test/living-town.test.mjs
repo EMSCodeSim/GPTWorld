@@ -12,12 +12,18 @@ import {
   activeProjectQueue,
   unlockedCapabilities,
   demandPriceModifier,
+  demandTier,
   tickDemand,
   normalizeDemand,
-  historyEntryFromProject
+  historyEntryFromProject,
+  constructionStage,
+  structureRenderEntity,
+  canContributeResource,
+  inventoryAmountFor,
+  CONSTRUCTION_STAGES
 } from '../netlify/lib/town-projects-core.mjs';
 import {npcPurchasePrice,saleQuote,merchantByKey} from '../netlify/lib/economy-core.mjs';
-import {pickActiveEvent,cropYieldModifier,mergeEventDemandBias} from '../netlify/lib/living-events-core.mjs';
+import {pickActiveEvent,cropYieldModifier,mergeEventDemandBias,eventPlayerBrief,npcWorldAwareLine} from '../netlify/lib/living-events-core.mjs';
 import {buildTrackSign,resolveHuntAttempt,playerNoise,huntingRange,freshnessForAge} from '../netlify/lib/hunting-core.mjs';
 import {advanceNeeds} from '../netlify/lib/light-survival-core.mjs';
 
@@ -56,12 +62,48 @@ test('normalizeContribution validates inventory and crafted aliases',()=>{
   assert.equal(normalizeContribution('wood',0).ok,false);
 });
 
+test('client affordability preview covers inventory and crafted resources',()=>{
+  assert.equal(canContributeResource('wood',5,{wood:5}),true);
+  assert.equal(canContributeResource('wood',6,{wood:5}),false);
+  assert.equal(canContributeResource('iron',2,{iron:2}),true);
+  assert.equal(canContributeResource('iron',2,{'iron-fittings':3}),true);
+  assert.equal(canContributeResource('iron',2,{wood:99}),false);
+  assert.equal(inventoryAmountFor('rations',{rations:4}),4);
+  assert.equal(inventoryAmountFor('rations',{'trail-rations':7}),7);
+});
+
 test('progress percent and active queue advance in order',()=>{
   assert.equal(progressPercent({wood:100},{wood:50}),50);
   const rows={blacksmith:{status:'complete',contributed:projectByKey('blacksmith').required}};
   const queue=activeProjectQueue(rows);
   assert.equal(queue.active.key,'mill');
   assert.ok(unlockedCapabilities(rows).includes('tool_repair'));
+});
+
+test('construction stages are config-driven and render as buildings',()=>{
+  assert.equal(CONSTRUCTION_STAGES.length,5);
+  assert.equal(constructionStage(10).key,'foundation');
+  assert.equal(constructionStage(30).key,'frame');
+  assert.equal(constructionStage(60).key,'partial');
+  assert.equal(constructionStage(80).key,'nearly');
+  assert.equal(constructionStage(100).key,'complete');
+  const mid=structureRenderEntity(projectByKey('blacksmith'),42);
+  assert.equal(mid.type,'building');
+  assert.equal(mid.constructionStage,'frame');
+  assert.equal(mid.scaffold,true);
+  assert.equal(mid.completed,false);
+  const done=structureRenderEntity(projectByKey('mill'),100,{completed:true});
+  assert.equal(done.type,'building');
+  assert.equal(done.completed,true);
+  assert.equal(done.scaffold,false);
+  assert.ok(done.unlocks.includes('grain_processing'));
+});
+
+test('demand tiers are plain labels over numeric demand',()=>{
+  assert.equal(demandTier(10).label,'LOW');
+  assert.equal(demandTier(50).label,'NORMAL');
+  assert.equal(demandTier(75).label,'HIGH');
+  assert.equal(demandTier(90).label,'URGENT');
 });
 
 test('town demand raises and lowers NPC purchase prices',()=>{
@@ -91,12 +133,24 @@ test('history entries are generated from project completion',()=>{
   assert.equal(entry.payload.completedBy,'Ava');
 });
 
-test('living events come from world conditions and alter gameplay',()=>{
+test('living events create player briefs and NPC world lines',()=>{
   const drought=pickActiveEvent({weather:{condition:'drought',temperatureC:32},needs:{score:40},stockpile:{},ecosystem:{},unlocks:[],hour:12},0);
   assert.ok(drought);
   assert.ok(cropYieldModifier(drought)<1);
+  const brief=eventPlayerBrief(drought);
+  assert.equal(brief.key,'drought');
+  assert.ok(brief.changed.length>=1);
+  assert.ok(brief.actions.length>=1);
   const demand=mergeEventDemandBias(normalizeDemand(),{key:'x',effects:{demandBias:{food:10}}});
   assert.ok(demand.food>50);
+  const line=npcWorldAwareLine({
+    npcName:'Tovan the Smith',
+    role:'Smith',
+    project:{name:'Build the Blacksmith Forge',remaining:{stone:42}},
+    demand:{food:80,wood:50},
+    event:drought
+  });
+  assert.match(line,/stone|forge|Blacksmith/i);
 });
 
 test('hunting loop builds track signs and respects range/noise',()=>{
@@ -130,35 +184,57 @@ test('living town migration is additive and safe',async()=>{
   assert.doesNotMatch(sql,/drop table|truncate/);
 });
 
-test('town projects api uses idempotent receipts and inventory debit',async()=>{
+test('town projects api persists buildings not invisible town_structure',async()=>{
   const src=await readFile(new URL('../netlify/functions/town-projects.mjs',import.meta.url),'utf8');
   assert.match(src,/idempotency_key/);
   assert.match(src,/FOR UPDATE/);
   assert.match(src,/debitInventory|wood=wood-/);
   assert.match(src,/town_project_completed/);
   assert.match(src,/persistStructure/);
+  assert.match(src,/structureRenderEntity/);
+  assert.match(src,/craftedCounts/);
+  assert.doesNotMatch(src,/type:'town_structure'/);
 });
 
-test('town board and living-town client expose contribute UX',async()=>{
-  const [town,client,index]=await Promise.all([
+test('town board and living-town client normalize contribution affordability',async()=>{
+  const [town,client,index,opps,main]=await Promise.all([
     readFile(new URL('../town.html',import.meta.url),'utf8'),
     readFile(new URL('../living-town.js',import.meta.url),'utf8'),
-    readFile(new URL('../index.html',import.meta.url),'utf8')
+    readFile(new URL('../index.html',import.meta.url),'utf8'),
+    readFile(new URL('../opportunities.js',import.meta.url),'utf8'),
+    readFile(new URL('../main.js',import.meta.url),'utf8')
   ]);
   assert.match(town,/Community Projects/);
   assert.match(town,/Town History/);
-  assert.match(town,/Interior unlocks at Level 2/);
-  assert.match(town,/Enter /);
-  assert.match(client,/Contribute/);
-  assert.match(client,/town-projects/);
+  assert.match(town,/canPay\(/);
+  assert.match(town,/ownedAmount/);
+  assert.match(town,/demandTier|URGENT/);
+  assert.match(client,/canPayResource/);
+  assert.match(client,/ownedAmount/);
+  assert.match(client,/iron-fittings/);
   assert.match(index,/living-town\.js/);
+  assert.match(index,/opportunities\.js/);
   assert.match(index,/player-guidance\.js/);
+  assert.match(opps,/NEARBY|opportunitiesPanel/);
+  assert.match(main,/case'town_structure'/);
+  assert.match(main,/constructionStage/);
 });
 
-test('private hunting UI exposes track stalk hunt harvest actions',async()=>{
+test('private hunting UI exposes track stalk hunt harvest and homestead identity',async()=>{
   const ui=await readFile(new URL('../private-world.js',import.meta.url),'utf8');
   assert.match(ui,/Read tracks/);
   assert.match(ui,/Stalk quietly/);
   assert.match(ui,/Harvest wounded animal/);
   assert.match(ui,/Fertilize plot/);
+  assert.match(ui,/huntContextChip/);
+  assert.match(ui,/showHomesteadIdentity/);
+  assert.match(ui,/Hunting increased|skillName/);
+});
+
+test('living systems return event briefs and world-aware NPC dialogue',async()=>{
+  const src=await readFile(new URL('../netlify/functions/living-systems.mjs',import.meta.url),'utf8');
+  assert.match(src,/eventPlayerBrief/);
+  assert.match(src,/npcWorldAwareLine/);
+  assert.match(src,/eventBrief/);
+  assert.match(src,/town_project_completed/);
 });

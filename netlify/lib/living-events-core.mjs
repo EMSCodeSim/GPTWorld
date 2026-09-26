@@ -127,3 +127,100 @@ export function gatherModifier(event=null){
   const mod=Number(event?.effects?.gatherMod);
   return Number.isFinite(mod)?clamp(mod,0.5,1.2):1;
 }
+
+/**
+ * Short player-facing event briefing: what happened, what changed, what to do.
+ * Facts come from deterministic event effects — wording only.
+ */
+export function eventPlayerBrief(event=null){
+  if(!event?.key)return null;
+  const effects=event.effects||{};
+  const changed=[];
+  const actions=[];
+  if(effects.cropYieldMod!=null&&Number(effects.cropYieldMod)<1){
+    changed.push('Crops are producing less.');
+    actions.push('Tend and fertilize plots, or trade food in town.');
+  }
+  if(effects.cropHealthDrain!=null&&Number(effects.cropHealthDrain)>1){
+    changed.push('Crop health drains faster.');
+    actions.push('Water and fertilize plots regularly.');
+  }
+  if(effects.demandBias){
+    const hot=Object.entries(effects.demandBias)
+      .filter(([,delta])=>Number(delta)>0)
+      .sort((a,b)=>Number(b[1])-Number(a[1]))
+      .slice(0,2)
+      .map(([key])=>key);
+    if(hot.length){
+      changed.push(`${hot.map(k=>k.charAt(0).toUpperCase()+k.slice(1)).join(' & ')} demand is rising in town.`);
+      actions.push(`Gather or craft ${hot[0]} and sell or contribute it.`);
+    }
+  }
+  if(effects.huntDifficulty!=null&&Number(effects.huntDifficulty)>0){
+    changed.push('Wildlife is more wary — hunting is harder.');
+    actions.push('Track and stalk carefully before taking a shot.');
+  }
+  if(effects.wildlifeWary){
+    if(!changed.some(line=>/wary/i.test(line)))changed.push('Animals flee more readily.');
+    actions.push('Use quiet stalking near fresh tracks.');
+  }
+  if(effects.gatherMod!=null&&Number(effects.gatherMod)<1){
+    changed.push('Outdoor gathering is slower.');
+    actions.push('Shelter during the worst weather, then resume work.');
+  }
+  if(effects.rareGoods||effects.merchantBudgetBonus){
+    changed.push('Merchants have temporary goods and extra coin.');
+    actions.push('Visit town merchants while the caravan remains.');
+  }
+  if(effects.npcArrived){
+    changed.push('A new neighbor has settled in.');
+    actions.push('Talk to townsfolk — routines may have shifted.');
+  }
+  if(effects.exposureRisk){
+    changed.push('Exposure risk is higher outdoors.');
+    actions.push('Stay near shelter and keep a campfire ready.');
+  }
+  return{
+    key:event.key,
+    name:event.name||event.key,
+    happened:event.summary||event.name||'Something changed in the valley.',
+    changed:changed.slice(0,3),
+    actions:actions.slice(0,2)
+  };
+}
+
+/** Deterministic NPC line grounded in real world/project/event state. */
+export function npcWorldAwareLine({npcName='',role='',project=null,demand={},event=null,needs=null}={}){
+  const brief=eventPlayerBrief(event);
+  const lines=[];
+  if(project&&project.status!=='complete'){
+    const remaining=project.remaining||{};
+    const top=Object.entries(remaining).sort((a,b)=>Number(b[1])-Number(a[1]))[0];
+    if(top){
+      const [resource,left]=top;
+      lines.push(`We're still short on ${resource} for the ${String(project.name||'town project').replace(/^Build the |^Raise the |^Open the |^Expand the /i,'')}. ${left} more would help.`);
+    }
+  }
+  if(project&&(project.status==='complete'||project.completed)){
+    lines.push(`That new ${project.structure?.label||project.name||'structure'} has changed things around here.`);
+  }
+  if(brief){
+    if(brief.key==='drought')lines.push('Farmers haven’t seen rain in days.');
+    else if(brief.key==='resource_shortage'||brief.key==='construction_boom')lines.push(brief.changed[0]||brief.happened);
+    else if(brief.key==='severe_storm')lines.push('That storm battered the valley — outdoor work slowed.');
+    else lines.push(brief.happened);
+  }
+  const food=Number(demand?.food??50);
+  if(food>=70)lines.push('Food prices keep climbing.');
+  const wood=Number(demand?.wood??50);
+  if(wood>=75&&!lines.some(l=>/wood|lumber/i.test(l)))lines.push('Town pays well for lumber right now.');
+  if(needs&&(needs.status==='shortage'||needs.status==='strained')){
+    lines.push(`Settlement stores look ${needs.status}.`);
+  }
+  if(!lines.length){
+    if(/smith/i.test(role)||/Tovan/i.test(npcName))return 'The forge waits on steady hands and good timber.';
+    if(/heal/i.test(role)||/Edda/i.test(npcName))return 'Bring herbs when you can — remedies never stay full for long.';
+    return 'Travelers keep this place alive. What you bring matters.';
+  }
+  return lines[0];
+}

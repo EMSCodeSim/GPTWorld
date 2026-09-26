@@ -348,3 +348,82 @@ export function historyEntryFromProject(project,{gameDay=null,playerName=null}={
     }
   };
 }
+
+/** Demand shown to players as plain tiers — formulas stay numeric underneath. */
+export function demandTier(level){
+  const n=clamp(level,0,100);
+  if(n>=85)return{key:'urgent',label:'URGENT',multiplierHint:'+35%'};
+  if(n>=70)return{key:'high',label:'HIGH',multiplierHint:'+25%'};
+  if(n>=40)return{key:'normal',label:'NORMAL',multiplierHint:''};
+  return{key:'low',label:'LOW',multiplierHint:'-20%'};
+}
+
+/**
+ * Construction visual stages for community projects.
+ * Config-driven so each building reuses the same stage thresholds.
+ */
+export const CONSTRUCTION_STAGES=Object.freeze([
+  {min:0,max:24,key:'foundation',label:'Foundation & material piles',heightScale:0.22,roof:false,scaffold:true,details:['piles']},
+  {min:25,max:49,key:'frame',label:'Basic frame',heightScale:0.45,roof:false,scaffold:true,details:['frame','piles']},
+  {min:50,max:74,key:'partial',label:'Partial structure',heightScale:0.72,roof:false,scaffold:true,details:['frame','walls']},
+  {min:75,max:99,key:'nearly',label:'Nearly finished',heightScale:0.92,roof:true,scaffold:true,details:['walls','roof']},
+  {min:100,max:100,key:'complete',label:'Finished building',heightScale:1,roof:true,scaffold:false,details:['finished']}
+]);
+
+export function constructionStage(percent=0){
+  const p=clamp(percent,0,100);
+  return CONSTRUCTION_STAGES.find(stage=>p>=stage.min&&p<=stage.max)||CONSTRUCTION_STAGES[0];
+}
+
+/**
+ * Render-entity payload for a community project at a given progress %.
+ * Uses type `building` so the public-world renderer displays it.
+ */
+export function structureRenderEntity(project,percent=100,{completed=false}={}){
+  if(!project?.structure)return null;
+  const stage=constructionStage(percent);
+  const s=project.structure;
+  const finished=completed||percent>=100||stage.key==='complete';
+  return{
+    id:s.id,
+    type:'building',
+    kind:'community_project',
+    label:finished?s.label:`${s.label} (under construction)`,
+    building:s.building,
+    projectKey:project.key,
+    constructionStage:stage.key,
+    constructionPercent:Number(clamp(percent,0,100).toFixed(1)),
+    completed:finished,
+    x:s.x,
+    z:s.z,
+    width:s.width,
+    depth:s.depth,
+    height:Number((3*stage.heightScale).toFixed(2)),
+    roofHeight:stage.roof?1.7:0,
+    wallColor:s.wallColor,
+    roofColor:s.roofColor,
+    scaffold:stage.scaffold,
+    unlocks:finished?[...project.unlocks]:[],
+    origin:'community_project',
+    history:finished
+      ?(project.historySummary||`${project.name} completed.`)
+      :`${project.name} — ${stage.label} (${Math.floor(percent)}%).`
+  };
+}
+
+/** How many of a contributable resource the player currently holds. */
+export function inventoryAmountFor(resource,inventory={}){
+  const kind=materialKind(resource);
+  if(!kind)return 0;
+  if(kind.kind==='inventory')return Math.max(0,Number(inventory[kind.key]||0));
+  // Crafted aliases may appear under alias (iron) or item key (iron-fittings).
+  return Math.max(
+    0,
+    Number(inventory[kind.key]||0),
+    Number(inventory[kind.itemKey]||0)
+  );
+}
+
+export function canContributeResource(resource,amount,inventory={}){
+  return inventoryAmountFor(resource,inventory)>=Math.max(1,Math.floor(Number(amount)||0));
+}

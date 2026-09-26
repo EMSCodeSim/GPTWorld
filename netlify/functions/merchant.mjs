@@ -12,7 +12,8 @@ import {
   splitStackPlan,
   normalizeDemand,
   tickDemand,
-  demandCategoryFor
+  demandCategoryFor,
+  demandTier
 } from '../lib/economy-core.mjs';
 import {economySchemaReady,ensureEconomySchema} from '../lib/economy-schema.mjs';
 
@@ -104,7 +105,7 @@ function bagRow(item,merchantFilter=null,demandState=null){
     unitPriceByMerchant[merchant.key]=price;
     sellableTo.push(merchant.key);
   }
-  return{id:String(item.id),key,name:item.display_name,quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),quantity,unitPriceByMerchant,sellableTo,demandCategory:demandCategoryFor(key)};
+  return{id:String(item.id),key,name:item.display_name,quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),quantity,unitPriceByMerchant,sellableTo,demandCategory:demandCategoryFor(key),demandTier:(()=>{const cat=demandCategoryFor(key);if(!cat||!demandState)return'';const tier=demandTier(demandState[cat]);return tier.key==='normal'?'':`${tier.label} demand`;})()};
 }
 
 async function payload(sql,actor,{merchantKey=null}={}){

@@ -1,4 +1,4 @@
-import {demandPriceModifier,demandCategoryFor,tickDemand,normalizeDemand} from './town-projects-core.mjs';
+import {demandPriceModifier,demandCategoryFor,tickDemand,normalizeDemand,demandTier} from './town-projects-core.mjs';
 
 /** Inventory stacking, merchant pricing, and economy helpers for GPTWorld. */
 
@@ -263,4 +263,4 @@ export function initialMerchantBudgets(dayKey=''){
   ]));
 }
 
-export {normalizeDemand,tickDemand,demandCategoryFor,demandPriceModifier};
+export {normalizeDemand,tickDemand,demandCategoryFor,demandPriceModifier,demandTier};

@@ -59,6 +59,13 @@ const panes={
 let town=null,upgrades=null,busy=false;
 const labels={wood:'Wood',stone:'Stone',herbs:'Herbs',coins:'Coins',iron:'Iron fittings',tools:'Tools',furniture:'Furniture',rations:'Rations',food:'Food',clothing:'Clothing',construction:'Construction',crafted:'Crafted goods'};
 const icon={wood:'🪵',stone:'🪨',herbs:'🌿'};
+function ownedAmount(key,inv={}){
+  const aliases={iron:['iron','iron-fittings'],tools:['tools','stone-hammer'],furniture:['furniture','rough-stool'],rations:['rations','trail-rations']};
+  const keys=aliases[key]||[key];
+  return Math.max(0,...keys.map(k=>Number(inv[k]||0)));
+}
+function canPay(key,amount,inv={}){return ownedAmount(key,inv)>=Math.max(1,Number(amount)||0);}
+function demandTier(level){const n=Number(level||0);if(n>=85)return 'URGENT';if(n>=70)return 'HIGH';if(n>=40)return 'NORMAL';return 'LOW';}
 
 document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b===btn));
@@ -100,8 +107,10 @@ function drawProjects(){
       if(left<=0)continue;
       for(const amount of [1,Math.min(5,left),Math.min(25,left)].filter((n,i,a)=>a.indexOf(n)===i)){
         const btn=document.createElement('button');btn.className='action';btn.type='button';
+        const affordable=canPay(key,amount,town.inventory||{});
         btn.textContent=`Contribute ${amount} ${labels[key]||key}`;
-        btn.disabled=busy||!clientId;
+        btn.disabled=busy||!clientId||!affordable;
+        btn.title=affordable?'Server verifies and debits your pack.':`Need ${amount} (you have ${ownedAmount(key,town.inventory||{})}).`;
         btn.addEventListener('click',()=>contribute(active.key,key,amount));
         actions.append(btn);
       }
@@ -123,13 +132,14 @@ function drawProjects(){
 function drawDemand(){
   const d=town.demand||{};
   const card=document.createElement('div');card.className='card';
-  card.innerHTML=`<h2>Town supply & demand</h2><p>NPC merchants pay more for goods the settlement currently needs. Selling lowers that category’s demand.</p>`;
+  card.innerHTML=`<h2>Town supply & demand</h2><p>Merchants pay more when demand is HIGH or URGENT. Selling eases that pressure. Formulas stay under the hood.</p>`;
   const grid=document.createElement('div');grid.className='demand';
   for(const key of ['food','wood','stone','herbs','tools','furniture','clothing','construction','crafted']){
     const level=Number(d[key]||50);
     const el=document.createElement('div');
     el.style.cssText='min-width:120px;flex:1';
-    el.innerHTML=`<div>${labels[key]||key}</div><div class="bar"><span style="width:${level}%"></span></div><strong>${level}/100</strong>`;
+    const tier=d.tiers?.[key]?.label||demandTier(level);
+    el.innerHTML=`<div>${labels[key]||key}</div><div class="bar"><span style="width:${level}%"></span></div><strong>${tier}${tier==='HIGH'||tier==='URGENT'?` · town price up`:''}</strong><small style="display:block;margin-top:4px;opacity:.7">${level}/100</small>`;
     grid.append(el);
   }
   card.append(grid);
@@ -145,7 +155,8 @@ function drawHistory(){
   if(!town.history?.length){card.innerHTML+='<p class="info-muted">No milestones yet.</p>';}
   else for(const entry of town.history){
     const item=document.createElement('div');item.className='history-item';
-    item.innerHTML=`<strong>${entry.title}</strong><div>${entry.summary}</div><small>${entry.gameDay!=null?`Game day ${entry.gameDay} · `:''}${entry.createdAt?new Date(entry.createdAt).toLocaleString():''}</small>`;
+    const dayLabel=entry.gameDay!=null?`DAY ${entry.gameDay}`:(entry.createdAt?new Date(entry.createdAt).toLocaleDateString():'');
+    item.innerHTML=`<div style="opacity:.7;font-size:12px;letter-spacing:.08em;margin-bottom:2px">${dayLabel}</div><strong>${entry.title}</strong><div>${entry.summary}</div>`;
     card.append(item);
   }
   panes.history.replaceChildren(card);

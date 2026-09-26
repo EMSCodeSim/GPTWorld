@@ -9,6 +9,9 @@ import {
   completedStructures,
   normalizeDemand,
   historyEntryFromProject,
+  structureRenderEntity,
+  progressPercent,
+  demandTier,
   CRAFTED_MATERIALS
 } from '../lib/town-projects-core.mjs';
 import {ensureTownProjectsSchema,townProjectsSchemaReady} from '../lib/town-projects-schema.mjs';
@@ -141,25 +144,65 @@ async function seedFoundingHistory(sql){
   `;
 }
 
-function inventoryPayload(player){
+function inventoryPayload(player,crafted={}){
   return{
     wood:Number(player.wood||0),
     stone:Number(player.stone||0),
     herbs:Number(player.herbs||0),
-    coins:Number(player.coins||0)
+    coins:Number(player.coins||0),
+    // Crafted specialty materials for contribution UI gating (server still debits authoritatively).
+    iron:Number(crafted.iron||crafted['iron-fittings']||0),
+    tools:Number(crafted.tools||crafted['stone-hammer']||0),
+    furniture:Number(crafted.furniture||crafted['rough-stool']||0),
+    rations:Number(crafted.rations||crafted['trail-rations']||0),
+    'iron-fittings':Number(crafted['iron-fittings']||crafted.iron||0),
+    'stone-hammer':Number(crafted['stone-hammer']||crafted.tools||0),
+    'rough-stool':Number(crafted['rough-stool']||crafted.furniture||0),
+    'trail-rations':Number(crafted['trail-rations']||crafted.rations||0)
   };
+}
+
+async function craftedCounts(sql,playerId){
+  if(!playerId)return{};
+  try{
+    const rows=await sql`
+      SELECT item_key,SUM(COALESCE(quantity,1))::int AS total
+      FROM player_crafted_items
+      WHERE player_id=${playerId} AND placed_at IS NULL AND COALESCE(quantity,1)>0
+      GROUP BY item_key
+    `;
+    const byItem=Object.fromEntries(rows.map(row=>[row.item_key,Number(row.total||0)]));
+    const byAlias={};
+    for(const [alias,itemKey] of Object.entries(CRAFTED_MATERIALS)){
+      byAlias[alias]=Number(byItem[itemKey]||0);
+      byAlias[itemKey]=Number(byItem[itemKey]||0);
+    }
+    return byAlias;
+  }catch{
+    return{};
+  }
+}
+
+function demandView(demand={}){
+  const next={...normalizeDemand(demand),tiers:{}};
+  for(const key of Object.keys(normalizeDemand({}))){
+    if(['version','updatedAt','lastTick','activeEvent'].includes(key))continue;
+    next.tiers[key]=demandTier(next[key]);
+  }
+  return next;
 }
 
 async function statusPayload(sql,player=null){
   await ensureProjects(sql);
   await seedFoundingHistory(sql);
-  const [rows,demand,history,day,stockpileRows,playerContrib]=await Promise.all([
+  const [rows,demand,history,day,stockpileRows,playerContrib,crafted]=await Promise.all([
     projectRows(sql),
     readDemand(sql),
     readHistory(sql),
     readDay(sql),
     sql`SELECT value FROM world_state WHERE key='settlement_stockpile' LIMIT 1`,
-    player?playerTotals(sql,player.id):Promise.resolve({})
+    player?playerTotals(sql,player.id):Promise.resolve({}),
+    player?craftedCounts(sql,player.id):Promise.resolve({})
   ]);
   const queue=activeProjectQueue(rows);
   const views=queue.all.map(view=>{
@@ -167,7 +210,8 @@ async function statusPayload(sql,player=null){
     return{
       ...view,
       playerContribution:contrib,
-      playerTotal:Object.values(contrib).reduce((sum,n)=>sum+Number(n||0),0)
+      playerTotal:Object.values(contrib).reduce((sum,n)=>sum+Number(n||0),0),
+      constructionStage:structureRenderEntity(projectByKey(view.key),view.percent,{completed:view.status==='complete'})?.constructionStage||null
     };
   });
   const active=views.find(view=>view.status!=='complete')||null;
@@ -180,11 +224,11 @@ async function statusPayload(sql,player=null){
     completedProjects:completed,
     structures:completedStructures(rows),
     unlocks:unlockedCapabilities(rows),
-    demand,
+    demand:demandView(demand),
     history,
     gameDay:day,
     stockpile:{wood:Number(stock.wood||0),stone:Number(stock.stone||0),herbs:Number(stock.herbs||0)},
-    inventory:player?inventoryPayload(player):null,
+    inventory:player?inventoryPayload(player,crafted):null,
     catalog:TOWN_PROJECTS.map(project=>({
       key:project.key,
       name:project.name,
@@ -278,36 +322,36 @@ async function debitCrafted(sql,playerId,itemKey,amount){
   return remaining===0?{itemKey,amount}:null;
 }
 
-async function persistStructure(sql,project){
-  if(!project?.structure)return;
+async function readRenderEntities(sql){
   const renderRows=await sql`SELECT value FROM world_state WHERE key='render_entities' LIMIT 1`;
-  let list=[];
   const raw=renderRows[0]?.value;
-  if(Array.isArray(raw))list=[...raw];
-  else if(Array.isArray(raw?.entities))list=[...raw.entities];
-  else if(raw&&typeof raw==='object')list=Object.values(raw).filter(item=>item&&typeof item==='object');
-  const id=project.structure.id;
-  if(list.some(entity=>String(entity.id||entity.key)===id))return;
-  list.push({
-    id,
-    type:'town_structure',
-    kind:'building',
-    label:project.structure.label,
-    building:project.structure.building,
-    projectKey:project.key,
-    x:project.structure.x,
-    z:project.structure.z,
-    width:project.structure.width,
-    depth:project.structure.depth,
-    wallColor:project.structure.wallColor,
-    roofColor:project.structure.roofColor,
-    unlocks:[...project.unlocks]
-  });
+  if(Array.isArray(raw))return[...raw];
+  if(Array.isArray(raw?.entities))return[...raw.entities];
+  if(raw&&typeof raw==='object')return Object.values(raw).filter(item=>item&&typeof item==='object');
+  return[];
+}
+
+async function writeRenderEntities(sql,list){
   await sql`
     INSERT INTO world_state(key,value,updated_at)
     VALUES('render_entities',${JSON.stringify(list)}::jsonb,now())
     ON CONFLICT(key) DO UPDATE SET value=${JSON.stringify(list)}::jsonb,updated_at=now()
   `;
+}
+
+async function upsertStructureEntity(sql,entity){
+  if(!entity?.id)return;
+  const list=await readRenderEntities(sql);
+  const index=list.findIndex(item=>String(item.id||item.key)===String(entity.id));
+  if(index>=0)list[index]={...list[index],...entity};
+  else list.push(entity);
+  await writeRenderEntities(sql,list);
+}
+
+async function persistStructure(sql,project,{percent=100,completed=true}={}){
+  const entity=structureRenderEntity(project,percent,{completed});
+  if(!entity)return;
+  await upsertStructureEntity(sql,entity);
 }
 
 async function markComplete(sql,project,player,contributed){
@@ -345,7 +389,7 @@ async function markComplete(sql,project,player,contributed){
       })}::jsonb
     )
   `;
-  await persistStructure(sql,project);
+  await persistStructure(sql,project,{percent:100,completed:true});
 }
 
 async function contribute(sql,player,body){
@@ -374,12 +418,13 @@ async function contribute(sql,player,body){
   if(parsed.kind==='inventory'){
     const debited=await debitInventory(sql,player.id,parsed.key,plan.accepted);
     if(!debited)return{ok:false,error:'not_enough_materials'};
-    inventory={
+    const crafted=await craftedCounts(sql,player.id);
+    inventory=inventoryPayload({
       wood:Number(debited.wood||0),
       stone:Number(debited.stone||0),
       herbs:Number(debited.herbs||0),
       coins:Number(debited.coins||0)
-    };
+    },crafted);
   }else{
     const itemKey=parsed.itemKey||CRAFTED_MATERIALS[parsed.key];
     const debited=await debitCrafted(sql,player.id,itemKey,plan.accepted);
@@ -388,7 +433,8 @@ async function contribute(sql,player,body){
       SELECT wood,stone,herbs,COALESCE(coins,0) AS coins
       FROM player_inventory WHERE player_id=${player.id} LIMIT 1
     `;
-    inventory=inventoryPayload(fresh[0]||player);
+    const crafted=await craftedCounts(sql,player.id);
+    inventory=inventoryPayload(fresh[0]||player,crafted);
   }
 
   await sql`
@@ -414,7 +460,9 @@ async function contribute(sql,player,body){
     )
   `;
 
+  const percent=progressPercent(project.required,plan.contributed);
   if(plan.complete)await markComplete(sql,project,player,plan.contributed);
+  else await persistStructure(sql,project,{percent,completed:false});
 
   const status=await statusPayload(sql,{...player,...inventory});
   return{

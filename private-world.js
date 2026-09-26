@@ -144,7 +144,7 @@ function addWildlife(object){
   for(const x of[-.11,.11]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.09,.32,6),fur);ear.position.set(x,1.91,.82);ear.rotation.z=x<0?.35:-.35;group.add(ear);}
   group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs,head,tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore'};
   scene.add(group);animals.push(group);
-  interactables.push({type:'animal',label:species.replaceAll('-',' '),livingEntityId:object.entityId||null,message:()=>{const b=group.userData.behavior;return `This ${species.replaceAll('-',' ')} is ${b}. Track it or hunt with a bow.`;},object:group,radius:3.8});
+  interactables.push({type:'animal',label:species.replaceAll('-',' '),livingEntityId:object.entityId||null,message:()=>{const b=group.userData.behavior;return `This ${species.replaceAll('-',' ')} is ${b}. Track it or hunt with a bow.`;},object:group,radius:4.4});
   return group;
 }
 
@@ -271,7 +271,7 @@ function syncHuntSnapshotAnimals(list=[]){
 async function loadSurvival(){const response=await fetch(`${SURVIVAL_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'survival_load_failed');survivalData=data;syncFarmPlots(data.plots);syncHuntSnapshotAnimals(data.animals||[]);renderSurvival();return data;}
 async function openSurvival(target=null,mode='farm'){survivalMode=mode;survivalTarget=target;survivalPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();survivalResult.hidden=true;$('survivalTitle').textContent=mode==='hunt'?'Hunting':'Farming';try{await syncPositionNow();await loadSurvival();if(mode==='hunt'&&!target)chooseNearestAnimal();renderSurvival();}catch(error){survivalMessage(error.message==='survival_migration_required'?'The farming and hunting database update is not installed yet.':'Could not sync the living-land ledger.');}}
 function hideSurvival(){survivalPanel.hidden=true;survivalTarget=null;clearHuntMarker();}
-async function survivalAction(action,extra={}){if(survivalBusy)return;survivalBusy=true;renderSurvival();try{const synced=await syncPositionNow();if(!synced)throw Error('position_sync_failed');const response=await fetch(SURVIVAL_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action,...extra,idempotencyKey:requestKey(action)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'action_failed');const huntMsg=data.success?`Clean hit — ${data.rewards.map(item=>`${item.quantity} ${item.name}`).join(', ')}. Hunting skill ${Number(data.skillValue||0).toFixed(1)}.`:(data.woundOnly?`Wounded — follow the blood trail and harvest when close. Hunting skill ${Number(data.skillValue||0).toFixed(1)}.`:`Missed shot — the animal escaped. Hunting skill ${Number(data.skillValue||0).toFixed(1)}; wait briefly before trying again.`);survivalMessage(action==='cook_stew'?`Cooked ${data.reward.quantity} Trail Rations and gained Cooking XP.`:action==='track'?`${data.animal.freshness||'Tracks'}: ${data.animal.species} ${data.animal.distance}m ${data.animal.direction||''} · ${data.animal.behavior}.`:action==='stalk'?(data.detected?`Alerted! ${data.recommended||'Back off and try again.'}`:`Stalk succeeded. Stay low for a better shot.`):action==='hunt'?huntMsg:action==='harvest_animal'?`Harvested ${data.rewards.map(item=>`${item.quantity} ${item.name}`).join(', ')}.` :action==='fertilize'?`Soil improved. Farming skill ${Number(data.skillValue||0).toFixed(1)}.` :action==='harvest_crop'?`Harvested ${data.reward.quantity} ${data.reward.name}. Farming XP gained.`:`${action.replaceAll('_',' ')} complete.`,true);if(action==='hunt'&&data.success){const object=livingEntityObjects.get(String(data.animalId));if(object)removeLivingEntity(String(data.animalId));}if(action==='harvest_animal'){const object=livingEntityObjects.get(String(extra.animalId));if(object)removeLivingEntity(String(extra.animalId));}await loadSurvival();if(survivalMode==='hunt'&&!survivalData.animals.some(item=>String(item.id)===String(survivalTarget?.livingEntityId)))chooseNearestAnimal();if(craftingData)await loadCrafting();}catch(error){const messages={plant_failed:'You need a Seed Pouch, an empty nearby plot, and a private-world session.',crop_not_ready:'This crop is still growing.',animal_out_of_range:'Move closer to the animal.',equipment_required:'Craft and carry an appropriate bow first.',animal_already_harvested:'This animal has already been harvested; ecology recovery takes time.',hunt_cooldown:'The animal is alert. Wait a moment before tracking it again.',stalking_locked:'Hunting skill 15 unlocks quiet stalking.',fertilizer_required:'Fertilizer needs Garden Herbs or Herb Broth.',no_wounded_animal:'No wounded animal to harvest here.',cooking_ingredients_required:'Camp stew needs one Raw Meat and one Carrot.',plot_too_close:'Choose a clearer spot away from another plot.',invalid_plot_site:'Prepare soil on dry, clear land.',position_sync_failed:'Could not verify your current position. Try again.'};survivalMessage(messages[error.message]||'That action could not be completed safely.');}finally{survivalBusy=false;renderSurvival();}}
+async function survivalAction(action,extra={}){if(survivalBusy)return;survivalBusy=true;renderSurvival();try{const synced=await syncPositionNow();if(!synced)throw Error('position_sync_failed');const response=await fetch(SURVIVAL_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:activeClientId,action,...extra,idempotencyKey:requestKey(action)})}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'action_failed');const huntMsg=data.success?`Clean hit — ${data.rewards.map(item=>`${item.quantity} ${item.name}`).join(', ')}. Hunting skill ${Number(data.skillValue||0).toFixed(1)}.`:(data.woundOnly?`Wounded — follow the blood trail and harvest when close. Hunting skill ${Number(data.skillValue||0).toFixed(1)}.`:`Missed shot — the animal escaped. Hunting skill ${Number(data.skillValue||0).toFixed(1)}; wait briefly before trying again.`);const skillVal=Number(data.skillValue||0);const skillName=action==='hunt'||action==='track'||action==='stalk'||action==='harvest_animal'?'Hunting':action==='cook_stew'?'Cooking':'Farming';const priorSkill=Number((survivalData?.skills||[]).find(s=>String(s.key||s.skill||'').toLowerCase()===skillName.toLowerCase())?.value||0);const unlocks=data.unlocks||(survivalData?.huntUnlocks||[]).filter(u=>!u.unlocked&&skillVal>=u.level&&priorSkill<u.level);if(unlocks.length){for(const u of unlocks)showToast(`${skillName} ${Math.floor(skillVal)} — ${u.name} unlocked.`);}else if(skillVal>priorSkill+0.05){showToast(`${skillName} increased to ${skillVal.toFixed(1)}.`);}survivalMessage(action==='cook_stew'?`Cooked ${data.reward.quantity} Trail Rations and gained Cooking XP.`:action==='track'?`${data.animal.freshness||'Tracks'}: ${data.animal.species} ${data.animal.distance}m ${data.animal.direction||''} · ${data.animal.behavior}. Hunting ${skillVal.toFixed(1)}.`:action==='stalk'?(data.detected?`Alerted! ${data.recommended||'Back off and try again.'}`:`Stalk succeeded. Stay low for a better shot. Hunting ${skillVal.toFixed(1)}.`):action==='hunt'?huntMsg:action==='harvest_animal'?`Harvested ${data.rewards.map(item=>`${item.quantity} ${item.name}`).join(', ')}. Hunting ${skillVal.toFixed(1)}.` :action==='fertilize'?`Soil improved. Farming skill ${skillVal.toFixed(1)}.` :action==='harvest_crop'?`Harvested ${data.reward.quantity} ${data.reward.name}. Farming ${skillVal.toFixed(1)}.`:`${action.replaceAll('_',' ')} complete.`,true);if(action==='hunt'&&data.success){const object=livingEntityObjects.get(String(data.animalId));if(object)removeLivingEntity(String(data.animalId));}if(action==='harvest_animal'){const object=livingEntityObjects.get(String(extra.animalId));if(object)removeLivingEntity(String(extra.animalId));}await loadSurvival();if(survivalMode==='hunt'&&!survivalData.animals.some(item=>String(item.id)===String(survivalTarget?.livingEntityId)))chooseNearestAnimal();if(craftingData)await loadCrafting();}catch(error){const messages={plant_failed:'You need a Seed Pouch, an empty nearby plot, and a private-world session.',crop_not_ready:'This crop is still growing.',animal_out_of_range:'Move closer to the animal.',equipment_required:'Craft and carry an appropriate bow first.',animal_already_harvested:'This animal has already been harvested; ecology recovery takes time.',hunt_cooldown:'The animal is alert. Wait a moment before tracking it again.',stalking_locked:'Hunting skill 15 unlocks quiet stalking.',fertilizer_required:'Fertilizer needs Garden Herbs or Herb Broth.',no_wounded_animal:'No wounded animal to harvest here.',cooking_ingredients_required:'Camp stew needs one Raw Meat and one Carrot.',plot_too_close:'Choose a clearer spot away from another plot.',invalid_plot_site:'Prepare soil on dry, clear land.',position_sync_failed:'Could not verify your current position. Try again.'};survivalMessage(messages[error.message]||'That action could not be completed safely.');}finally{survivalBusy=false;renderSurvival();}}
 
 function makeCampfireFlame(item){
   // Crafted sprites are bottom-anchored. Lift the flame to the center of the
@@ -394,9 +394,56 @@ function build(data){
   camera.position.set(player.position.x+12,14,player.position.z+12);clock=new THREE.Clock();
   $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
-  loadSurvival().catch(()=>{});
+  loadSurvival().then(()=>showHomesteadIdentity()).catch(()=>showHomesteadIdentity());
   if(data.fromCache)showToast('Offline world loaded. Inventory is hidden until the server reconnects.');
   if(data.catchUp.steps)showToast(`Your world lived through ${data.catchUp.steps} ecology step${data.catchUp.steps===1?'':'s'} while you were away.`);
+  else if(!data.fromCache)showToast('Your homestead remembers your work. Farm, hunt, craft — then bring goods to town.');
+}
+
+function skillBand(value){
+  const n=Number(value||0);
+  if(n>=55)return 'Skilled';
+  if(n>=25)return 'Developing';
+  if(n>=8)return 'Apprentice';
+  return 'Novice';
+}
+function showHomesteadIdentity(){
+  let card=document.getElementById('homesteadIdentity');
+  if(!card){
+    card=document.createElement('aside');
+    card.id='homesteadIdentity';
+    Object.assign(card.style,{
+      position:'fixed',right:'12px',top:'max(72px,calc(env(safe-area-inset-top) + 58px))',
+      zIndex:'24',width:'min(250px,calc(100vw - 24px))',padding:'12px 14px',borderRadius:'14px',
+      background:'rgba(14,22,17,.92)',color:'#f3efe5',border:'1px solid rgba(255,255,255,.12)',
+      boxShadow:'0 10px 28px rgba(0,0,0,.28)',font:'13px/1.4 system-ui,sans-serif'
+    });
+    document.body.appendChild(card);
+  }
+  const skills=Object.fromEntries((survivalData?.skills||craftingData?.skills||[]).map(s=>[s.key||s.skill,Number(s.value||s.skill_value||0)]));
+  // Prefer crafting skills when available
+  if(craftingData?.skills)for(const s of craftingData.skills)skills[s.key]=Number(s.value||0);
+  if(survivalData?.skills)for(const s of survivalData.skills)skills[s.key]=Number(s.value||0);
+  const farming=skills.farming||0,hunting=skills.hunting||0,carpentry=skills.carpentry||0;
+  const crops=(survivalData?.plots||[]).filter(p=>p.cropKey&&p.stage!=='dead');
+  const ready=crops.filter(p=>p.stage==='ready').length;
+  const growing=crops.length;
+  const wood=Number(inventoryEls.wood?.textContent||loadedPayload?.inventory?.wood||0);
+  const house=loadedPayload?.world?.buildings?.find(b=>b.key==='homestead'||b.type==='house');
+  const construction=house?'Complete':(craftingData?.house?.progress!=null?`${Math.round(Number(craftingData.house.progress)*100)}%`:'Not started');
+  card.innerHTML=`<div style="font-size:11px;letter-spacing:.1em;opacity:.7">YOUR HOMESTEAD</div>
+    <strong style="display:block;margin:4px 0 8px;font-size:16px">${loadedPayload?.world?.name||'Living Homestead'}</strong>
+    <div>Farming: ${skillBand(farming)}</div>
+    <div>Hunting: ${skillBand(hunting)}</div>
+    <div>Carpentry: ${skillBand(carpentry)}</div>
+    <div style="margin-top:8px;opacity:.85">Current activity</div>
+    <div>🌾 ${ready?`${ready} crops ready`:`${growing} crops growing`}</div>
+    <div>🪵 ${wood} lumber stored</div>
+    <div>🏠 Cabin ${construction}</div>
+    <button type="button" style="margin-top:10px;border:0;border-radius:9px;padding:8px 10px;background:#3d4a3a;color:#f3efe5;font-weight:700;min-height:40px;cursor:pointer;width:100%">Got it</button>`;
+  card.style.display='block';
+  card.querySelector('button')?.addEventListener('click',()=>{card.style.display='none';});
+  setTimeout(()=>{if(card)card.style.display='none';},16000);
 }
 
 function statusForWeather(){const weather=String(currentEcology.weather||'clear');return weather==='clear'?'clear':weather.replace('heavy rain','raining heavily').replace('rain','raining');}
@@ -778,7 +825,48 @@ function updateEnvironment(dt,time){
 }
 
 function plantDescription(item,node){const plant=node?.plant;if(!plant)return node?.remaining>0?`${item.label} · ${node.remaining}/${node.maxAmount} available`:`${item.label} is depleted`;const stage=String(plant.stage||'mature'),health=Math.round(Number(plant.health??100)),available=Math.floor(Number(plant.resources??node.remaining??0)),reason=stage==='dead'?'Dead. A new plant may establish here later.':available<=0?'Depleted and recovering.':'Ready to harvest.';return `${item.label} · ${stage} · health ${health}% · ${available}/${node.maxAmount} available. ${reason}`;}
-function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;if(!best)return;const node=best.nodeId&&resourceStates.get(best.nodeId);promptEl.textContent=best.type==='building'?`Enter ${best.label}`:best.type==='farm'?`Tend ${best.label}`:best.type==='animal'?`Track ${best.label}`:best.placedItemId?`Use ${best.label}`:node?`Inspect ${best.label} · ${node.remaining}/${node.maxAmount}`:`Inspect ${best.label}`;}
+function ensureHuntChip(){
+  let chip=document.getElementById('huntContextChip');
+  if(chip)return chip;
+  chip=document.createElement('div');
+  chip.id='huntContextChip';
+  Object.assign(chip.style,{
+    position:'fixed',left:'50%',bottom:'max(168px, calc(env(safe-area-inset-bottom) + 156px))',
+    transform:'translateX(-50%)',zIndex:'28',display:'none',gap:'7px',flexWrap:'wrap',justifyContent:'center',
+    width:'min(96vw,420px)',pointerEvents:'auto'
+  });
+  document.body.appendChild(chip);
+  return chip;
+}
+function renderHuntChip(animalTarget){
+  const chip=ensureHuntChip();
+  if(!animalTarget||survivalPanel&&!survivalPanel.hidden){chip.style.display='none';return;}
+  const animal=survivalData?.animals?.find(item=>String(item.id)===String(animalTarget.livingEntityId));
+  const label=animalTarget.label||'animal';
+  const buttons=[];
+  const mk=(text,fn,disabled=false)=>{
+    const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;
+    Object.assign(b.style,{border:'0',borderRadius:'999px',padding:'10px 12px',minHeight:'44px',background:disabled?'#5a6356':'#d2b36a',color:'#17130b',fontWeight:'800',cursor:disabled?'not-allowed':'pointer',fontSize:'13px'});
+    b.addEventListener('click',fn);return b;
+  };
+  buttons.push(mk('👣 Track',()=>openSurvival(animalTarget,'hunt')));
+  if(animal?.wounded)buttons.push(mk('🪓 Harvest',()=>{openSurvival(animalTarget,'hunt').then(()=>survivalAction('harvest_animal',{animalId:animal.id}));}));
+  else buttons.push(mk('🏹 Hunt',()=>openSurvival(animalTarget,'hunt')));
+  chip.replaceChildren(...buttons);
+  chip.style.display='flex';
+}
+function updateNearest(){let best=null,distance=Infinity;for(const item of interactables){const d=player.position.distanceTo(item.object.position);if(d<item.radius&&d<distance){best=item;distance=d;}}nearest=best;promptEl.hidden=!best;const node=best?.nodeId&&resourceStates.get(best.nodeId);
+  if(best?.type==='animal'){
+    const animal=survivalData?.animals?.find(item=>String(item.id)===String(best.livingEntityId));
+    const flags=[animal?.tracked?'tracked':'',animal?.stalked?'stalked':'',animal?.wounded?'wounded':''].filter(Boolean).join(' · ');
+    promptEl.textContent=`${animal?.wounded?'Harvest':'Track / Hunt'} ${best.label}${flags?` · ${flags}`:''}`;
+    renderHuntChip(best);
+  }else{
+    renderHuntChip(null);
+    if(!best)return;
+    promptEl.textContent=best.type==='building'?`Enter ${best.label}`:best.type==='farm'?`Tend ${best.label}`:best.placedItemId?`Use ${best.label}`:node?`Inspect ${best.label} · ${node.remaining}/${node.maxAmount}`:`Inspect ${best.label}`;
+  }
+}
 async function gather(item){
   const node=resourceStates.get(item.nodeId);if(!node){showToast('Reconnect once to gather from this world.');return;}
   if(Number(node.remaining)<=0){showToast(node.regrowAt?`This ${item.label} is recovering.`:'This deposit has been exhausted.');return;}
