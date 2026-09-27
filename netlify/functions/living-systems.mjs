@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
-import {pickActiveEvent,eventStillActive,mergeEventDemandBias} from '../lib/living-events-core.mjs';
-import {normalizeDemand,tickDemand} from '../lib/town-projects-core.mjs';
+import {pickActiveEvent,eventStillActive,mergeEventDemandBias,eventPlayerBrief,npcWorldAwareLine} from '../lib/living-events-core.mjs';
+import {normalizeDemand,tickDemand,demandTier,projectByKey} from '../lib/town-projects-core.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const dbUrl=()=>globalThis.Netlify?.env?.get?.('DATABASE_URL')||process.env.DATABASE_URL;
@@ -50,9 +50,9 @@ function npcState(hour,existing={},recent=[],weather={},needs={}){
     const old=Array.isArray(memoriesByNpc[name])?memoriesByNpc[name]:[],seen=new Set(old.map(m=>m.event_id));
     const person=people[name]||{name,role:profile.role,home:profile.home,traits:profile.traits,relationships:{},needs:{food:.18,rest:.12,safety:.08,social:.18},knownTravelers:{}};
     person.role=profile.role;person.home=profile.home;person.traits=profile.traits;
-    for(const ev of recent){if(seen.has(ev.id))continue;const type=String(ev.event_type||''),p=ev.payload||{};const relevant=name.startsWith('Mara')||(name.startsWith('Tovan')&&['bridge_contribution','western_crossing_completed','stockpile_deposit','world_aging_milestone','forest_response_chosen'].includes(type))||(name.startsWith('Edda')&&['resource_gathered','gather','stockpile_deposit','ecosystem_year_advanced','weather_changed','world_aging_milestone','forest_pressure_changed','forest_response_chosen'].includes(type));if(!relevant)continue;
-      let text=type.replaceAll('_',' ');if(type==='stockpile_deposit')text=`${ev.display_name||'A traveler'} deposited ${p.amount||1} ${p.resource||'supplies'} into the storehouse.`;else if(type==='western_crossing_completed')text='The Western Crossing was completed by the settlement.';else if(type==='bridge_contribution')text=`${ev.display_name||'A traveler'} helped build the Western Crossing.`;else if(type==='resource_gathered'||type==='gather')text=`${ev.display_name||'A traveler'} gathered ${p.resource||'resources'} nearby.`;else if(type==='forest_pressure_changed')text=`The forest is now ${p.stage||'under pressure'} after repeated harvesting; animals have begun shifting toward refuge.`;else if(type==='forest_response_chosen')text=`${ev.display_name||'A traveler'} supported ${String(p.label||p.choice||'a response').toLowerCase()} for the pressured forest.`;else if(type==='ecosystem_year_advanced')text=`The valley ecosystem advanced to Eco Year ${p.simulatedYear||'?'}.`;else if(type==='weather_changed')text=`The weather changed to ${p.condition||'new conditions'}.`;else if(type==='world_aging_milestone')text=`The settlement shows new signs of age: ${p.note||'time has left a mark'}.`;
-      old.push({event_id:ev.id,type,text,traveler:ev.display_name||null,at:ev.created_at});seen.add(ev.id);if(ev.display_name){const k=ev.display_name,rel=person.knownTravelers[k]||{familiarity:0,helpfulActs:0};rel.familiarity=Math.min(100,rel.familiarity+8);if(['stockpile_deposit','bridge_contribution','resource_gathered','gather'].includes(type))rel.helpfulActs+=1;person.knownTravelers[k]=rel;}}
+    for(const ev of recent){if(seen.has(ev.id))continue;const type=String(ev.event_type||''),p=ev.payload||{};const relevant=name.startsWith('Mara')||(name.startsWith('Tovan')&&['bridge_contribution','western_crossing_completed','stockpile_deposit','world_aging_milestone','forest_response_chosen','town_project_contribution','town_project_completed','living_world_event'].includes(type))||(name.startsWith('Edda')&&['resource_gathered','gather','stockpile_deposit','ecosystem_year_advanced','weather_changed','world_aging_milestone','forest_pressure_changed','forest_response_chosen','living_world_event','town_project_completed'].includes(type))||['town_project_completed','living_world_event'].includes(type);if(!relevant)continue;
+      let text=type.replaceAll('_',' ');if(type==='stockpile_deposit')text=`${ev.display_name||'A traveler'} deposited ${p.amount||1} ${p.resource||'supplies'} into the storehouse.`;else if(type==='western_crossing_completed')text='The Western Crossing was completed by the settlement.';else if(type==='bridge_contribution')text=`${ev.display_name||'A traveler'} helped build the Western Crossing.`;else if(type==='resource_gathered'||type==='gather')text=`${ev.display_name||'A traveler'} gathered ${p.resource||'resources'} nearby.`;else if(type==='forest_pressure_changed')text=`The forest is now ${p.stage||'under pressure'} after repeated harvesting; animals have begun shifting toward refuge.`;else if(type==='forest_response_chosen')text=`${ev.display_name||'A traveler'} supported ${String(p.label||p.choice||'a response').toLowerCase()} for the pressured forest.`;else if(type==='ecosystem_year_advanced')text=`The valley ecosystem advanced to Eco Year ${p.simulatedYear||'?'}.`;else if(type==='weather_changed')text=`The weather changed to ${p.condition||'new conditions'}.`;else if(type==='world_aging_milestone')text=`The settlement shows new signs of age: ${p.note||'time has left a mark'}.`;else if(type==='town_project_completed')text=`Travelers completed the ${p.projectKey||'community'} project.`;else if(type==='town_project_contribution')text=`${ev.display_name||'A traveler'} contributed ${p.amount||1} ${p.resource||'materials'} to ${p.projectKey||'a town project'}.`;else if(type==='living_world_event')text=p.summary||p.name||'A living event changed the valley.';
+      old.push({event_id:ev.id,type,text,traveler:ev.display_name||null,at:ev.created_at});seen.add(ev.id);if(ev.display_name){const k=ev.display_name,rel=person.knownTravelers[k]||{familiarity:0,helpfulActs:0};rel.familiarity=Math.min(100,rel.familiarity+8);if(['stockpile_deposit','bridge_contribution','resource_gathered','gather','town_project_contribution'].includes(type))rel.helpfulActs+=1;person.knownTravelers[k]=rel;}}
     memoriesByNpc[name]=old.slice(-12);
     const n=person.needs||{};n.food=Math.min(1,Number(n.food||0)+.025);n.rest=period==='night'?Math.max(.04,Number(n.rest||0)-.12):Math.min(1,Number(n.rest||0)+.018);n.social=Math.min(1,Number(n.social||0)+(period==='night'?.005:.012));n.safety=Math.max(.04,Number(n.safety||0)-.01);
     const badWeather=['storm'].includes(String(weather.condition||''));if(badWeather)n.safety=Math.min(1,n.safety+.42);if(String(needs.status||'')==='shortage'||String(needs.status||'')==='strained')n.food=Math.min(1,n.food+.16);person.needs=n;
@@ -84,10 +84,41 @@ export default async req=>{
         const rel=person.knownTravelers?.[traveler]||{familiarity:0,helpfulActs:0};rel.familiarity=Math.min(100,Number(rel.familiarity||0)+4);person.knownTravelers={...(person.knownTravelers||{}),[traveler]:rel};
         const level=rel.familiarity>=55?'trusted':rel.familiarity>=18?'familiar':'stranger',mem=(life.memories?.[npcName]||[]).filter(m=>m.traveler===traveler).slice(-2);
         const needs=person.needs||{};let request=null;if(Number(needs.food||0)>.62)request={resource:'wood',reason:'settlement supplies are running thin'};if(person.role==='Healer'&&Number(needs.food||0)>.48)request={resource:'herbs',reason:'remedies need replenishing'};if(person.role==='Smith'&&Number(needs.food||0)>.48)request={resource:'stone',reason:'repairs need material'};
+        // Pull real world facts for dialogue — never mutate inventory from NPC talk.
+        let project=null,demand={},event=null,settlementNeeds=null;
+        try{
+          const worldRows=await sql`SELECT key,value FROM world_state WHERE key IN ('living_world_event','town_demand','settlement_needs')`;
+          const world=Object.fromEntries(worldRows.map(r=>[r.key,r.value]));
+          event=eventStillActive(world.living_world_event)?world.living_world_event:null;
+          demand=normalizeDemand(world.town_demand||{});
+          settlementNeeds=world.settlement_needs||null;
+          const projects=await sql`SELECT project_key,status,contributed,required FROM town_projects`;
+          const active=projects.find(row=>row.status!=='complete');
+          if(active){
+            const catalog=projectByKey(active.project_key);
+            const required=active.required||catalog?.required||{};
+            const contributed=active.contributed||{};
+            const remaining={};
+            for(const [key,need] of Object.entries(required)){
+              const left=Math.max(0,Number(need||0)-Number(contributed[key]||0));
+              if(left>0)remaining[key]=left;
+            }
+            project={key:active.project_key,name:catalog?.name||active.project_key,status:active.status,remaining,structure:catalog?.structure||{label:active.project_key}};
+          }else{
+            const completed=projects.filter(row=>row.status==='complete').at(-1);
+            if(completed){
+              const catalog=projectByKey(completed.project_key);
+              project={key:completed.project_key,name:catalog?.name||completed.project_key,status:'complete',structure:catalog?.structure||{label:completed.project_key}};
+            }
+          }
+        }catch{/* optional until migrated */}
+        const worldLine=npcWorldAwareLine({npcName,role:person.role,project,demand,event,needs:settlementNeeds});
         const greeting=level==='trusted'?`${npcName} greets you warmly.`:level==='familiar'?`${npcName} recognizes you.`:`${npcName} studies the new face.`;
-        const memory=mem.length?` I remember: ${mem[mem.length-1].text}`:'';const requestText=request?` We could use ${request.resource}; ${request.reason}.`:'';
+        const memory=mem.length?` I remember: ${mem[mem.length-1].text}`:'';
+        const requestText=request?` We could use ${request.resource}; ${request.reason}.`:'';
+        const worldText=worldLine?` ${worldLine}`:'';
         life.people[npcName]=person;await sql`UPDATE world_state SET value=${JSON.stringify(life)}::jsonb,updated_at=now() WHERE key='npc_life'`;await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (NULL,'npc_interaction',${JSON.stringify({npc:npcName,traveler,relationship:level})}::jsonb)`;
-        return json({ok:true,npc:npcName,role:person.role,relationship:level,familiarity:rel.familiarity,greeting,memory,request,dialogue:`${greeting}${memory}${requestText}`});
+        return json({ok:true,npc:npcName,role:person.role,relationship:level,familiarity:rel.familiarity,greeting,memory,request,worldLine,event:event?eventPlayerBrief(event):null,dialogue:`${greeting}${memory}${worldText}${requestText}`});
       }
       if(body.action!=='observe_travel')return json({ok:false,error:'invalid_action'},400);
       const x=clamp(Number(body.x||0),-40,40),z=clamp(Number(body.z||0),-40,40);
@@ -167,6 +198,6 @@ export default async req=>{
       await sql`UPDATE world_state SET value=${JSON.stringify(demand)}::jsonb,updated_at=now() WHERE key='town_demand'`;
     }
 
-    return json({ok:true,weather:world.living_weather,needs:world.settlement_needs,npcs:world.npc_life,aging,stockpile:world.settlement_stockpile||{},event:activeEvent,demand});
+    return json({ok:true,weather:world.living_weather,needs:world.settlement_needs,npcs:world.npc_life,aging,stockpile:world.settlement_stockpile||{},event:activeEvent,eventBrief:eventPlayerBrief(activeEvent),demand,demandTiers:Object.fromEntries(Object.entries(demand).filter(([k])=>!['version','updatedAt','lastTick','activeEvent'].includes(k)).map(([k,v])=>[k,demandTier(v)]))});
   }catch(err){console.error('living systems error',err);return json({ok:false,error:'living_systems_failed',detail:String(err?.message||err).slice(0,180)},500)}
 };

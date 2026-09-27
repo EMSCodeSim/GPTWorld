@@ -1,14 +1,14 @@
-/** Contextual new-player guidance for the public + private loop. Avoids long tutorials. */
+/** Subtle first-session tips — marked only after related world signals, not on a timer alone. */
 (function(){
   const KEY='gptworld-guidance-v1';
   const steps=[
-    {id:'gather',text:'Gather wood, stone, or herbs nearby — look for glowing resource nodes.'},
-    {id:'shelter',text:'Visit your private land from the World Gateway to establish shelter and crafts.'},
-    {id:'food',text:'Farm a plot or hunt with a bow for food, then cook trail rations.'},
-    {id:'craft',text:'Open Field Crafting on your land and make a useful tool or storage.'},
-    {id:'town',text:'Return to town and sell goods to a merchant for coins.'},
-    {id:'project',text:'Near the council hall, contribute to the active Community Project.'},
-    {id:'home',text:'Head home again — your land and the town both remember what you do.'}
+    {id:'gather',text:'Gather wood, stone, or herbs nearby — look for glowing resource nodes.',signal:'gather'},
+    {id:'shelter',text:'Visit your private land from the World Gateway to establish shelter and crafts.',signal:'gateway'},
+    {id:'food',text:'On your land: Farm a plot or Hunt with a bow, then cook trail rations.',signal:'private'},
+    {id:'craft',text:'Open Craft on your land and make a useful tool or storage.',signal:'craft'},
+    {id:'town',text:'Return to town and sell goods to a merchant when demand looks HIGH.',signal:'town'},
+    {id:'project',text:'Near the council hall, contribute to the active Community Project.',signal:'project'},
+    {id:'home',text:'Your land and the town both remember what you do — head home with a new goal.',signal:'home'}
   ];
   function load(){try{return JSON.parse(localStorage.getItem(KEY))||{seen:{}};}catch{return{seen:{}};}}
   function save(state){localStorage.setItem(KEY,JSON.stringify(state));}
@@ -19,22 +19,37 @@
     t.classList.add('show');
     setTimeout(()=>t.classList.remove('show'),4200);
   }
+  function mark(id){
+    const state=load();
+    if(state.seen[id])return false;
+    state.seen[id]=true;
+    state.lastAt=Date.now();
+    save(state);
+    return true;
+  }
+  function showIfNew(id){
+    const step=steps.find(s=>s.id===id);
+    if(!step)return;
+    if(mark(id))toast(step.text);
+  }
   function nextTip(){
     const state=load();
     const tip=steps.find(step=>!state.seen[step.id]);
     if(!tip)return;
-    // Only nudge periodically so we do not spam.
     const now=Date.now();
-    if(state.lastAt&&now-state.lastAt<90000)return;
-    state.seen[tip.id]=true;
-    state.lastAt=now;
-    save(state);
-    toast(tip.text);
+    if(state.lastAt&&now-state.lastAt<120000)return;
+    // Soft nudge only — do not mark as permanently seen until a related signal fires,
+    // except the first tip which is introductory.
+    if(tip.id==='gather'){
+      state.lastAt=now;save(state);toast(tip.text);return;
+    }
+    state.lastAt=now;save(state);toast(tip.text);
   }
-  window.addEventListener('gptworld:inventory-state',()=>{
-    const state=load();
-    if(!state.seen.gather){state.seen.gather=true;save(state);toast(steps[0].text);}
+  window.addEventListener('gptworld:inventory-state',()=>showIfNew('gather'));
+  window.addEventListener('gptworld:living-town',e=>{
+    if(e.detail?.activeProject)showIfNew('project');
   });
-  setTimeout(nextTip,8000);
-  setInterval(nextTip,120000);
+  window.addEventListener('gptworld:living-event',()=>showIfNew('town'));
+  setTimeout(nextTip,10000);
+  setInterval(nextTip,180000);
 })();
