@@ -75,3 +75,5 @@
 .survival-actions button.hunt-primary{min-height:58px;font-size:17px;background:#e0b15c;box-shadow:0 6px 18px rgba(0,0,0,.24)}
 .survival-actions button.hunt-secondary{background:#294331;color:#f3ead5;border:1px solid #607660}
 @media(max-width:800px),(pointer:coarse){.world-actions{flex-wrap:wrap;max-width:78vw;justify-content:flex-end}.hunt-button{font-size:13px}.survival-actions button.hunt-primary{min-height:62px;font-size:18px}}
+
+#homesteadIdentity{max-width:min(250px,calc(100vw - 24px))}@media(max-width:800px),(pointer:coarse){#homesteadIdentity{right:10px;left:auto;top:max(58px,calc(env(safe-area-inset-top)+48px));width:min(220px,calc(100vw - 130px));font-size:12px;padding:10px 12px}#huntContextChip{bottom:max(176px,calc(env(safe-area-inset-bottom)+168px))}.world-actions{flex-wrap:wrap;gap:6px}.craft-button,.hunt-button,.return-town{min-height:44px;font-size:13px}}

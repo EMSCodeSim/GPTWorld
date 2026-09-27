@@ -9,7 +9,11 @@ import {
   initialMerchantBudgets,
   viewStacks,
   isStackableCrafted,
-  splitStackPlan
+  splitStackPlan,
+  normalizeDemand,
+  tickDemand,
+  demandCategoryFor,
+  demandTier
 } from '../lib/economy-core.mjs';
 import {economySchemaReady,ensureEconomySchema} from '../lib/economy-schema.mjs';
 
@@ -61,22 +65,52 @@ async function ensureMerchantBudgets(sql){
   }
 }
 
-function bagRow(item,merchantFilter=null){
+async function readDemand(sql){
+  try{
+    const rows=await sql`SELECT value FROM world_state WHERE key='town_demand' LIMIT 1`;
+    if(!rows.length){
+      await sql`
+        INSERT INTO world_state(key,value,updated_at)
+        VALUES('town_demand',${JSON.stringify(normalizeDemand())}::jsonb,now())
+        ON CONFLICT(key) DO NOTHING
+      `;
+      return normalizeDemand();
+    }
+    return normalizeDemand(rows[0].value||{});
+  }catch{
+    return normalizeDemand();
+  }
+}
+
+async function writeDemand(sql,demand){
+  try{
+    await sql`
+      INSERT INTO world_state(key,value,updated_at)
+      VALUES('town_demand',${JSON.stringify(demand)}::jsonb,now())
+      ON CONFLICT(key) DO UPDATE SET value=${JSON.stringify(demand)}::jsonb,updated_at=now()
+    `;
+  }catch(error){
+    console.error('GPTWorld demand write failed',error);
+  }
+}
+
+function bagRow(item,merchantFilter=null,demandState=null){
   const key=item.item_key,quality=item.quality||'standard',quantity=normalizeQuantity(item.quantity??1)||1;
   const merchants=merchantFilter?[merchantFilter]:MERCHANTS;
   const unitPriceByMerchant={};const sellableTo=[];
   for(const merchant of merchants){
     if(!merchantAccepts(merchant,key))continue;
-    const price=npcPurchasePrice(key,quality,merchant);
+    const price=npcPurchasePrice(key,quality,merchant,demandState);
     if(price<=0)continue;
     unitPriceByMerchant[merchant.key]=price;
     sellableTo.push(merchant.key);
   }
-  return{id:String(item.id),key,name:item.display_name,quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),quantity,unitPriceByMerchant,sellableTo};
+  return{id:String(item.id),key,name:item.display_name,quality,durability:Number(item.durability),maxDurability:Number(item.max_durability),quantity,unitPriceByMerchant,sellableTo,demandCategory:demandCategoryFor(key),demandTier:(()=>{const cat=demandCategoryFor(key);if(!cat||!demandState)return'';const tier=demandTier(demandState[cat]);return tier.key==='normal'?'':`${tier.label} demand`;})()};
 }
 
 async function payload(sql,actor,{merchantKey=null}={}){
   await ensureMerchantBudgets(sql);
+  const demand=await readDemand(sql);
   const filter=merchantKey?merchantByKey(merchantKey):null;
   if(merchantKey&&!filter)return{ok:false,error:'merchant_not_found'};
   const [budgetRows,bagRows]=await Promise.all([
@@ -94,9 +128,9 @@ async function payload(sql,actor,{merchantKey=null}={}){
     const state=budgets[merchant.key]||defaults[merchant.key];
     return{key:merchant.key,name:merchant.name,title:merchant.title,building:merchant.building,x:merchant.x,z:merchant.z,outfit:merchant.outfit,budget:Number(state?.budget??merchant.defaultBudget),accepts:[...merchant.accepts],lines:[...merchant.lines]};
   });
-  const bag=viewStacks(bagRows.map(item=>bagRow(item,filter)));
+  const bag=viewStacks(bagRows.map(item=>bagRow(item,filter,demand)));
   const inventory={wood:Number(actor.wood||0),stone:Number(actor.stone||0),herbs:Number(actor.herbs||0),coins:Number(actor.coins||0)};
-  return{ok:true,coins:inventory.coins,inventory,merchants:list,bag};
+  return{ok:true,coins:inventory.coins,inventory,merchants:list,bag,demand};
 }
 
 async function sellItem(sql,actor,merchantKey,itemId,quantity,key){
@@ -114,7 +148,8 @@ async function sellItem(sql,actor,merchantKey,itemId,quantity,key){
   if(want<=0||want>have)return{ok:false,error:'invalid_quantity'};
   if(!merchantAccepts(merchant,item.item_key))return{ok:false,error:'merchant_rejects_item'};
   const budgetRows=await sql`SELECT budget FROM merchant_budgets WHERE merchant_key=${merchant.key} LIMIT 1`;
-  const quote=saleQuote({merchant,itemKey:item.item_key,quality:item.quality,quantity:want,merchantBudget:Number(budgetRows[0]?.budget||0)});
+  const demand=await readDemand(sql);
+  const quote=saleQuote({merchant,itemKey:item.item_key,quality:item.quality,quantity:want,merchantBudget:Number(budgetRows[0]?.budget||0),demandState:demand});
   if(!quote.ok)return quote;
   const sellQty=quote.quantity,unit=quote.unitPrice,total=quote.total,remain=have-sellQty;
   const claimed=await sql`
@@ -186,7 +221,16 @@ async function sellItem(sql,actor,merchantKey,itemId,quantity,key){
     await sql`UPDATE merchant_trade_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key}`;
     return failed;
   }
-  return rows[0].response;
+  const response=rows[0].response;
+  try{
+    const category=demandCategoryFor(item.item_key);
+    const nextDemand=tickDemand(demand,{soldCategory:category,soldQty:sellQty});
+    await writeDemand(sql,nextDemand);
+    if(response&&typeof response==='object')response.demand=nextDemand;
+  }catch(error){
+    console.error('GPTWorld demand tick after sale failed',error);
+  }
+  return response;
 }
 
 async function splitStack(sql,actor,itemId,quantity,key){

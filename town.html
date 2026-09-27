@@ -1,1 +1,222 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>GPTWorld · Town Upgrades</title><style>*{box-sizing:border-box}body{margin:0;background:#142019;color:#f3f0e5;font:16px system-ui,sans-serif}main{max-width:820px;margin:auto;padding:22px 16px 80px}a{color:#e6c68c}header{display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font-size:1.8rem}p{line-height:1.5;color:#cbd6c8}.notice,.building{border:1px solid #52634b;border-radius:14px;background:#223125;padding:16px;margin:12px 0}.notice{background:#283628}.stock{display:flex;gap:14px;flex-wrap:wrap;font-weight:700}.building h2{margin:0 0 8px;font-size:1.3rem}.building p{margin:8px 0}button,.enter{display:inline-block;border:0;border-radius:10px;padding:12px 15px;background:#d3b779;color:#172019;font:700 15px system-ui;cursor:pointer;min-height:44px;margin:5px 8px 5px 0;text-decoration:none}button:disabled{opacity:.45;cursor:not-allowed}#status{min-height:24px;color:#e6c68c}small{color:#b9c8b7}</style></head><body><main><header><a href="./">← Back to world</a><strong>THE FIRST SETTLEMENT</strong></header><h1>Town upgrades</h1><p>Improve the five existing settlement buildings together. Upgrades spend <strong>shared storehouse supplies only</strong>; your personal inventory is never charged. Buildings unlock an interior at Level 2.</p><section class="notice"><strong>Community storehouse</strong><div class="stock" id="stock">Loading…</div><p><small>Gather resources in the world, then deposit them at the storehouse to fund these upgrades. Personal crafting and building use your own inventory.</small></p></section><div id="status" role="status" aria-live="polite"></div><section id="buildings"></section></main><script type="module">const api='/.netlify/functions/town-upgrades',clientId=localStorage.getItem('gptworld-client-id');const stock=document.getElementById('stock'),area=document.getElementById('buildings'),status=document.getElementById('status');let data=null,busy=false;const icons={wood:'🪵',stone:'🪨',herbs:'🌿'};const materials=v=>Object.entries(icons).map(([key,icon])=>`${icon} ${Number(v?.[key]||0)}`).join(' · ');async function load(){try{const r=await fetch(api,{cache:'no-store'}),d=await r.json();if(!d.ok)throw Error(d.error);data=d;draw()}catch(e){status.textContent=`Unable to load shared town upgrades: ${e.message}`}}function draw(){stock.textContent=materials(data.stockpile);area.replaceChildren();for(const [id,building] of Object.entries(data.buildings)){const level=Math.max(1,Math.min(3,Number(data.levels[id]||1))),cost=building.costs[level-1],card=document.createElement('article');card.className='building';const heading=document.createElement('h2');heading.textContent=`${building.name} · Level ${level}/3`;card.append(heading);const description=document.createElement('p');description.textContent=building.benefits[level-1];card.append(description);const next=document.createElement('p');next.textContent=cost?`Next: Level ${level+1} — ${building.benefits[level]}. Cost: ${materials(cost)}.`:'Maximum level reached.';card.append(next);if(level>=2){const enter=document.createElement('a');enter.className='enter';enter.href=`./interior.html?building=${encodeURIComponent(id)}`;enter.textContent=`🚪 Enter ${building.name}`;card.append(enter)}else{const locked=document.createElement('p');locked.textContent='🔒 Interior unlocks at Level 2.';card.append(locked)}if(cost){const button=document.createElement('button');const affordable=Object.keys(icons).every(k=>Number(data.stockpile[k]||0)>=Number(cost[k]||0));button.textContent=`Upgrade ${building.name}`;button.disabled=busy||!clientId||!affordable;button.title=!clientId?'Enter the world first':!affordable?'Not enough shared storehouse supplies':'Spend community resources';button.addEventListener('click',()=>upgrade(id));card.append(button)}area.append(card)}if(!clientId)status.textContent='Enter the world as a traveler before upgrading buildings.'}async function upgrade(id){if(busy||!clientId)return;busy=true;status.textContent='Upgrading…';draw();try{const r=await fetch(api,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,buildingId:id})});const d=await r.json();if(!d.ok){status.textContent=d.error==='insufficient_storehouse_or_max_level'?'Insufficient shared supplies or building already fully upgraded.':'Upgrade failed. Please try again.';await load();return}data.levels=d.levels;data.stockpile=d.stockpile;status.textContent=`${data.buildings[id].name} upgraded to level ${d.level}! Everyone shares this progress.`}catch{status.textContent='Connection failed. Please try again.'}finally{busy=false;draw()}}load();</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GPTWorld · Living Town</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#142019;color:#f3f0e5;font:16px system-ui,sans-serif}
+main{max-width:860px;margin:auto;padding:22px 16px 90px}a{color:#e6c68c}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:1.75rem;margin:12px 0 6px}h2{margin:0 0 8px;font-size:1.25rem}
+p{line-height:1.5;color:#cbd6c8}
+.notice,.card{border:1px solid #52634b;border-radius:14px;background:#223125;padding:16px;margin:12px 0}
+.notice{background:#283628}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.tabs button{border:1px solid #52634b;border-radius:999px;background:#1c2920;color:#d7d0c2;padding:9px 14px;font-weight:700;cursor:pointer}
+.tabs button.active{background:#d3b779;color:#172019;border-color:#d3b779}
+.stock,.demand{display:flex;gap:12px;flex-wrap:wrap;font-weight:700}
+.bar{height:10px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;margin:8px 0}
+.bar span{display:block;height:100%;background:linear-gradient(90deg,#739b6e,#d2b36a)}
+button.action,.enter{display:inline-block;border:0;border-radius:10px;padding:12px 15px;background:#d3b779;color:#172019;font:700 15px system-ui;cursor:pointer;min-height:44px;margin:5px 8px 5px 0;text-decoration:none}
+button.action:disabled{opacity:.45;cursor:not-allowed}
+#status{min-height:24px;color:#e6c68c}small{color:#b9c8b7}
+.req{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.unlock{display:inline-block;margin:3px 6px 3px 0;padding:4px 8px;border-radius:8px;background:rgba(210,179,106,.15);font-size:12px}
+.history-item{margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <a href="./">← Back to world</a>
+  <strong>THE FIRST SETTLEMENT</strong>
+</header>
+<h1>Living Town</h1>
+<p>Private land produces. The public town consumes, trades, and grows through shared Community Projects. Completing a project permanently changes the settlement.</p>
+<div class="tabs">
+  <button type="button" data-tab="projects" class="active">Community Projects</button>
+  <button type="button" data-tab="demand">Town Demand</button>
+  <button type="button" data-tab="history">Town History</button>
+  <button type="button" data-tab="upgrades">Building Upgrades</button>
+</div>
+<div id="status" role="status" aria-live="polite"></div>
+<section id="tab-projects"></section>
+<section id="tab-demand" hidden></section>
+<section id="tab-history" hidden></section>
+<section id="tab-upgrades" hidden></section>
+</main>
+<script type="module">
+const projectsApi='/.netlify/functions/town-projects';
+const upgradesApi='/.netlify/functions/town-upgrades';
+const clientId=localStorage.getItem('gptworld-client-id');
+const status=document.getElementById('status');
+const panes={
+  projects:document.getElementById('tab-projects'),
+  demand:document.getElementById('tab-demand'),
+  history:document.getElementById('tab-history'),
+  upgrades:document.getElementById('tab-upgrades')
+};
+let town=null,upgrades=null,busy=false;
+const labels={wood:'Wood',stone:'Stone',herbs:'Herbs',coins:'Coins',iron:'Iron fittings',tools:'Tools',furniture:'Furniture',rations:'Rations',food:'Food',clothing:'Clothing',construction:'Construction',crafted:'Crafted goods'};
+const icon={wood:'🪵',stone:'🪨',herbs:'🌿'};
+function ownedAmount(key,inv={}){
+  const aliases={iron:['iron','iron-fittings'],tools:['tools','stone-hammer'],furniture:['furniture','rough-stool'],rations:['rations','trail-rations']};
+  const keys=aliases[key]||[key];
+  return Math.max(0,...keys.map(k=>Number(inv[k]||0)));
+}
+function canPay(key,amount,inv={}){return ownedAmount(key,inv)>=Math.max(1,Number(amount)||0);}
+function demandTier(level){const n=Number(level||0);if(n>=85)return 'URGENT';if(n>=70)return 'HIGH';if(n>=40)return 'NORMAL';return 'LOW';}
+
+document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b===btn));
+  for(const [key,pane] of Object.entries(panes))pane.hidden=key!==btn.dataset.tab;
+}));
+
+function materials(v){return Object.entries(icon).map(([k,i])=>`${i} ${Number(v?.[k]||0)}`).join(' · ');}
+
+async function load(){
+  try{
+    const [p,u]=await Promise.all([
+      fetch(`${projectsApi}?clientId=${encodeURIComponent(clientId||'')}`,{cache:'no-store'}).then(r=>r.json()),
+      fetch(upgradesApi,{cache:'no-store'}).then(r=>r.json())
+    ]);
+    if(!p.ok)throw Error(p.error||'town_load_failed');
+    town=p;upgrades=u.ok?u:null;draw();
+  }catch(e){status.textContent=`Unable to load Living Town: ${e.message}`;}
+}
+
+function drawProjects(){
+  const active=town.activeProject;
+  const wrap=document.createElement('div');
+  if(active){
+    const card=document.createElement('article');card.className='card';
+    card.innerHTML=`<h2>${active.name}</h2><p>${active.summary}</p>
+      <div class="bar"><span style="width:${Math.min(100,active.percent||0)}%"></span></div>
+      <p><strong>${active.percent}%</strong> complete · your total contribution: ${active.playerTotal||0}</p>`;
+    for(const [key,need] of Object.entries(active.required||{})){
+      const have=Number(active.contributed?.[key]||0);
+      const row=document.createElement('div');row.className='req';
+      row.innerHTML=`<span>${labels[key]||key}</span><strong>${have} / ${need}</strong>`;
+      card.append(row);
+    }
+    const unlocks=document.createElement('p');
+    unlocks.innerHTML=`Unlocks: ${(active.unlocks||[]).map(u=>`<span class="unlock">${u.replaceAll('_',' ')}</span>`).join('')||'—'}`;
+    card.append(unlocks);
+    const actions=document.createElement('div');
+    for(const [key,left] of Object.entries(active.remaining||{})){
+      if(left<=0)continue;
+      for(const amount of [1,Math.min(5,left),Math.min(25,left)].filter((n,i,a)=>a.indexOf(n)===i)){
+        const btn=document.createElement('button');btn.className='action';btn.type='button';
+        const affordable=canPay(key,amount,town.inventory||{});
+        btn.textContent=`Contribute ${amount} ${labels[key]||key}`;
+        btn.disabled=busy||!clientId||!affordable;
+        btn.title=affordable?'Server verifies and debits your pack.':`Need ${amount} (you have ${ownedAmount(key,town.inventory||{})}).`;
+        btn.addEventListener('click',()=>contribute(active.key,key,amount));
+        actions.append(btn);
+      }
+    }
+    card.append(actions);
+    wrap.append(card);
+  }else{
+    wrap.innerHTML='<div class="notice"><strong>No active community project</strong><p>All configured projects are complete. Completed structures and unlocks remain part of the town.</p></div>';
+  }
+  if(town.completedProjects?.length){
+    const done=document.createElement('div');done.className='notice';
+    done.innerHTML=`<strong>Completed structures</strong><p>${town.completedProjects.map(p=>p.name).join(' · ')}</p>
+      <p>Unlocked: ${(town.unlocks||[]).map(u=>`<span class="unlock">${u.replaceAll('_',' ')}</span>`).join(' ')||'none yet'}</p>`;
+    wrap.append(done);
+  }
+  panes.projects.replaceChildren(wrap);
+}
+
+function drawDemand(){
+  const d=town.demand||{};
+  const card=document.createElement('div');card.className='card';
+  card.innerHTML=`<h2>Town supply & demand</h2><p>Merchants pay more when demand is HIGH or URGENT. Selling eases that pressure. Formulas stay under the hood.</p>`;
+  const grid=document.createElement('div');grid.className='demand';
+  for(const key of ['food','wood','stone','herbs','tools','furniture','clothing','construction','crafted']){
+    const level=Number(d[key]||50);
+    const el=document.createElement('div');
+    el.style.cssText='min-width:120px;flex:1';
+    const tier=d.tiers?.[key]?.label||demandTier(level);
+    el.innerHTML=`<div>${labels[key]||key}</div><div class="bar"><span style="width:${level}%"></span></div><strong>${tier}${tier==='HIGH'||tier==='URGENT'?` · town price up`:''}</strong><small style="display:block;margin-top:4px;opacity:.7">${level}/100</small>`;
+    grid.append(el);
+  }
+  card.append(grid);
+  if(town.stockpile){
+    const s=document.createElement('p');s.innerHTML=`Shared storehouse: ${materials(town.stockpile)}`;card.append(s);
+  }
+  panes.demand.replaceChildren(card);
+}
+
+function drawHistory(){
+  const card=document.createElement('div');card.className='card';
+  card.innerHTML='<h2>Town history</h2><p>Major milestones the world remembers.</p>';
+  if(!town.history?.length){card.innerHTML+='<p class="info-muted">No milestones yet.</p>';}
+  else for(const entry of town.history){
+    const item=document.createElement('div');item.className='history-item';
+    const dayLabel=entry.gameDay!=null?`DAY ${entry.gameDay}`:(entry.createdAt?new Date(entry.createdAt).toLocaleDateString():'');
+    item.innerHTML=`<div style="opacity:.7;font-size:12px;letter-spacing:.08em;margin-bottom:2px">${dayLabel}</div><strong>${entry.title}</strong><div>${entry.summary}</div>`;
+    card.append(item);
+  }
+  panes.history.replaceChildren(card);
+}
+
+function drawUpgrades(){
+  if(!upgrades){panes.upgrades.innerHTML='<div class="notice">Building upgrades unavailable.</div>';return;}
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`<div class="notice"><strong>Community storehouse</strong><div class="stock">${materials(upgrades.stockpile)}</div><p><small>Upgrades spend shared storehouse supplies only — never your personal inventory. Interiors unlock at Level 2.</small></p></div>`;
+  for(const [id,building] of Object.entries(upgrades.buildings||{})){
+    const level=Math.max(1,Math.min(3,Number(upgrades.levels?.[id]||1)));
+    const cost=building.costs[level-1];
+    const card=document.createElement('article');card.className='card';
+    card.innerHTML=`<h2>${building.name} · Level ${level}/3</h2><p>${building.benefits[level-1]}</p>
+      <p>${cost?`Next: Level ${level+1} — ${building.benefits[level]}. Cost: ${materials(cost)}.`:'Maximum level reached.'}</p>`;
+    if(level>=2){
+      const enter=document.createElement('a');enter.className='enter';enter.href=`./interior.html?building=${encodeURIComponent(id)}`;enter.textContent=`Enter ${building.name}`;card.append(enter);
+    }else{
+      const locked=document.createElement('p');locked.textContent='Interior unlocks at Level 2.';card.append(locked);
+    }
+    if(cost){
+      const button=document.createElement('button');button.className='action';button.type='button';
+      const affordable=Object.keys(icon).every(k=>Number(upgrades.stockpile?.[k]||0)>=Number(cost[k]||0));
+      button.textContent=`Upgrade ${building.name}`;button.disabled=busy||!clientId||!affordable;
+      button.addEventListener('click',()=>upgrade(id));card.append(button);
+    }
+    wrap.append(card);
+  }
+  panes.upgrades.replaceChildren(wrap);
+}
+
+function draw(){
+  drawProjects();drawDemand();drawHistory();drawUpgrades();
+  if(!clientId)status.textContent='Enter the world as a traveler before contributing or upgrading.';
+}
+
+async function contribute(projectKey,resource,amount){
+  if(busy||!clientId)return;busy=true;status.textContent='Contributing…';draw();
+  try{
+    const r=await fetch(projectsApi,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'contribute',projectKey,resource,amount,idempotencyKey:`web-${Date.now()}-${Math.random().toString(36).slice(2,7)}`})});
+    const d=await r.json();
+    if(!d.ok){status.textContent=d.error==='not_enough_materials'?'Not enough materials in your pack.':`Contribute failed: ${d.error}`;}
+    else status.textContent=d.complete?`${projectKey} completed! Check Town History.`:`Contributed ${d.amount} ${labels[resource]||resource}.`;
+    await load();
+  }catch{status.textContent='Connection failed.';}
+  finally{busy=false;draw();}
+}
+
+async function upgrade(id){
+  if(busy||!clientId)return;busy=true;status.textContent='Upgrading…';draw();
+  try{
+    const r=await fetch(upgradesApi,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,buildingId:id})});
+    const d=await r.json();
+    if(!d.ok)status.textContent=d.error==='insufficient_storehouse_or_max_level'?'Insufficient shared supplies or already maxed.':'Upgrade failed.';
+    else{upgrades.levels=d.levels;upgrades.stockpile=d.stockpile;status.textContent=`${upgrades.buildings[id].name} upgraded to level ${d.level}!`;}
+  }catch{status.textContent='Connection failed.';}
+  finally{busy=false;draw();}
+}
+
+load();
+</script>
+</body>
+</html>

@@ -101,7 +101,7 @@ async function contribute(wood,stone){
   finally{busy=false;lastFetch=0;setTimeout(refresh,150)}
 }
 ensureUI();
-setInterval(()=>{render();refresh()},1000);
+setInterval(()=>{render();refresh()},5000);
 window.addEventListener('focus',()=>{lastFetch=0;refresh()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){lastFetch=0;refresh()}});
 

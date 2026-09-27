@@ -1,3 +1,5 @@
+import {demandPriceModifier,demandCategoryFor,tickDemand,normalizeDemand,demandTier} from './town-projects-core.mjs';
+
 /** Inventory stacking, merchant pricing, and economy helpers for GPTWorld. */
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -201,20 +203,21 @@ export function qualityModifier(quality){
   return QUALITY_PRICE_MOD[String(quality||'standard')]||1;
 }
 
-export function npcPurchasePrice(itemKey,quality,merchant){
+export function npcPurchasePrice(itemKey,quality,merchant,demandState=null){
   const base=Number(ITEM_BASE_VALUE[itemKey]||0);
   if(base<=0)return 0;
   const specialty=Number(merchant?.specialtyMod??0.7);
-  return Math.max(1,Math.round(base*qualityModifier(quality)*specialty));
+  const demandMod=demandState?demandPriceModifier(demandState,itemKey):1;
+  return Math.max(1,Math.round(base*qualityModifier(quality)*specialty*demandMod));
 }
 
 export function merchantAccepts(merchant,itemKey){
   return Boolean(merchant?.accepts?.includes(String(itemKey)));
 }
 
-export function saleQuote({merchant,itemKey,quality='standard',quantity=1,merchantBudget=0}={}){
+export function saleQuote({merchant,itemKey,quality='standard',quantity=1,merchantBudget=0,demandState=null}={}){
   if(!merchant||!merchantAccepts(merchant,itemKey))return{ok:false,error:'merchant_rejects_item'};
-  const unit=npcPurchasePrice(itemKey,quality,merchant);
+  const unit=npcPurchasePrice(itemKey,quality,merchant,demandState);
   if(unit<=0)return{ok:false,error:'item_not_priced'};
   const want=normalizeQuantity(quantity);
   if(want<=0)return{ok:false,error:'invalid_quantity'};
@@ -229,7 +232,9 @@ export function saleQuote({merchant,itemKey,quality='standard',quantity=1,mercha
     partial:affordable<want,
     total:affordable*unit,
     budget,
-    remainingBudget:budget-affordable*unit
+    remainingBudget:budget-affordable*unit,
+    demandAdjusted:Boolean(demandState),
+    demandCategory:demandCategoryFor(itemKey)
   };
 }
 
@@ -257,3 +262,5 @@ export function initialMerchantBudgets(dayKey=''){
     {budget:merchant.defaultBudget,dayKey:String(dayKey||''),updatedAt:null}
   ]));
 }
+
+export {normalizeDemand,tickDemand,demandCategoryFor,demandPriceModifier,demandTier};
