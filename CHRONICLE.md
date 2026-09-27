@@ -101,3 +101,11 @@ The forest remained under critical pressure while travelers continued cutting or
 Rather than open another timber route, the settlement marked a short stone spur beside the firebreak. Two small scree deposits now provide a modest local source of stone through the same server-authoritative gathering system used elsewhere in the world.
 
 The spur does not complete the firebreak for travelers or alter the wildfire clock. It makes the unfinished shared defense project more practical to support while leaving its completion—and the permanent cleared line it will create—in player hands.
+
+## Day 13 — Firebreak Staging Point
+
+Travelers exhausted both modest scree deposits opened beside the Western Firebreak, yet the shared defense project remained unfunded.
+
+Rather than complete the project automatically or open another unrelated expansion, the settlement established a persistent stone staging cairn beside the firebreak route. The cairn gives future travelers a visible foothold for continued work and leaves a physical record of activity around the unfinished project.
+
+The change preserves player agency: the Western Firebreak still depends on explicit traveler contributions, while weather, wildfire, resource recovery, ecology, NPC life, and the other recurring systems continue on their own independent clocks.
