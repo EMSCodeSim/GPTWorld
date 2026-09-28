@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
 import {RESOURCE_DEFAULTS,proposeStoneDeposit,isValidStoneDepositPosition} from '../../lib/resource-defaults.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
+import {gatherAmountFor,GATHER_TOOL_BONUSES} from '../lib/balance-core.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -9,9 +10,9 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 });
 
 const DEFAULT_NODE_CONFIG = {
-  'tree-0':{resource:'wood',max:6,regrowMinutes:60},'tree-1':{resource:'wood',max:6,regrowMinutes:60},'tree-2':{resource:'wood',max:6,regrowMinutes:60},'tree-3':{resource:'wood',max:6,regrowMinutes:60},'tree-4':{resource:'wood',max:6,regrowMinutes:60},'tree-5':{resource:'wood',max:6,regrowMinutes:60},'tree-6':{resource:'wood',max:6,regrowMinutes:60},'tree-7':{resource:'wood',max:6,regrowMinutes:60},'tree-8':{resource:'wood',max:6,regrowMinutes:60},'tree-9':{resource:'wood',max:6,regrowMinutes:60},'tree-10':{resource:'wood',max:6,regrowMinutes:60},'tree-11':{resource:'wood',max:6,regrowMinutes:60},'tree-12':{resource:'wood',max:6,regrowMinutes:60},'tree-13':{resource:'wood',max:6,regrowMinutes:60},'tree-14':{resource:'wood',max:6,regrowMinutes:60},'tree-15':{resource:'wood',max:6,regrowMinutes:60},'tree-16':{resource:'wood',max:6,regrowMinutes:60},'tree-17':{resource:'wood',max:6,regrowMinutes:60},'tree-18':{resource:'wood',max:6,regrowMinutes:60},'tree-19':{resource:'wood',max:6,regrowMinutes:60},'tree-20':{resource:'wood',max:6,regrowMinutes:60},'tree-21':{resource:'wood',max:6,regrowMinutes:60},'tree-22':{resource:'wood',max:6,regrowMinutes:60},
-  'rock-0':{resource:'stone',max:12,regrowMinutes:480},'rock-1':{resource:'stone',max:12,regrowMinutes:480},'rock-2':{resource:'stone',max:12,regrowMinutes:480},'rock-3':{resource:'stone',max:12,regrowMinutes:480},'rock-4':{resource:'stone',max:12,regrowMinutes:480},
-  'herb-0':{resource:'herbs',max:3,regrowMinutes:20},'herb-1':{resource:'herbs',max:3,regrowMinutes:20},'herb-2':{resource:'herbs',max:3,regrowMinutes:20},'herb-3':{resource:'herbs',max:3,regrowMinutes:20},'herb-4':{resource:'herbs',max:3,regrowMinutes:20}
+  'tree-0':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-1':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-2':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-3':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-4':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-5':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-6':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-7':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-8':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-9':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-10':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-11':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-12':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-13':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-14':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-15':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-16':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-17':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-18':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-19':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-20':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-21':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},'tree-22':{resource:'wood',max:RESOURCE_DEFAULTS.wood.max,regrowMinutes:RESOURCE_DEFAULTS.wood.regrowMinutes},
+  'rock-0':{resource:'stone',max:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},'rock-1':{resource:'stone',max:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},'rock-2':{resource:'stone',max:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},'rock-3':{resource:'stone',max:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},'rock-4':{resource:'stone',max:RESOURCE_DEFAULTS.stone.max,regrowMinutes:RESOURCE_DEFAULTS.stone.regrowMinutes},
+  'herb-0':{resource:'herbs',max:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes},'herb-1':{resource:'herbs',max:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes},'herb-2':{resource:'herbs',max:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes},'herb-3':{resource:'herbs',max:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes},'herb-4':{resource:'herbs',max:RESOURCE_DEFAULTS.herbs.max,regrowMinutes:RESOURCE_DEFAULTS.herbs.regrowMinutes}
 };
 
 const TREE_POSITIONS=[[18,-13],[20,-7],[19,4],[23,10],[16,15],[10,18],[3,19],[-5,18],[-12,15],[-16,8],[-17,-1],[-15,-12],[-9,-17],[1,-18],[12,-17],[27,-17],[28,-7],[28,3],[27,15],[-29,-18],[-31,-8],[-30,7],[-29,18]];
@@ -230,13 +231,18 @@ export default async (req) => {
       if(!cfg)return json({ok:false,error:'invalid_resource_node'},400);
       const resource=String(body.resource||'').trim().toLowerCase();
       if(resource!==cfg.resource)return json({ok:false,error:'resource_node_mismatch'},400);
-      const amount=1;
+      const toolRows=await sql`SELECT id,item_key,durability FROM player_crafted_items WHERE player_id=${playerId} AND placed_at IS NULL AND durability>0 AND quantity>0`;
+      const toolKeys=toolRows.map(row=>row.item_key).filter(key=>GATHER_TOOL_BONUSES[key]);
+      const prepared=await resourceNodes(sql,config),preview=prepared[nodeId];
+      const remainingPreview=Math.max(0,Number(preview?.remaining||cfg.max||1));
+      const plan=gatherAmountFor({resource:cfg.resource,toolKeys,remaining:remainingPreview});
+      const amount=Math.max(1,Math.min(plan.amount,remainingPreview||plan.amount));
       const prior=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${playerId} AND idempotency_key=${key} LIMIT 1`;
       if(prior.length)return json(prior[0].response,prior[0].response?.ok?200:409);
       const claim=await sql`INSERT INTO public_resource_action_receipts(player_id,idempotency_key,node_id,response) VALUES(${playerId},${key},${nodeId},'{"ok":false,"error":"action_in_progress"}'::jsonb) ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id`;
       if(!claim.length){const raced=await sql`SELECT response FROM public_resource_action_receipts WHERE player_id=${playerId} AND idempotency_key=${key} LIMIT 1`;return json(raced[0]?.response||{ok:false,error:'action_in_progress'},raced[0]?.response?.ok?200:409);}
       await sql`INSERT INTO world_state (key,value,updated_at) VALUES ('resource_nodes','{}'::jsonb,now()) ON CONFLICT (key) DO NOTHING`;
-      const prepared=await resourceNodes(sql,config),current=prepared[nodeId];
+      const current=prepared[nodeId];
       const px=Number(players[0].x),pz=Number(players[0].z),distance=Math.hypot(px-Number(current?.x),pz-Number(current?.z));
       if(!Number.isFinite(distance)||distance>3.4){const response={ok:false,error:'resource_out_of_range'};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;return json(response,403);}
       const harvested=cfg.resource==='stone'?null:harvestPlant(current.plant,{amount,year:0,playerId});
@@ -273,7 +279,7 @@ export default async (req) => {
           RETURNING CASE WHEN ${nextPlant?true:false}::boolean THEN floor(${Number(nextPlant?.resources||0)}::numeric)::int ELSE GREATEST(0,calc.before_count-${amount}::int) END AS remaining
         ), inv AS (
           INSERT INTO player_inventory (player_id,wood,stone,herbs,updated_at)
-          SELECT ${playerId}::bigint,${cfg.resource==='wood'?1:0}::int,${cfg.resource==='stone'?1:0}::int,${cfg.resource==='herbs'?1:0}::int,now()
+          SELECT ${playerId}::bigint,${cfg.resource==='wood'?amount:0}::int,${cfg.resource==='stone'?amount:0}::int,${cfg.resource==='herbs'?amount:0}::int,now()
           FROM changed
           ON CONFLICT (player_id) DO UPDATE SET
             wood=player_inventory.wood+EXCLUDED.wood,
@@ -283,7 +289,7 @@ export default async (req) => {
           RETURNING (SELECT remaining FROM changed LIMIT 1) AS remaining
         ), logged AS (
           INSERT INTO world_events (player_id,event_type,payload)
-          SELECT ${playerId}::bigint,'resource_gathered',jsonb_build_object('resource',${cfg.resource}::text,'amount',1,'nodeId',${nodeId}::text,'remaining',remaining)
+          SELECT ${playerId}::bigint,'resource_gathered',jsonb_build_object('resource',${cfg.resource}::text,'amount',${amount}::int,'nodeId',${nodeId}::text,'remaining',remaining,'tool',${plan.toolKey||null})
           FROM inv RETURNING id
         )
         SELECT remaining FROM inv`;
@@ -293,11 +299,14 @@ export default async (req) => {
         const response={ok:false,error:Number(node?.remaining)>0?'resource_changed':'resource_depleted',node,nodeId};await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;
         return json(response,409);
       }
+      if(plan.toolKey){
+        await sql`UPDATE player_crafted_items SET durability=GREATEST(0,durability-1) WHERE id=(SELECT id FROM player_crafted_items WHERE player_id=${playerId} AND item_key=${plan.toolKey} AND placed_at IS NULL AND durability>0 ORDER BY durability DESC LIMIT 1)`;
+      }
       const remaining=Number(result[0].remaining||0);
       const forestPressure=cfg.resource==='wood'?await recordForestHarvest(sql,playerId,nodeId,remaining<=0):null;
       const inventory=await getInventory(sql,playerId);
       const nodes=await resourceNodes(sql,config);
-      const response={ok:true,gathered:{resource:cfg.resource,amount:1,nodeId},remaining,node:nodes[nodeId],inventory,nodes,forestPressure};
+      const response={ok:true,gathered:{resource:cfg.resource,amount,nodeId,tool:plan.toolKey||null,boosted:plan.boosted},remaining,node:nodes[nodeId],inventory,nodes,forestPressure};
       await sql`UPDATE public_resource_action_receipts SET response=${JSON.stringify(response)}::jsonb WHERE player_id=${playerId} AND idempotency_key=${key}`;
       return json(response);
     }

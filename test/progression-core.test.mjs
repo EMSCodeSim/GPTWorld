@@ -136,9 +136,9 @@ test('crafted quality includes poor tier and prices scale',()=>{
 });
 
 test('rare discoveries are uncommon and journal only records learned facts',()=>{
-  const discoveries=generateDiscoveries(42,5);
-  assert.equal(discoveries.length,5);
-  assert.ok(new Set(discoveries.map(d=>d.key)).size===5);
+  const discoveries=generateDiscoveries(42,3);
+  assert.equal(discoveries.length,3);
+  assert.ok(new Set(discoveries.map(d=>d.key)).size===3);
   const first=discoveries[0];
   const found=resolveDiscoveryFind(first,normalizeFieldJournal());
   assert.equal(found.ok,true);

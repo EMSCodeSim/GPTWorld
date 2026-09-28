@@ -2,6 +2,7 @@ import {neon} from '@neondatabase/serverless';
 import {advancePrivateEcology,generatePrivateWorld,initialPrivateEcology,normalizePosition,privateLivingEntityView,privateObserverForLivingRenderer,privateResourceSeeds,privateResourceView,seedFromPlayerId,synchronizePrivateLivingState} from '../lib/private-world-core.mjs';
 import {ecologyRenderEntities} from './_sim-core.mjs';
 import {harvestPlant,normalizePlant,resourceLifecycle} from '../../lib/plant-lifecycle.mjs';
+import {gatherAmountFor,GATHER_TOOL_BONUSES} from '../lib/balance-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const text=(value,max=80)=>String(value||'').trim().slice(0,max);
@@ -29,7 +30,8 @@ async function advanceWorld(sql,world){
   const advanced=advancePrivateEcology(world.ecology_state,world.last_simulated_at,new Date());
   if(advanced.steps>0||advanced.upgraded){
     const nextSimulatedAt=advanced.steps>0?advanced.simulatedUntil:world.last_simulated_at;
-    const rows=await sql`UPDATE player_worlds SET ecology_state=${JSON.stringify(advanced.state)}::jsonb,last_simulated_at=${nextSimulatedAt}::timestamptz,updated_at=now() WHERE id=${world.id} AND owner_player_id=${world.owner_player_id} RETURNING ecology_state,last_simulated_at,updated_at`;
+    const nextState={...advanced.state,lastCatchUpSteps:advanced.steps,lastCatchUpAt:new Date().toISOString()};
+    const rows=await sql`UPDATE player_worlds SET ecology_state=${JSON.stringify(nextState)}::jsonb,last_simulated_at=${nextSimulatedAt}::timestamptz,updated_at=now() WHERE id=${world.id} AND owner_player_id=${world.owner_player_id} RETURNING ecology_state,last_simulated_at,updated_at`;
     Object.assign(world,rows[0]||{});
   }
   return advanced;
@@ -105,9 +107,13 @@ async function gatherResource(sql,player,world,key,nodeId){
   if(prior.length)return prior[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:prior[0].response;
   const targetRows=await sql`SELECT node_id,resource_type,x,z,max_amount,remaining,regrow_at,generation,metadata FROM private_world_resources WHERE world_id=${world.id} AND node_id=${nodeId} LIMIT 1`;
   const targetRow=targetRows[0];if(!targetRow)return{ok:false,error:'invalid_resource_node'};
+  const toolRows=await sql`SELECT item_key FROM player_crafted_items WHERE player_id=${player.id} AND placed_at IS NULL AND durability>0 AND quantity>0`;
+  const toolKeys=toolRows.map(row=>row.item_key).filter(itemKey=>GATHER_TOOL_BONUSES[itemKey]);
+  const plan=gatherAmountFor({resource:targetRow.resource_type,toolKeys,remaining:Number(targetRow.remaining||0)});
+  const amount=Math.max(1,Math.min(plan.amount,Math.max(1,Number(targetRow.remaining||1))));
   const plantKind=targetRow.resource_type==='wood'||targetRow.resource_type==='herbs';
   const normalizedPlant=plantKind?normalizePlant(targetRow.metadata?.plant,{id:`${world.id}:${targetRow.node_id}`,speciesId:targetRow.resource_type==='wood'?'pine':'wild-herbs',year:0,slot:0,maxResources:Number(targetRow.max_amount||1),legacyMature:true}):null;
-  const targetPlant=normalizedPlant?harvestPlant(normalizedPlant,{amount:1,year:0,playerId:player.id}):null;
+  const targetPlant=normalizedPlant?harvestPlant(normalizedPlant,{amount,year:0,playerId:player.id}):null;
   if(targetPlant&&!targetPlant.ok)return{ok:false,error:targetPlant.error,node:privateResourceView(targetRows)[0]};
   const nextMetadata={...(targetRow.metadata||{}),plant:targetPlant?.plant||normalizedPlant||targetRow.metadata?.plant,lastGrowthAt:new Date().toISOString()};if(targetPlant?.plant?.stage==='dead')nextMetadata.replacementAt=new Date(Date.now()+24*60*60*1000).toISOString();
   const claim=await sql`
@@ -116,7 +122,7 @@ async function gatherResource(sql,player,world,key,nodeId){
     FROM private_world_resources r
     JOIN player_worlds w ON w.id=r.world_id AND w.owner_player_id=${player.id}
     JOIN player_world_sessions s ON s.player_id=${player.id} AND s.private_world_id=w.id AND s.current_world_type='private'
-    WHERE r.world_id=${world.id} AND r.node_id=${nodeId} AND r.remaining>0 AND sqrt(power(s.private_x-r.x,2)+power(s.private_z-r.z,2))<=3.4
+    WHERE r.world_id=${world.id} AND r.node_id=${nodeId} AND r.remaining>=${amount} AND sqrt(power(s.private_x-r.x,2)+power(s.private_z-r.z,2))<=3.4
     ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id
   `;
   if(!claim.length){
@@ -136,25 +142,25 @@ async function gatherResource(sql,player,world,key,nodeId){
       FOR UPDATE OF r
     ), gathered AS (
       UPDATE private_world_resources r SET
-        remaining=r.remaining-1,
-        regrow_at=CASE WHEN r.resource_type='stone' AND r.remaining-1=0 AND target.regrow_minutes IS NOT NULL THEN now()+(target.regrow_minutes||' minutes')::interval ELSE r.regrow_at END,
+        remaining=r.remaining-${amount},
+        regrow_at=CASE WHEN r.resource_type='stone' AND r.remaining-${amount}=0 AND target.regrow_minutes IS NOT NULL THEN now()+(target.regrow_minutes||' minutes')::interval ELSE r.regrow_at END,
         metadata=${JSON.stringify(nextMetadata)}::jsonb,
         updated_at=now()
-      FROM target WHERE r.id=target.id AND r.remaining=${Number(targetRow.remaining)}::int AND r.remaining>0
+      FROM target WHERE r.id=target.id AND r.remaining=${Number(targetRow.remaining)}::int AND r.remaining>=${amount}
       RETURNING r.world_id,r.node_id,r.resource_type,r.remaining,r.max_amount,r.regrow_at,r.generation,r.x,r.z,r.metadata
     ), inventory AS (
       INSERT INTO player_inventory(player_id,wood,stone,herbs,updated_at)
-      SELECT ${player.id},CASE WHEN resource_type='wood' THEN 1 ELSE 0 END,CASE WHEN resource_type='stone' THEN 1 ELSE 0 END,CASE WHEN resource_type='herbs' THEN 1 ELSE 0 END,now() FROM gathered
+      SELECT ${player.id},CASE WHEN resource_type='wood' THEN ${amount} ELSE 0 END,CASE WHEN resource_type='stone' THEN ${amount} ELSE 0 END,CASE WHEN resource_type='herbs' THEN ${amount} ELSE 0 END,now() FROM gathered
       ON CONFLICT(player_id) DO UPDATE SET wood=player_inventory.wood+EXCLUDED.wood,stone=player_inventory.stone+EXCLUDED.stone,herbs=player_inventory.herbs+EXCLUDED.herbs,updated_at=now()
       RETURNING wood,stone,herbs
     ), event_record AS (
       INSERT INTO private_world_events(world_id,player_id,event_type,x,z,details)
-      SELECT world_id,${player.id},'resource_gathered',x,z,jsonb_build_object('nodeId',node_id,'resource',resource_type,'amount',1,'remaining',remaining,'generation',generation) FROM gathered
+      SELECT world_id,${player.id},'resource_gathered',x,z,jsonb_build_object('nodeId',node_id,'resource',resource_type,'amount',${amount},'remaining',remaining,'generation',generation,'tool',${plan.toolKey||null}) FROM gathered
       RETURNING id
     ), finalized AS (
       UPDATE private_world_action_receipts receipt SET response=CASE WHEN EXISTS(SELECT 1 FROM gathered) THEN (
         SELECT jsonb_build_object(
-          'ok',true,'gathered',jsonb_build_object('resource',g.resource_type,'amount',1,'nodeId',g.node_id),
+          'ok',true,'gathered',jsonb_build_object('resource',g.resource_type,'amount',${amount},'nodeId',g.node_id,'tool',${plan.toolKey||null},'boosted',${plan.boosted}),
           'node',jsonb_build_object('nodeId',g.node_id,'resource',g.resource_type,'x',g.x,'z',g.z,'maxAmount',g.max_amount,'remaining',g.remaining,'regrowAt',g.regrow_at,'generation',g.generation,'plant',g.metadata->'plant','replacementAt',g.metadata->'replacementAt'),
           'inventory',jsonb_build_object('wood',i.wood,'stone',i.stone,'herbs',i.herbs)
         ) FROM gathered g,inventory i,event_record e
@@ -165,7 +171,12 @@ async function gatherResource(sql,player,world,key,nodeId){
       RETURNING receipt.response
     ) SELECT response FROM finalized
   `;
-  if(rows.length)return rows[0].response;
+  if(rows.length){
+    if(rows[0].response?.ok&&plan.toolKey){
+      await sql`UPDATE player_crafted_items SET durability=GREATEST(0,durability-1) WHERE id=(SELECT id FROM player_crafted_items WHERE player_id=${player.id} AND item_key=${plan.toolKey} AND placed_at IS NULL AND durability>0 ORDER BY durability DESC LIMIT 1)`;
+    }
+    return rows[0].response;
+  }
   const failed={ok:false,error:'private_session_required'};
   await sql`UPDATE private_world_action_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${player.id} AND idempotency_key=${key}`;
   return failed;

@@ -932,7 +932,7 @@ async function gather(item){
     resourceStates.set(data.node.nodeId,data.node);applyResourceVisual(data.node.nodeId);
     for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(data.inventory?.[key]||0);
     if(loadedPayload?.world){loadedPayload.world.resources=[...resourceStates.values()];cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}
-    showToast(`Gathered 1 ${data.gathered.resource}. ${data.node.remaining} remains here.`);
+    showToast(`Gathered ${data.gathered.amount} ${data.gathered.resource}${data.gathered.boosted?' (tool bonus)':''}. ${data.node.remaining} remains here.`);
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }

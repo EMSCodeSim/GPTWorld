@@ -184,8 +184,24 @@
     setTimeout(()=>{if(banner)banner.style.display='none';},14000);
   }
 
-  // Lightweight shared living-systems poll (also feeds event banner / NPC context).
+  // Prefer shared living-systems events over a second network poll.
+  window.addEventListener('gptworld:living-event',e=>{
+    if(e.detail){
+      living={...(living||{}),event:e.detail,eventBrief:e.detail.brief||living?.eventBrief};
+      showEventBanner(e.detail);
+      render();
+    }
+  });
+  window.addEventListener('gptworld:npc-life',e=>{
+    if(e.detail)living={...(living||{}),npcs:e.detail};
+  });
+  window.addEventListener('gptworld:town-demand',e=>{
+    if(e.detail){living={...(living||{}),demand:e.detail};render();}
+  });
+
   async function refreshLiving(){
+    // Fallback only when living-systems.js is not on the page.
+    if(window.__gptworldLivingSystemsActive)return;
     try{
       const r=await fetch('/.netlify/functions/living-systems',{cache:'no-store'});
       const d=await r.json();
@@ -200,7 +216,7 @@
   }
 
   setTimeout(()=>{ensureUI();render();refreshLiving();},1500);
-  setInterval(()=>{if(Date.now()-lastRender>4000)render();},5000);
-  setInterval(refreshLiving,45000);
+  setInterval(()=>{if(Date.now()-lastRender>8000)render();},8000);
+  setInterval(refreshLiving,90000);
   window.addEventListener('focus',()=>{refreshLiving();render();});
 })();

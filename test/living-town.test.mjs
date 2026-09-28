@@ -31,8 +31,8 @@ test('community projects are data-driven with required resources and unlocks',()
   assert.ok(TOWN_PROJECTS.length>=5);
   const blacksmith=projectByKey('blacksmith');
   assert.equal(blacksmith.name.includes('Blacksmith'),true);
-  assert.equal(blacksmith.required.wood,800);
-  assert.equal(blacksmith.required.iron,100);
+  assert.equal(blacksmith.required.wood,220);
+  assert.equal(blacksmith.required.iron,18);
   assert.ok(blacksmith.unlocks.includes('tool_repair'));
   assert.ok(blacksmith.structure?.id);
 });
@@ -108,8 +108,8 @@ test('demand tiers are plain labels over numeric demand',()=>{
 
 test('town demand raises and lowers NPC purchase prices',()=>{
   const merchant=merchantByKey('general');
-  const low=normalizeDemand({wood:10,stone:50,herbs:50,food:50,tools:50,furniture:50,clothing:50,construction:50,crafted:50});
-  const high=normalizeDemand({wood:95,stone:50,herbs:50,food:50,tools:50,furniture:50,clothing:50,construction:50,crafted:50});
+  const low=normalizeDemand({wood:50,stone:50,herbs:50,food:50,tools:50,furniture:50,clothing:50,construction:10,crafted:50});
+  const high=normalizeDemand({wood:50,stone:50,herbs:50,food:50,tools:50,furniture:50,clothing:50,construction:95,crafted:50});
   const lowPrice=npcPurchasePrice('wooden-beam','standard',merchant,low);
   const highPrice=npcPurchasePrice('wooden-beam','standard',merchant,high);
   assert.ok(highPrice>lowPrice);

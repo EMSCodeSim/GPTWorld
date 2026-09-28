@@ -4,7 +4,7 @@ import {advanceCrop,cropHarvest,cropUnlocked,huntChance,resolveHunt} from '../ne
 
 test('starter crops unlock and advanced crops use farming levels',()=>{
   assert.equal(cropUnlocked('wheat',0),true);assert.equal(cropUnlocked('carrot',0),true);
-  assert.equal(cropUnlocked('potato',19),false);assert.equal(cropUnlocked('potato',20),true);
+  assert.equal(cropUnlocked('potato',14),false);assert.equal(cropUnlocked('potato',15),true);
   assert.equal(cropUnlocked('pumpkin',44),false);assert.equal(cropUnlocked('farm-herbs',65),true);
 });
 

@@ -117,6 +117,7 @@
         <div class="prog-item${m.complete?' done':''}">
           <strong>${m.complete?'✓ ':''}${esc(m.name)}</strong>
           <small>${esc(m.summary)}</small>
+          ${m.reward?`<small style="display:block;margin-top:4px;color:#e6c68c">${esc(m.reward)}</small>`:''}
         </div>`).join('')}</div>`;
   }
 
@@ -284,13 +285,24 @@
     const data=await loadProgression(true);
     if(!data)return;
     if(data.whileYouWereAway?.length)showAwaySummary(data.whileYouWereAway);
-    if(data.newlyEarned?.length)toast(`Milestone: ${data.newlyEarned[0].name}`);
+    if(data.newlyEarned?.length){
+      const first=data.newlyEarned[0];
+      const rewardNote=first.rewardGranted?.message||first.reward||'';
+      toast(rewardNote?`Milestone: ${first.name}. ${rewardNote}`:`Milestone: ${first.name}`);
+    }
     if(data.moment)toast(data.moment.summary);
   }
 
   window.GPTWorldProgression={loadProgression,openPanel,findDiscovery,getState:()=>state};
 
+  let lastFocusLoad=0;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
   else boot();
-  window.addEventListener('focus',()=>loadProgression(true));
+  window.addEventListener('focus',()=>{
+    if(Date.now()-lastFocusLoad<5*60*1000)return;
+    lastFocusLoad=Date.now();
+    loadProgression(true).then(data=>{
+      if(data?.whileYouWereAway?.length)showAwaySummary(data.whileYouWereAway);
+    });
+  });
 })();

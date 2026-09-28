@@ -5,10 +5,18 @@ import {CRAFTING_SKILL_KEYS} from '../lib/crafting-core.mjs';
 import {CROPS,HUNT_UNLOCKS,advanceCrop,cropByKey,cropHarvest,cropUnlocked,resolveHunt,fertilizeSoil} from '../lib/survival-core.mjs';
 import {buildTrackSign,playerNoise,animalDetectionRange,huntingRange,resolveStalk,harvestWoundedAnimal} from '../lib/hunting-core.mjs';
 import {eventStillActive,huntDifficultyBonus} from '../lib/living-events-core.mjs';
+import {placeableFarmModifiers,placeableHuntModifiers} from '../lib/balance-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const clean=(value,max=100)=>String(value||'').trim().slice(0,max);
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
+
+async function placedAndTools(sql,actor){
+  const rows=await sql`SELECT item_key,placed_at FROM player_crafted_items WHERE player_id=${actor.id} AND (placed_at IS NOT NULL OR item_key IN ('skinning-knife','basic-bow','reinforced-bow','composite-bow','hunting-trap'))`;
+  const placed=rows.filter(row=>row.placed_at).map(row=>row.item_key);
+  const tools=rows.map(row=>row.item_key);
+  return{placed,tools,farm:placeableFarmModifiers(placed),hunt:placeableHuntModifiers(placed,tools)};
+}
 
 async function context(sql,clientId){
   const rows=await sql`SELECT p.id,p.display_name,w.id AS world_id,w.seed,w.terrain_state,w.ecology_state,s.current_world_type,s.private_x,s.private_z
@@ -27,23 +35,29 @@ async function livingAnimals(sql,actor,atMs=Date.now()){
   const event=eventStillActive(living.living_world_event)?living.living_world_event:null;
   return{animals,ecology,event,season:living.weather_sim?.season||ecology?.season||'spring'};
 }
-function plotView(row,ecology,event=null,season='spring'){
-  const advanced=advanceCrop(row,{weather:ecology?.weather,temperature:ecology?.temperature,now:new Date(),season,event});
-  return{id:String(row.id),x:Number(row.x),z:Number(row.z),cropKey:row.crop_key,stage:advanced.stage,progress:advanced.progress,moisture:advanced.moisture,health:advanced.health,soil:advanced.soil,plantedAt:row.planted_at,wateredAt:row.watered_at,harvestCount:Number(row.harvest_count||0)};
+function plotView(row,ecology,event=null,season='spring',farmMods=null){
+  const meta={...(row.metadata||{})};
+  if(farmMods){
+    if(farmMods.cropHealthDrainScale!=null)meta.cropHealthDrainScale=farmMods.cropHealthDrainScale;
+    if(farmMods.farmGrowthBonus!=null)meta.farmGrowthBonus=farmMods.farmGrowthBonus;
+  }
+  const advanced=advanceCrop({...row,metadata:meta},{weather:ecology?.weather,temperature:ecology?.temperature??ecology?.temperatureC,now:new Date(),season,event,farmTier:Number(meta.farmTier||1)});
+  return{id:String(row.id),x:Number(row.x),z:Number(row.z),cropKey:row.crop_key,stage:advanced.stage,progress:advanced.progress,moisture:advanced.moisture,health:advanced.health,soil:advanced.soil,plantedAt:row.planted_at,wateredAt:row.watered_at,harvestCount:Number(row.harvest_count||0),metadata:meta};
 }
 async function payload(sql,actor){
   const generatedAt=Date.now();
   await ensureSkills(sql,actor.id);
-  const [{animals,ecology,event,season},plots,skills,items,hunted]=await Promise.all([
+  const [{animals,ecology,event,season},plots,skills,items,hunted,mods]=await Promise.all([
     livingAnimals(sql,actor,generatedAt),
     sql`SELECT * FROM private_farm_plots WHERE world_id=${actor.world_id} AND player_id=${actor.id} ORDER BY created_at`,
     sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key IN ('farming','hunting') ORDER BY skill_key`,
     sql`SELECT item_key,COALESCE(quantity,1) AS quantity FROM player_crafted_items WHERE player_id=${actor.id} AND placed_at IS NULL`,
-    sql`SELECT animal_id,status,respawn_after,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND player_id=${actor.id}`
+    sql`SELECT animal_id,status,respawn_after,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND player_id=${actor.id}`,
+    placedAndTools(sql,actor)
   ]);
   const advancedPlots=[];
   for(const row of plots){
-    const view=plotView(row,ecology,event,season);
+    const view=plotView(row,ecology,event,season,mods.farm);
     advancedPlots.push(view);
     if(view.stage!==row.stage||Math.abs(view.moisture-Number(row.moisture))>.05||Math.abs(view.health-Number(row.health))>.05){
       await sql`UPDATE private_farm_plots SET stage=${view.stage},moisture=${view.moisture},health=${view.health},updated_at=now() WHERE id=${row.id} AND world_id=${actor.world_id}`;
@@ -125,27 +139,28 @@ async function fertilize(sql,actor,plotId){
   const soil=fertilizeSoil(rows[0].metadata?.soil??55,22);
   const meta={...(rows[0].metadata||{}),soil};
   const updated=await sql`UPDATE private_farm_plots SET metadata=${JSON.stringify(meta)}::jsonb,health=LEAST(100,health+8),updated_at=now() WHERE id=${plotId} RETURNING *`;
-  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+.4),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='farming' RETURNING skill_value`;
+  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+.8),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='farming' RETURNING skill_value`;
   return{ok:true,action:'fertilize',plot:plotView({...updated[0],soil},actor.ecology_state),skillValue:Number(skill[0]?.skill_value||0)};
 }
 async function addStack(sql,actor,item,quantity,profession){
-  const updated=await sql`UPDATE player_crafted_items SET quantity=LEAST(999,quantity+${quantity}) WHERE id=(SELECT id FROM player_crafted_items WHERE player_id=${actor.id} AND world_id=${actor.world_id} AND item_key=${item.key} AND quality='standard' AND durability=1 AND max_durability=1 AND placed_at IS NULL ORDER BY crafted_at LIMIT 1) RETURNING id,quantity`;
+  const updated=await sql`UPDATE player_crafted_items SET quantity=LEAST(99,quantity+${quantity}) WHERE id=(SELECT id FROM player_crafted_items WHERE player_id=${actor.id} AND world_id=${actor.world_id} AND item_key=${item.key} AND quality='standard' AND durability=1 AND max_durability=1 AND placed_at IS NULL ORDER BY crafted_at LIMIT 1) RETURNING id,quantity`;
   if(!updated.length)await sql`INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,metadata,quantity) VALUES(${actor.id},${actor.world_id},${item.key},${item.name},${profession},'standard',1,1,${actor.display_name},'{}'::jsonb,${quantity})`;
 }
 async function harvestCrop(sql,actor,plotId,ecology,event=null,season='spring'){
+  const mods=await placedAndTools(sql,actor);
   const rows=await sql`SELECT * FROM private_farm_plots WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND sqrt(power(x-${actor.private_x},2)+power(z-${actor.private_z},2))<=4 FOR UPDATE`;
   if(!rows.length)return{ok:false,error:'plot_not_found'};
-  const plot=advanceCrop(rows[0],{weather:ecology.weather,temperature:ecology.temperature,season,event});
-  if(plot.stage!=='ready')return{ok:false,error:'crop_not_ready',plot:plotView(rows[0],ecology,event,season)};
+  const plot=advanceCrop({...rows[0],metadata:{...(rows[0].metadata||{}),...mods.farm}},{weather:ecology.weather,temperature:ecology.temperature,season,event});
+  if(plot.stage!=='ready')return{ok:false,error:'crop_not_ready',plot:plotView(rows[0],ecology,event,season,mods.farm)};
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='farming'`;
-  const reward=cropHarvest(plot.crop_key,skillRows[0]?.skill_value,plot.health,{soil:plot.soil,event});
+  const reward=cropHarvest(plot.crop_key,skillRows[0]?.skill_value,plot.health,{soil:plot.soil,event,season,yieldBonus:mods.farm.farmYieldBonus});
   const meta={...(rows[0].metadata||{}),soil:reward.soilRemaining};
   const cleared=await sql`UPDATE private_farm_plots SET crop_key=NULL,stage='prepared',moisture=0,health=100,planted_at=NULL,watered_at=NULL,harvested_at=now(),harvest_count=harvest_count+1,metadata=${JSON.stringify(meta)}::jsonb,updated_at=now() WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND crop_key=${plot.crop_key} RETURNING *`;
   if(!cleared.length)return{ok:false,error:'crop_already_harvested'};
   await addStack(sql,actor,{key:reward.itemKey,name:reward.name},reward.quantity,'farming');
   await addStack(sql,actor,{key:'seed-pouch',name:'Seed Pouch'},1,'farming');
   const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${reward.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='farming' RETURNING skill_value`;
-  return{ok:true,action:'harvest_crop',reward,skillValue:Number(skill[0]?.skill_value||0),plot:plotView(cleared[0],ecology,event,season)};
+  return{ok:true,action:'harvest_crop',reward,skillValue:Number(skill[0]?.skill_value||0),plot:plotView(cleared[0],ecology,event,season,mods.farm)};
 }
 async function upsertHuntMeta(sql,actor,animalId,species,patch){
   const old=await sql`SELECT metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND animal_id=${animalId}`;
@@ -175,8 +190,10 @@ async function stalkAnimal(sql,actor,animalId,body){
   const skill=Number(skillRows[0]?.skill_value||0);
   if(skill<15)return{ok:false,error:'stalking_locked',requiredSkill:15};
   const noise=playerNoise({moving:Boolean(body.moving),running:Boolean(body.running),crouching:Boolean(body.crouching)});
+  const mods=await placedAndTools(sql,actor);
   const detection=animalDetectionRange({kind:animal.kind,skill,wary:Boolean(event?.effects?.wildlifeWary)});
   const plan=resolveStalk({noise,detectionRange:detection,distance,skill,crouching:Boolean(body.crouching)});
+  plan.alertChance=Number(clamp(plan.alertChance*Number(mods.hunt.stalkAlertScale||1),0.05,0.92).toFixed(3));
   let hash=2166136261;
   for(const char of `${actor.id}:${animalId}:stalk:${body.idempotencyKey||''}`){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}
   const roll=(hash>>>0)/4294967296;
@@ -209,15 +226,20 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
     eventPenalty:huntDifficultyBonus(event)
   });
   if(outcome.success){
-    const claimed=await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,harvested_at,respawn_after,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'harvested',now(),now()+interval '24 hours',${JSON.stringify({equipment,tracked:meta.tracked,stalked:meta.stalked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='harvested',harvested_at=now(),respawn_after=now()+interval '24 hours',metadata=EXCLUDED.metadata,updated_at=now() WHERE private_hunting_state.status='active' OR private_hunting_state.respawn_after<=now() RETURNING animal_id`;
+    const claimed=await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,harvested_at,respawn_after,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'harvested',now(),now()+make_interval(hours=>8),${JSON.stringify({equipment,tracked:meta.tracked,stalked:meta.stalked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='harvested',harvested_at=now(),respawn_after=now()+make_interval(hours=>8),metadata=EXCLUDED.metadata,updated_at=now() WHERE private_hunting_state.status='active' OR private_hunting_state.respawn_after<=now() RETURNING animal_id`;
     if(!claimed.length)return{ok:false,error:'animal_already_harvested'};
-    for(const reward of outcome.rewards)await addStack(sql,actor,reward,reward.quantity,'hunting');
+    const mods=await placedAndTools(sql,actor);
+    for(const reward of outcome.rewards){
+      const qty=Number(reward.quantity||1)+(reward.key==='hide'||reward.key==='raw-meat'?Number(mods.hunt.huntLootBonus||0):0);
+      await addStack(sql,actor,reward,Math.max(1,qty),'hunting');
+    }
   }else if(outcome.woundOnly){
     await upsertHuntMeta(sql,actor,animalId,outcome.species,{wounded:true,tracked:true,lastSeenAt:new Date().toISOString(),equipment});
   }else{
     await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'active',${JSON.stringify({equipment,lastOutcome:'escaped',tracked:meta.tracked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='active',metadata=EXCLUDED.metadata,updated_at=now()`;
   }
-  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${outcome.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='hunting' RETURNING skill_value`;
+  const totalXp=Number(outcome.xp||0)+Number(outcome.trackingXp||0);
+  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${totalXp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='hunting' RETURNING skill_value`;
   return{ok:true,action:'hunt',...outcome,animalId,skillValue:Number(skill[0]?.skill_value||0),noise};
 }
 async function harvestAnimal(sql,actor,animalId){
@@ -225,9 +247,13 @@ async function harvestAnimal(sql,actor,animalId){
   if(!rows.length||!rows[0].metadata?.wounded||rows[0].status==='harvested')return{ok:false,error:'no_wounded_animal'};
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='hunting'`;
   const loot=harvestWoundedAnimal({kind:rows[0].metadata?.kind||'herbivore',skill:skillRows[0]?.skill_value});
-  const claimed=await sql`UPDATE private_hunting_state SET status='harvested',harvested_at=now(),respawn_after=now()+interval '24 hours',metadata=metadata||'{"harvestedWounded":true}'::jsonb,updated_at=now() WHERE world_id=${actor.world_id} AND animal_id=${animalId} AND status='active' RETURNING animal_id`;
+  const claimed=await sql`UPDATE private_hunting_state SET status='harvested',harvested_at=now(),respawn_after=now()+make_interval(hours=>8),metadata=metadata||'{"harvestedWounded":true}'::jsonb,updated_at=now() WHERE world_id=${actor.world_id} AND animal_id=${animalId} AND status='active' RETURNING animal_id`;
   if(!claimed.length)return{ok:false,error:'animal_already_harvested'};
-  for(const reward of loot.rewards)await addStack(sql,actor,reward,reward.quantity,'hunting');
+  const mods=await placedAndTools(sql,actor);
+  for(const reward of loot.rewards){
+    const qty=Number(reward.quantity||1)+(reward.key==='hide'||reward.key==='raw-meat'?Number(mods.hunt.huntLootBonus||0):0);
+    await addStack(sql,actor,reward,Math.max(1,qty),'hunting');
+  }
   const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${loot.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='hunting' RETURNING skill_value`;
   return{ok:true,action:'harvest_animal',rewards:loot.rewards,skillValue:Number(skill[0]?.skill_value||0)};
 }
@@ -243,7 +269,7 @@ async function cookStew(sql,actor){
     ) SELECT (SELECT count(*) FROM reduced)+(SELECT count(*) FROM removed) AS consumed`;
   if(Number(rows[0]?.consumed)!==2)return{ok:false,error:'cooking_ingredients_required'};
   await addStack(sql,actor,{key:'trail-rations',name:'Trail Rations'},2,'cooking');
-  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+.75),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='cooking' RETURNING skill_value`;
+  const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+.45),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='cooking' RETURNING skill_value`;
   return{ok:true,action:'cook_stew',reward:{itemKey:'trail-rations',name:'Trail Rations',quantity:2},skillValue:Number(skill[0]?.skill_value||0)};
 }
 

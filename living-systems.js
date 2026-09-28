@@ -55,7 +55,7 @@ function ensureAgingLayer(){
 }
 
 function makeRain(layer,storm=false){
-  const count=storm?56:36;
+  const count=storm?24:16;
   for(let i=0;i<count;i++){
     const d=document.createElement('i');
     d.className='gpt-rain-drop';
@@ -232,9 +232,13 @@ async function observeTravel(){
 
 async function refreshLiving(){
   try{
+    window.__gptworldLivingSystemsActive=true;
     const r=await fetch(LIVING_API,{cache:'no-store'}),data=await r.json();
     if(!data.ok)throw new Error(data.error||'living systems unavailable');
     livingState=data; renderDayNight(); renderWeather(data.weather); renderAging(data.aging); renderPulse(data); emitNPCState(data); emitAgingState(data);
+    const brief=data.eventBrief||null;
+    window.dispatchEvent(new CustomEvent('gptworld:living-event',{detail:data.event?{...data.event,brief}:null}));
+    if(data.demand)window.dispatchEvent(new CustomEvent('gptworld:town-demand',{detail:data.demand}));
   }catch(err){console.error('Living systems load failed',err)}
 }
 

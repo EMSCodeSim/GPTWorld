@@ -45,12 +45,14 @@ export const HOMESTEAD_MILESTONES=Object.freeze([
     key:'first_shelter',
     name:'First Shelter',
     summary:'Construct your first permanent shelter.',
+    reward:'Spare timber and stone for the next improvement.',
     check:({buildings,placed})=>hasBuilding(buildings,({key,type})=>key==='homestead'||type==='house')||placed.has('shelter-frame')
   },
   {
     key:'self_sufficient',
     name:'Self-Sufficient',
     summary:'Produce food, fuel, and basic tools on your own property.',
+    reward:'Seed pouches and herbs for expanding the garden.',
     check:({plots,placed,inventory})=>{
       const food=productivePlots(plots).length>0||Number(inventory?.herbs||0)>=3;
       const fuel=placed.has('campfire-kit')||Number(inventory?.wood||0)>=6;
@@ -62,6 +64,7 @@ export const HOMESTEAD_MILESTONES=Object.freeze([
     key:'skilled_hunter',
     name:'Skilled Hunter',
     summary:'Reach Hunting 25 and successfully harvest several different animal types.',
+    reward:'A skinning knife and trail coin.',
     check:({skills,journal})=>{
       const hunting=skillMap(skills).get('hunting')||0;
       const hunted=new Set((journal?.animals||[]).filter(a=>a.successfullyHunted).map(a=>a.key||a.species));
@@ -72,12 +75,14 @@ export const HOMESTEAD_MILESTONES=Object.freeze([
     key:'working_farm',
     name:'Working Farm',
     summary:'Maintain multiple productive crop plots.',
+    reward:'Garden stakes and fresh seed stock.',
     check:({plots})=>productivePlots(plots).length>=2
   },
   {
     key:'craftsman',
     name:'Craftsman',
     summary:'Reach Carpentry 30 and create an advanced crafted item.',
+    reward:'Building materials and coin for the next project.',
     check:({skills,craftedKeys})=>{
       const carpentry=skillMap(skills).get('carpentry')||0;
       const advanced=new Set(['workbench','fence-panel','wooden-door','cabin-frame','masterwork-chest','storage-shed','improved-cabin','hand-cart']);
@@ -88,6 +93,7 @@ export const HOMESTEAD_MILESTONES=Object.freeze([
     key:'established_homestead',
     name:'Established Homestead',
     summary:'Own a shelter, storage, food production, and workshop.',
+    reward:'A settlement stipend and construction stock.',
     check:({buildings,placed,plots})=>{
       const shelter=hasBuilding(buildings,({key,type})=>key==='homestead'||type==='house'||key==='shelter');
       const storage=placed.has('wooden-crate')||placed.has('storage-shed')||placed.has('masterwork-chest')||hasBuilding(buildings,({key})=>key==='storage');
@@ -100,12 +106,14 @@ export const HOMESTEAD_MILESTONES=Object.freeze([
     key:'town_contributor',
     name:'Town Contributor',
     summary:'Make meaningful contributions to several Community Projects.',
+    reward:'Council coin for continued town work.',
     check:({townContributions})=>Number(townContributions||0)>=3
   },
   {
     key:'master_builder',
     name:'Master Builder',
     summary:'Construct a major advanced structure.',
+    reward:'Rare materials and a builder’s purse.',
     check:({buildings,placed,skills})=>{
       const construction=skillMap(skills).get('construction')||0;
       const advanced=hasBuilding(buildings,({key,level,type})=>
@@ -126,6 +134,7 @@ export function evaluateMilestones(context={}){
       key:milestone.key,
       name:milestone.name,
       summary:milestone.summary,
+      reward:milestone.reward||null,
       complete:met,
       newlyEarned:!already&&met
     });
@@ -279,7 +288,7 @@ export const ADVANCED_UNLOCKS=Object.freeze([
   {skill:'hunting',level:30,key:'reinforced-bow',name:'Improved Bow',kind:'tool'},
   {skill:'hunting',level:50,key:'advanced-tracking',name:'Advanced Tracking',kind:'technique'},
   {skill:'farming',level:30,key:'orchard-kit',name:'Orchard',kind:'farm'},
-  {skill:'farming',level:50,key:'irrigation-kit',name:'Irrigation',kind:'farm'}
+  {skill:'farming',level:30,key:'irrigation-kit',name:'Irrigation',kind:'farm'}
 ]);
 
 export function advancedUnlocksForSkills(skills=[]){
@@ -307,16 +316,16 @@ export function recentlyUnlockedAdvanced(skills=[],previousSkills=[]){
 /* ─── Phase 3: Field Journal + Rare Discoveries ─── */
 
 export const DISCOVERY_TYPES=Object.freeze([
-  {key:'abandoned_camp',name:'Abandoned Camp',summary:'A cold fire ring and scattered gear.',rarity:0.08,loot:Object.freeze({wood:2,herbs:1}),lore:'Someone left in a hurry seasons ago.',recipeHint:null},
-  {key:'hunting_blind',name:'Old Hunting Blind',summary:'Weathered stakes and a brush screen.',rarity:0.07,loot:Object.freeze({wood:1,stone:0,herbs:0}),lore:'Hunters once watched the forest edge from here.',recipeHint:'hunter-blind'},
-  {key:'supply_cache',name:'Forgotten Supply Cache',summary:'A half-buried crate of trail goods.',rarity:0.06,loot:Object.freeze({wood:3,stone:1,herbs:2}),lore:'Marked with an old settlement brand.',recipeHint:null},
-  {key:'rare_plant',name:'Rare Plant Patch',summary:'Unusual herbs thriving in a sheltered hollow.',rarity:0.09,loot:Object.freeze({herbs:4}),lore:'These plants prefer damp shade.',recipeHint:'field-medicine-kit'},
-  {key:'ruined_cabin',name:'Ruined Cabin',summary:'Collapsed walls and a stone hearth.',rarity:0.05,loot:Object.freeze({wood:4,stone:3}),lore:'The chimney stones still hold warmth in memory.',recipeHint:'stone-hearth'},
-  {key:'animal_den',name:'Animal Den',summary:'Fresh bedding and tracks around a burrow.',rarity:0.08,loot:Object.freeze({herbs:1}),lore:'A family of small animals shelters here.',recipeHint:null},
-  {key:'old_wagon',name:'Old Wagon',summary:'A broken wagon frame half-claimed by moss.',rarity:0.05,loot:Object.freeze({wood:5,stone:1}),lore:'Axles snapped on the north trail.',recipeHint:'hand-cart'},
-  {key:'mineral_deposit',name:'Unusual Mineral Deposit',summary:'Glinting stone unlike the common ridge rock.',rarity:0.06,loot:Object.freeze({stone:5}),lore:'Useful for finer fittings and tools.',recipeHint:'iron-fittings'},
-  {key:'trail_marker',name:'Old Trail Marker',summary:'A carved post pointing away from town.',rarity:0.1,loot:Object.freeze({}),lore:'North Trail — toward the old mining country.',recipeHint:null,regionalHint:'north_trail'},
-  {key:'strange_landmark',name:'Strange Landmark',summary:'A standing stone with weathered notches.',rarity:0.04,loot:Object.freeze({stone:2,herbs:1}),lore:'Travelers carve days into the stone when they pass.',recipeHint:null}
+  {key:'abandoned_camp',name:'Abandoned Camp',summary:'A cold fire ring and scattered gear.',rarity:0.18,loot:Object.freeze({wood:4,herbs:2}),lore:'Someone left in a hurry seasons ago.',recipeHint:null},
+  {key:'hunting_blind',name:'Old Hunting Blind',summary:'Weathered stakes and a brush screen.',rarity:0.12,loot:Object.freeze({wood:3,stone:1,herbs:1}),lore:'Hunters once watched the forest edge from here.',recipeHint:'hunter-blind'},
+  {key:'supply_cache',name:'Forgotten Supply Cache',summary:'A half-buried crate of trail goods.',rarity:0.1,loot:Object.freeze({wood:5,stone:2,herbs:3}),lore:'Marked with an old settlement brand.',recipeHint:null},
+  {key:'rare_plant',name:'Rare Plant Patch',summary:'Unusual herbs thriving in a sheltered hollow.',rarity:0.14,loot:Object.freeze({herbs:6}),lore:'These plants prefer damp shade.',recipeHint:'field-medicine-kit'},
+  {key:'ruined_cabin',name:'Ruined Cabin',summary:'Collapsed walls and a stone hearth.',rarity:0.08,loot:Object.freeze({wood:6,stone:5}),lore:'The chimney stones still hold warmth in memory.',recipeHint:'stone-hearth'},
+  {key:'animal_den',name:'Animal Den',summary:'Fresh bedding and tracks around a burrow.',rarity:0.16,loot:Object.freeze({herbs:2}),lore:'A family of small animals shelters here.',recipeHint:null},
+  {key:'old_wagon',name:'Old Wagon',summary:'A broken wagon frame half-claimed by moss.',rarity:0.07,loot:Object.freeze({wood:8,stone:2}),lore:'Axles snapped on the north trail.',recipeHint:'hand-cart'},
+  {key:'mineral_deposit',name:'Unusual Mineral Deposit',summary:'Glinting stone unlike the common ridge rock.',rarity:0.09,loot:Object.freeze({stone:8}),lore:'Useful for finer fittings and tools.',recipeHint:'iron-fittings'},
+  {key:'trail_marker',name:'Old Trail Marker',summary:'A carved post pointing away from town.',rarity:0.22,loot:Object.freeze({wood:1}),lore:'North Trail — toward the old mining country.',recipeHint:null,regionalHint:'north_trail'},
+  {key:'strange_landmark',name:'Strange Landmark',summary:'A standing stone with weathered notches.',rarity:0.04,loot:Object.freeze({stone:4,herbs:2}),lore:'Travelers carve days into the stone when they pass.',recipeHint:null}
 ]);
 
 export function discoveryByKey(key){
@@ -329,16 +338,24 @@ export function deterministicUnit(seed){
   return(hash>>>0)/4294967296;
 }
 
-/** Place uncommon discoveries from world seed — sparse, not map-covered. */
-export function generateDiscoveries(seed,count=5){
+/** Place uncommon discoveries from world seed — rarity-weighted, sparse. */
+export function generateDiscoveries(seed,count=3){
   const picks=[];
   const pool=[...DISCOVERY_TYPES];
   for(let i=0;i<count&&pool.length;i++){
-    const roll=deterministicUnit(`${seed}:discovery:${i}`);
-    const index=Math.floor(roll*pool.length)%pool.length;
+    const totalWeight=pool.reduce((sum,item)=>sum+Math.max(0.01,Number(item.rarity||0.1)),0);
+    let roll=deterministicUnit(`${seed}:discovery:${i}`)*totalWeight;
+    let index=0;
+    for(let p=0;p<pool.length;p++){
+      roll-=Math.max(0.01,Number(pool[p].rarity||0.1));
+      if(roll<=0){index=p;break;}
+      index=p;
+    }
     const type=pool.splice(index,1)[0];
     const angle=deterministicUnit(`${seed}:ang:${type.key}`)*Math.PI*2;
-    const radius=16+deterministicUnit(`${seed}:rad:${type.key}`)*14;
+    // Spread rarer finds farther from the homestead spawn.
+    const rarityGap=1-Math.min(1,Number(type.rarity||0.1)/0.22);
+    const radius=18+deterministicUnit(`${seed}:rad:${type.key}`)*12+rarityGap*6;
     picks.push({
       id:`discovery-${type.key}`,
       key:type.key,
@@ -347,6 +364,7 @@ export function generateDiscoveries(seed,count=5){
       lore:type.lore,
       recipeHint:type.recipeHint||null,
       regionalHint:type.regionalHint||null,
+      rarity:Number(type.rarity||0.1),
       loot:{...(type.loot||{})},
       x:Number((Math.cos(angle)*radius).toFixed(2)),
       z:Number((Math.sin(angle)*radius).toFixed(2)),
@@ -383,9 +401,12 @@ export function resolveDiscoveryFind(discovery,existingJournal={}){
         key:def.recipeHint,
         name:def.recipeHint,
         source:def.name,
-        note:`Clue found at ${def.name}.`
+        note:`Blueprint clue from ${def.name} — this recipe is temporarily unlocked.`,
+        unlocksRecipe:true
       });
     }
+    journal.blueprintUnlocks=journal.blueprintUnlocks||[];
+    if(!journal.blueprintUnlocks.includes(def.recipeHint))journal.blueprintUnlocks.push(def.recipeHint);
   }
   return{
     ok:true,
@@ -921,22 +942,32 @@ export function whileYouWereAwaySummary({
   demandShift=null,
   arrivals=[],
   milestones=[],
-  discoveries=[]
+  discoveries=[],
+  awayMinutes=0
 }={}){
+  if(Number(awayMinutes||0)>0&&Number(awayMinutes)<25)return[];
   const lines=[];
-  if(readyCrops>0)lines.push(`Your ${readyCrops===1?'crop is':'crops are'} ready to harvest (${readyCrops}).`);
+  if(readyCrops>0)lines.push(`Your ${readyCrops===1?'crop is':'crops are'} ready to harvest.`);
   if(projectProgress&&Number(projectProgress.percent||0)>0){
-    lines.push(`The ${projectProgress.name||'town project'} reached ${Math.round(projectProgress.percent)}% completion.`);
+    const remaining=projectProgress.remainingHint||null;
+    lines.push(remaining
+      ?`The ${projectProgress.name||'town project'} needs only ${remaining}.`
+      :`The ${projectProgress.name||'town project'} reached ${Math.round(projectProgress.percent)}% completion.`);
   }
-  if(weatherPassed)lines.push(`A ${weatherPassed} passed through the settlement.`);
-  if(demandShift)lines.push(`${prettyName(demandShift)} demand increased.`);
+  if(weatherPassed)lines.push(`Weather shifted — ${weatherPassed} moved through the valley.`);
+  if(demandShift)lines.push(`${prettyName(demandShift)} demand is running high in town.`);
   if(arrivals.length)lines.push(`${arrivals[0].npcKey||'A new resident'} arrived in town.`);
-  if(catchUpSteps>=4)lines.push(`Your land lived through ${catchUpSteps} ecology steps while you were away.`);
+  if(catchUpSteps>=3)lines.push(`Your land kept living — wildlife and weather moved while you were gone.`);
   for(const milestone of milestones||[]){
     if(milestone.newlyEarned)lines.push(`Milestone earned: ${milestone.name}.`);
   }
-  if(discoveries.length)lines.push(`A discovery awaits: ${discoveries[0].name}.`);
-  return lines.slice(0,5);
+  if(discoveries.length)lines.push(`A discovery awaits on your land: ${discoveries[0].name}.`);
+  // Cap to five meaningful items; prefer ending with a clear next action.
+  const capped=lines.slice(0,5);
+  if(capped.length&&readyCrops>0&&!capped[capped.length-1].includes('ready to harvest')){
+    // Keep harvest CTA visible when present earlier — already included.
+  }
+  return capped;
 }
 
 export function profileCard({
