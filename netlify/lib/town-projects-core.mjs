@@ -3,6 +3,8 @@
  * Project definitions live here so new projects can be added without rewriting the API.
  */
 
+import {scaleProjectRequirements,communityScaleFactor} from './balance-core.mjs';
+
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 /** Materials accepted from player_inventory columns. */
@@ -23,13 +25,18 @@ export const CRAFTED_MATERIALS=Object.freeze({
  * `unlocks` become persistent town capabilities when the project completes.
  * `structure` describes the persistent public-world building that appears.
  */
+/**
+ * Session-scaled community projects.
+ * Solo / small communities can finish the first project across a few focused sessions.
+ * Use scaleProjectRequirements() with active contributors for larger towns.
+ */
 export const TOWN_PROJECTS=Object.freeze([
   {
     key:'blacksmith',
     name:'Build the Blacksmith Forge',
     summary:'Raise a working forge so the settlement can repair and shape metal tools.',
     order:10,
-    required:Object.freeze({wood:800,stone:300,iron:100,coins:2000}),
+    required:Object.freeze({wood:220,stone:90,iron:18,coins:400}),
     unlocks:Object.freeze(['tool_repair','metal_tools','metal_crafting']),
     structure:Object.freeze({
       id:'community-blacksmith',
@@ -47,7 +54,7 @@ export const TOWN_PROJECTS=Object.freeze([
     name:'Build the Mill',
     summary:'A water-driven mill to grind grain into flour for the settlement.',
     order:20,
-    required:Object.freeze({wood:500,stone:400,tools:20,coins:1200}),
+    required:Object.freeze({wood:160,stone:110,tools:8,coins:280}),
     unlocks:Object.freeze(['grain_processing','flour_trade']),
     structure:Object.freeze({
       id:'community-mill',
@@ -65,7 +72,7 @@ export const TOWN_PROJECTS=Object.freeze([
     name:'Open the Marketplace',
     summary:'Expand trading space so more merchants and demand can take root.',
     order:30,
-    required:Object.freeze({wood:400,stone:200,furniture:30,coins:1500}),
+    required:Object.freeze({wood:140,stone:70,furniture:12,coins:320}),
     unlocks:Object.freeze(['extra_merchants','expanded_trading','demand_board']),
     structure:Object.freeze({
       id:'community-marketplace',
@@ -83,7 +90,7 @@ export const TOWN_PROJECTS=Object.freeze([
     name:'Raise the Tavern',
     summary:'A gathering place for travelers, rumors, and future contracts.',
     order:40,
-    required:Object.freeze({wood:450,stone:150,rations:80,coins:1000}),
+    required:Object.freeze({wood:150,stone:55,rations:28,coins:240}),
     unlocks:Object.freeze(['tavern_npcs','rumors','contracts']),
     structure:Object.freeze({
       id:'community-tavern',
@@ -101,7 +108,7 @@ export const TOWN_PROJECTS=Object.freeze([
     name:'Expand the Clinic',
     summary:'Grow the healer’s cottage into a clinic that can treat injuries and exposure.',
     order:50,
-    required:Object.freeze({wood:300,stone:180,herbs:200,coins:900}),
+    required:Object.freeze({wood:110,stone:65,herbs:85,coins:220}),
     unlocks:Object.freeze(['treatment','injury_care','exposure_relief']),
     structure:Object.freeze({
       id:'community-clinic',
@@ -119,7 +126,7 @@ export const TOWN_PROJECTS=Object.freeze([
     name:'Build the River Docks',
     summary:'Mooring and trade docks open fishing and river commerce.',
     order:60,
-    required:Object.freeze({wood:600,stone:250,iron:40,coins:1100}),
+    required:Object.freeze({wood:180,stone:80,iron:12,coins:260}),
     unlocks:Object.freeze(['fishing','river_trade','dock_merchants']),
     structure:Object.freeze({
       id:'community-docks',
@@ -274,9 +281,15 @@ export function completedStructures(rowsByKey={}){
     }));
 }
 
+/** Prefer construction (and other specialty cats) when an item appears in multiple lists. */
+const DEMAND_CATEGORY_PRIORITY=Object.freeze(['construction','tools','furniture','food','clothing','crafted','wood','stone','herbs']);
+
 /** Map an item/material key to the demand category that drives NPC prices. */
 export function demandCategoryFor(itemKey){
   const key=String(itemKey||'');
+  for(const category of DEMAND_CATEGORY_PRIORITY){
+    if((DEMAND_CATEGORIES[category]||[]).includes(key))return category;
+  }
   for(const [category,items] of Object.entries(DEMAND_CATEGORIES)){
     if(items.includes(key))return category;
   }
@@ -349,13 +362,13 @@ export function historyEntryFromProject(project,{gameDay=null,playerName=null}={
   };
 }
 
-/** Demand shown to players as plain tiers — formulas stay numeric underneath. */
+/** Demand shown to players as plain tiers — hints match demandPriceModifier roughly. */
 export function demandTier(level){
   const n=clamp(level,0,100);
-  if(n>=85)return{key:'urgent',label:'URGENT',multiplierHint:'+35%'};
-  if(n>=70)return{key:'high',label:'HIGH',multiplierHint:'+25%'};
+  if(n>=85)return{key:'urgent',label:'URGENT',multiplierHint:'+30%'};
+  if(n>=70)return{key:'high',label:'HIGH',multiplierHint:'+18%'};
   if(n>=40)return{key:'normal',label:'NORMAL',multiplierHint:''};
-  return{key:'low',label:'LOW',multiplierHint:'-20%'};
+  return{key:'low',label:'LOW',multiplierHint:'-30%'};
 }
 
 /**
@@ -427,3 +440,5 @@ export function inventoryAmountFor(resource,inventory={}){
 export function canContributeResource(resource,amount,inventory={}){
   return inventoryAmountFor(resource,inventory)>=Math.max(1,Math.floor(Number(amount)||0));
 }
+
+export{scaleProjectRequirements,communityScaleFactor};

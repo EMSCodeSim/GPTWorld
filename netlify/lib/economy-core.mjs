@@ -4,7 +4,7 @@ import {demandPriceModifier,demandCategoryFor,tickDemand,normalizeDemand,demandT
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
-export const DEFAULT_MAX_STACK=999;
+export const DEFAULT_MAX_STACK=99;
 export const MATERIAL_KEYS=Object.freeze(['wood','stone','herbs']);
 
 /** Crafted item_keys that stack when quality + durability match and item is unplaced. */
@@ -50,7 +50,7 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'stone-foundation':11,
   'iron-fittings':13,
   'reed-mat':5,
-  'trail-rations':3,
+  'trail-rations':5,
   'seed-pouch':4,
   'wheat':2,'carrot':2,'potato':3,'pumpkin':5,'farm-herbs':4,'raw-meat':5,'hide':7,
   'rough-stool':8,'fence-panel':11,'shelter-frame':14,'workbench':20,'cabin-frame':24,'roof-truss':28,'masterwork-chest':40,
@@ -62,7 +62,7 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'garden-stakes':6,'irrigation-kit':12,'scarecrow-kit':13,'raised-bed-kit':16,'seed-chest':22,
   'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30,
   'basic-bow':10,'reinforced-bow':20,'hunting-trap':16,
-  'storage-shed':22,'improved-cabin':48,'hand-cart':36,'advanced-house':70,'orchard-kit':18
+  'storage-shed':22,'improved-cabin':28,'hand-cart':36,'advanced-house':40,'orchard-kit':18
 });
 
 /**
@@ -80,8 +80,8 @@ export const MERCHANTS=Object.freeze([
     lines:['“I’ll take honest goods for fair coin.”','“Stack what you can. Trade what you don’t need.”'],
     accepts:Object.freeze(Object.keys(ITEM_BASE_VALUE)),
     specialtyMod:0.72,
-    defaultBudget:180,
-    replenishAmount:180
+    defaultBudget:250,
+    replenishAmount:250
   },
   {
     key:'carpenter',
@@ -93,8 +93,8 @@ export const MERCHANTS=Object.freeze([
     lines:['“Bring me timber work. I’ll pay for clean joins.”'],
     accepts:Object.freeze(['wooden-beam','wooden-door','wooden-crate','reed-mat','campfire-kit','rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest','woven-basket','canvas-screen','decorated-rug']),
     specialtyMod:0.88,
-    defaultBudget:140,
-    replenishAmount:140
+    defaultBudget:200,
+    replenishAmount:200
   },
   {
     key:'blacksmith',
@@ -106,8 +106,8 @@ export const MERCHANTS=Object.freeze([
     lines:['“Metal and tools, if they’re sound.”'],
     accepts:Object.freeze(['iron-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife']),
     specialtyMod:0.9,
-    defaultBudget:120,
-    replenishAmount:120
+    defaultBudget:170,
+    replenishAmount:170
   },
   {
     key:'mason',
@@ -119,8 +119,8 @@ export const MERCHANTS=Object.freeze([
     lines:['“Stone that holds is worth coin.”'],
     accepts:Object.freeze(['stone-foundation','stone-hearth','stone-hammer','stone-block','stone-wall-kit','kiln-kit','stone-counter','chimney-kit','arch-stone','masterwork-hearth']),
     specialtyMod:0.88,
-    defaultBudget:120,
-    replenishAmount:120
+    defaultBudget:170,
+    replenishAmount:170
   },
   {
     key:'outfitter',
@@ -136,8 +136,8 @@ export const MERCHANTS=Object.freeze([
       'trail-rations','field-meal','preserved-rations','hearth-feast'
     ]),
     specialtyMod:0.92,
-    defaultBudget:180,
-    replenishAmount:180
+    defaultBudget:250,
+    replenishAmount:250
   },
   {
     key:'provisioner',
@@ -151,8 +151,8 @@ export const MERCHANTS=Object.freeze([
       'antiseptic-salve','insect-repellent','warming-balm','restorative-tonic','field-medicine-kit','masterwork-elixir',
       'herb-broth','field-meal','preserved-rations','hearth-feast','garden-stakes','irrigation-kit','raised-bed-kit','scarecrow-kit','seed-chest']),
     specialtyMod:0.9,
-    defaultBudget:100,
-    replenishAmount:100
+    defaultBudget:140,
+    replenishAmount:140
   }
 ]);
 

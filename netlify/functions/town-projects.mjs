@@ -12,7 +12,8 @@ import {
   structureRenderEntity,
   progressPercent,
   demandTier,
-  CRAFTED_MATERIALS
+  CRAFTED_MATERIALS,
+  scaleProjectRequirements
 } from '../lib/town-projects-core.mjs';
 import {ensureTownProjectsSchema,townProjectsSchemaReady} from '../lib/town-projects-schema.mjs';
 import {townIdentityFromProjects} from '../lib/progression-core.mjs';
@@ -45,14 +46,21 @@ async function actor(sql,clientId){
 }
 
 async function ensureProjects(sql){
+  const activePlayers=await sql`
+    SELECT COUNT(DISTINCT player_id)::int AS n
+    FROM town_project_contributions
+    WHERE created_at > now() - interval '7 days'
+  `.catch(()=>[{n:1}]);
+  const contributors=Math.max(1,Number(activePlayers[0]?.n||1));
   for(const project of TOWN_PROJECTS){
+    const required=scaleProjectRequirements(project.required,contributors);
     await sql`
       INSERT INTO town_projects(project_key,status,contributed,required,unlocks)
       VALUES(
         ${project.key},
         'active',
         '{}'::jsonb,
-        ${JSON.stringify(project.required)}::jsonb,
+        ${JSON.stringify(required)}::jsonb,
         ${JSON.stringify(project.unlocks)}::jsonb
       )
       ON CONFLICT(project_key) DO UPDATE SET
@@ -60,6 +68,7 @@ async function ensureProjects(sql){
         unlocks=EXCLUDED.unlocks,
         updated_at=now()
       WHERE town_projects.status='active'
+        AND COALESCE((town_projects.metadata->>'lockedRequirements')::boolean,false)=false
     `;
   }
 }

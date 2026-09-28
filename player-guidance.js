@@ -1,16 +1,17 @@
-/** Subtle first-session tips — marked only after related world signals, not on a timer alone. */
+/** Subtle first-session tips — paced for the first 5 / 15 / 30 minutes. */
 (function(){
   const KEY='gptworld-guidance-v1';
   const steps=[
-    {id:'gather',text:'Gather wood, stone, or herbs nearby — look for glowing resource nodes.',signal:'gather'},
-    {id:'shelter',text:'Visit your private land from the World Gateway to establish shelter and crafts.',signal:'gateway'},
-    {id:'food',text:'On your land: Farm a plot or Hunt with a bow, then cook trail rations.',signal:'private'},
-    {id:'craft',text:'Open Craft on your land and make a useful tool or storage.',signal:'craft'},
-    {id:'town',text:'Return to town and sell goods to a merchant when demand looks HIGH.',signal:'town'},
-    {id:'project',text:'Near the council hall, contribute to the active Community Project.',signal:'project'},
-    {id:'home',text:'Your land and the town both remember what you do — head home with a new goal.',signal:'home'}
+    {id:'gather',text:'Gather wood, stone, or herbs nearby — look for glowing resource nodes.',signal:'gather',atMs:8000},
+    {id:'inventory',text:'Your pack changed. Keep gathering until you have enough for a simple craft.',signal:'gather',atMs:45000},
+    {id:'shelter',text:'Visit your private land from the World Gateway — that property is yours.',signal:'gateway',atMs:90000},
+    {id:'food',text:'On your land: plant a crop or craft a basic bow to hunt.',signal:'private',atMs:4*60*1000},
+    {id:'craft',text:'Open Craft on your land and make a stone hammer or campfire.',signal:'craft',atMs:8*60*1000},
+    {id:'town',text:'Return to town and sell crafted goods when demand looks HIGH.',signal:'town',atMs:12*60*1000},
+    {id:'project',text:'Near the council hall, contribute to the active Community Project.',signal:'project',atMs:18*60*1000},
+    {id:'home',text:'Pick a direction: improve your cabin, level a skill, or finish the town forge.',signal:'home',atMs:28*60*1000}
   ];
-  function load(){try{return JSON.parse(localStorage.getItem(KEY))||{seen:{}};}catch{return{seen:{}};}}
+  function load(){try{return JSON.parse(localStorage.getItem(KEY))||{seen:{},soft:{}};}catch{return{seen:{},soft:{}};}}
   function save(state){localStorage.setItem(KEY,JSON.stringify(state));}
   function toast(message){
     const t=document.getElementById('toast');
@@ -32,24 +33,35 @@
     if(!step)return;
     if(mark(id))toast(step.text);
   }
+  function softShow(tip){
+    const state=load();
+    if(state.seen[tip.id])return;
+    const soft=state.soft||{};
+    const count=Number(soft[tip.id]||0);
+    if(count>=2){state.seen[tip.id]=true;save(state);return;}
+    const now=Date.now();
+    if(state.lastAt&&now-state.lastAt<90000)return;
+    if(now-(state.startedAt||now)<tip.atMs)return;
+    soft[tip.id]=count+1;
+    state.soft=soft;
+    state.lastAt=now;
+    save(state);
+    toast(tip.text);
+  }
   function nextTip(){
     const state=load();
+    if(!state.startedAt){state.startedAt=Date.now();save(state);}
     const tip=steps.find(step=>!state.seen[step.id]);
     if(!tip)return;
-    const now=Date.now();
-    if(state.lastAt&&now-state.lastAt<120000)return;
-    // Soft nudge only — do not mark as permanently seen until a related signal fires,
-    // except the first tip which is introductory.
-    if(tip.id==='gather'){
-      state.lastAt=now;save(state);toast(tip.text);return;
-    }
-    state.lastAt=now;save(state);toast(tip.text);
+    softShow(tip);
   }
   window.addEventListener('gptworld:inventory-state',()=>showIfNew('gather'));
   window.addEventListener('gptworld:living-town',e=>{
     if(e.detail?.activeProject)showIfNew('project');
   });
   window.addEventListener('gptworld:living-event',()=>showIfNew('town'));
+  const boot=load();
+  if(!boot.startedAt){boot.startedAt=Date.now();save(boot);}
   setTimeout(nextTip,10000);
-  setInterval(nextTip,180000);
+  setInterval(nextTip,120000);
 })();

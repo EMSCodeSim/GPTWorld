@@ -27,7 +27,9 @@ import {
   playerSpecialization
 } from '../lib/progression-core.mjs';
 import {CRAFTING_SKILL_KEYS} from '../lib/crafting-core.mjs';
-import {projectByKey,progressPercent} from '../lib/town-projects-core.mjs';
+import {projectByKey,progressPercent,remainingRequirements} from '../lib/town-projects-core.mjs';
+import {milestoneReward} from '../lib/balance-core.mjs';
+import {DEFAULT_MAX_STACK} from '../lib/economy-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const dbUrl=()=>globalThis.Netlify?.env?.get?.('DATABASE_URL')||process.env.DATABASE_URL;
@@ -145,7 +147,7 @@ async function ensureDiscoveries(sql,world){
       ...(row.metadata||{})
     }));
   }
-  const generated=generateDiscoveries(world.seed,5);
+  const generated=generateDiscoveries(world.seed,3);
   for(const item of generated){
     await sql`
       INSERT INTO private_world_discoveries(world_id,discovery_id,discovery_key,x,z,found,metadata)
@@ -254,15 +256,59 @@ async function homesteadContext(sql,player){
   };
 }
 
+async function grantMilestoneRewards(sql,player,milestone){
+  const reward=milestoneReward(milestone.key);
+  if(!reward)return null;
+  const inv=reward.inventory||{};
+  const coins=Number(reward.coins||0);
+  if(Object.keys(inv).length||coins){
+    await sql`
+      INSERT INTO player_inventory(player_id,wood,stone,herbs,coins,updated_at)
+      VALUES(${player.id},${Number(inv.wood||0)},${Number(inv.stone||0)},${Number(inv.herbs||0)},${coins},now())
+      ON CONFLICT(player_id) DO UPDATE SET
+        wood=player_inventory.wood+EXCLUDED.wood,
+        stone=player_inventory.stone+EXCLUDED.stone,
+        herbs=player_inventory.herbs+EXCLUDED.herbs,
+        coins=COALESCE(player_inventory.coins,0)+EXCLUDED.coins,
+        updated_at=now()`;
+  }
+  const world=await sql`SELECT id FROM player_worlds WHERE owner_player_id=${player.id} LIMIT 1`;
+  const worldId=world[0]?.id||null;
+  for(const item of reward.crafted||[]){
+    if(!worldId)break;
+    const key=item.key,name=item.name||item.key,qty=Math.max(1,Number(item.quantity||1));
+    const updated=await sql`
+      UPDATE player_crafted_items SET quantity=LEAST(${DEFAULT_MAX_STACK},quantity+${qty})
+      WHERE id=(
+        SELECT id FROM player_crafted_items
+        WHERE player_id=${player.id} AND world_id=${worldId} AND item_key=${key}
+          AND quality='standard' AND durability=1 AND max_durability=1 AND placed_at IS NULL
+        ORDER BY crafted_at LIMIT 1
+      ) RETURNING id`;
+    if(!updated.length){
+      await sql`
+        INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,metadata,quantity)
+        VALUES(${player.id},${worldId},${key},${name},'milestone','standard',1,1,${player.display_name},'{"source":"milestone"}'::jsonb,${qty})`;
+    }
+  }
+  return reward;
+}
+
 async function syncMilestones(sql,player,context){
   const fresh=newlyEarnedMilestones(context.earned,context);
+  const granted=[];
   for(const milestone of fresh){
-    await sql`
+    const inserted=await sql`
       INSERT INTO player_milestones(player_id,milestone_key,payload)
-      VALUES(${player.id},${milestone.key},${JSON.stringify({name:milestone.name,summary:milestone.summary})}::jsonb)
-      ON CONFLICT DO NOTHING`;
+      VALUES(${player.id},${milestone.key},${JSON.stringify({name:milestone.name,summary:milestone.summary,reward:milestone.reward||null})}::jsonb)
+      ON CONFLICT DO NOTHING
+      RETURNING milestone_key`;
+    if(inserted.length){
+      const reward=await grantMilestoneRewards(sql,player,milestone);
+      granted.push({...milestone,rewardGranted:reward});
+    }
   }
-  return fresh;
+  return granted;
 }
 
 async function syncLegacy(sql,player,state){
@@ -298,9 +344,14 @@ async function buildAwaySummary(sql,player,state){
     const projects=await sql`SELECT project_key,status,contributed,required FROM town_projects WHERE status='active' ORDER BY updated_at DESC LIMIT 1`;
     if(projects[0]){
       const def=projectByKey(projects[0].project_key);
+      const required=projects[0].required||def?.required||{};
+      const contributed=projects[0].contributed||{};
+      const remaining=remainingRequirements(required,contributed);
+      const top=Object.entries(remaining).sort((a,b)=>Number(b[1])-Number(a[1]))[0];
       projectProgress={
         name:def?.name||projects[0].project_key,
-        percent:progressPercent(projects[0].required||def?.required||{},projects[0].contributed||{})
+        percent:progressPercent(required,contributed),
+        remainingHint:top?`${top[1]} more ${top[0]}`:null
       };
     }
     const demand=await sql`SELECT value FROM world_state WHERE key='town_demand' LIMIT 1`;
@@ -315,14 +366,18 @@ async function buildAwaySummary(sql,player,state){
   }catch{/* optional town tables */}
   const readyCrops=state.plots.filter(plot=>plot.stage==='ready').length;
   const unfound=state.discoveries.filter(item=>!item.found).slice(0,1).map(item=>({name:item.name||item.key}));
+  const catchUpSteps=Number(state.catchUpSteps||state.world?.ecology_state?.lastCatchUpSteps||0);
+  const awayMinutes=Math.max(0,(Date.now()-new Date(player.last_seen_at||Date.now()).getTime())/60000);
   return whileYouWereAwaySummary({
+    catchUpSteps,
     readyCrops,
     projectProgress,
     weatherPassed,
     demandShift,
     arrivals,
     milestones:state.milestones.filter(item=>item.newlyEarned),
-    discoveries:unfound
+    discoveries:unfound,
+    awayMinutes
   });
 }
 

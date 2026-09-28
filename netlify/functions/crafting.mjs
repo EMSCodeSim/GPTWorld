@@ -217,7 +217,13 @@ async function craft(sql,actor,recipe,key){
   await ensureSkills(sql,actor.id);
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key=${recipe.skill} LIMIT 1`;
   const skillBefore=Number(skillRows[0]?.skill_value||0);
-  if(skillBefore<Number(recipe.minSkill||0))return{ok:false,error:'recipe_locked',requiredSkill:Number(recipe.minSkill||0),currentSkill:skillBefore};
+  let blueprintUnlocked=false;
+  if(skillBefore<Number(recipe.minSkill||0)){
+    const journal=await sql`SELECT journal FROM player_field_journal WHERE player_id=${actor.id} LIMIT 1`.catch(()=>[]);
+    const unlocks=journal[0]?.journal?.blueprintUnlocks||[];
+    blueprintUnlocked=unlocks.includes(recipe.key);
+    if(!blueprintUnlocked)return{ok:false,error:'recipe_locked',requiredSkill:Number(recipe.minSkill||0),currentSkill:skillBefore};
+  }
   const input=recipe.inputs;
   const claimed=await sql`
     INSERT INTO crafting_action_receipts(player_id,world_id,idempotency_key,recipe_key,response)

@@ -15,9 +15,9 @@ test('precipitation classification is consistent across storm, rain, snow, and f
 });
 
 test('resource defaults match across wood, stone, and herbs',()=>{
-  assert.deepEqual(RESOURCE_DEFAULTS.wood,{max:6,regrowMinutes:60});
-  assert.deepEqual(RESOURCE_DEFAULTS.stone,{max:12,regrowMinutes:480});
-  assert.deepEqual(RESOURCE_DEFAULTS.herbs,{max:3,regrowMinutes:20});
+  assert.deepEqual(RESOURCE_DEFAULTS.wood,{max:6,regrowMinutes:55});
+  assert.deepEqual(RESOURCE_DEFAULTS.stone,{max:14,regrowMinutes:180});
+  assert.deepEqual(RESOURCE_DEFAULTS.herbs,{max:3,regrowMinutes:22});
   assert.equal(privateKindToResource('tree'),'wood');
   assert.equal(privateKindToResource('rock'),'stone');
   assert.equal(privateKindToResource('herbs'),'herbs');

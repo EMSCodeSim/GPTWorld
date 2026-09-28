@@ -33,7 +33,7 @@ export const CRAFTING_RECIPES=Object.freeze([
   // Existing recipes preserved (minSkill 0 keeps them unlocked)
   {key:'campfire-kit',name:'Campfire Kit',description:'A portable fire ring and kindling bundle.',skill:'carpentry',minSkill:0,difficulty:0,station:'Field Crafting',category:'basic',inputs:{wood:3,stone:2,herbs:0},durability:40,placeable:true},
   {key:'wooden-crate',name:'Wooden Crate',description:'Place it in your world to store and retrieve wood, stone, and herbs.',skill:'carpentry',minSkill:10,difficulty:12,station:'Field Crafting',category:'storage',inputs:{wood:8,stone:0,herbs:0},durability:65,placeable:true},
-  {key:'stone-hammer',name:'Stone Hammer',description:'A basic construction and stoneworking tool.',skill:'masonry',minSkill:0,difficulty:4,station:'Field Crafting',category:'tools',inputs:{wood:2,stone:4,herbs:0},durability:55,placeable:true},
+  {key:'stone-hammer',name:'Stone Hammer',description:'A basic construction tool that doubles stone gathered per swing.',skill:'masonry',minSkill:0,difficulty:4,station:'Field Crafting',category:'tools',inputs:{wood:2,stone:4,herbs:0},durability:55,placeable:true},
   {key:'stone-hearth',name:'Stone Hearth Kit',description:'Fitted stones for a cabin or outdoor kitchen.',skill:'masonry',minSkill:20,difficulty:18,station:'Field Crafting',category:'furniture',inputs:{wood:2,stone:10,herbs:0},durability:85,placeable:true},
   {key:'healing-poultice',name:'Healing Poultice',description:'A prepared bundle of restorative wild herbs.',skill:'herbalism',minSkill:0,difficulty:0,station:'Field Crafting',category:'basic',inputs:{wood:0,stone:0,herbs:3},durability:1,placeable:false},
   {key:'weather-tonic',name:'Weather Tonic',description:'A concentrated trail tonic for harsh weather.',skill:'herbalism',minSkill:10,difficulty:14,station:'Field Crafting',category:'basic',inputs:{wood:1,stone:0,herbs:6},durability:1,placeable:false},
@@ -73,12 +73,12 @@ export const CRAFTING_RECIPES=Object.freeze([
   {key:'field-medicine-kit',name:'Field Medicine Kit',description:'A compact bundle of advanced prepared remedies.',skill:'herbalism',minSkill:70,difficulty:46,station:'Field Crafting',category:'remedies',inputs:{wood:2,stone:0,herbs:14},durability:1,placeable:false},
   {key:'masterwork-elixir',name:'Masterwork Elixir',description:'A rare expert preparation requiring careful herb selection.',skill:'herbalism',minSkill:90,difficulty:58,station:'Field Crafting',category:'remedies',inputs:{wood:2,stone:1,herbs:18},durability:1,placeable:false},
 
-  {key:'forged-knife',name:'Forged Knife',description:'A durable utility blade for camp work.',skill:'blacksmithing',minSkill:10,difficulty:12,station:'Field Crafting',category:'tools',inputs:{wood:1,stone:6,herbs:0},durability:60,placeable:false},
-  {key:'hand-axe',name:'Hand Axe',description:'A compact cutting tool with a reinforced head.',skill:'blacksmithing',minSkill:30,difficulty:24,station:'Field Crafting',category:'tools',inputs:{wood:3,stone:9,herbs:0},durability:80,placeable:false},
-  {key:'smith-tool-set',name:'Smith Tool Set',description:'Tongs, punches, and hammers for advanced metalwork.',skill:'blacksmithing',minSkill:40,difficulty:30,station:'Field Crafting',category:'tools',inputs:{wood:3,stone:12,herbs:0},durability:95,placeable:false},
+  {key:'forged-knife',name:'Forged Knife',description:'A durable utility blade that gathers herbs twice as efficiently.',skill:'blacksmithing',minSkill:10,difficulty:12,station:'Field Crafting',category:'tools',inputs:{wood:1,stone:6,herbs:0},durability:60,placeable:false},
+  {key:'hand-axe',name:'Hand Axe',description:'Cuts wood twice as fast as bare hands. Essential for serious timber work.',skill:'blacksmithing',minSkill:30,difficulty:24,station:'Field Crafting',category:'tools',inputs:{wood:3,stone:9,herbs:0},durability:80,placeable:false},
+  {key:'smith-tool-set',name:'Smith Tool Set',description:'Improved stone and timber work — better stone yield and durable enough for long projects.',skill:'blacksmithing',minSkill:40,difficulty:30,station:'Field Crafting',category:'tools',inputs:{wood:3,stone:12,herbs:0},durability:95,placeable:false},
   {key:'reinforced-fittings',name:'Reinforced Fittings',description:'Heavy hinges and brackets for larger structures.',skill:'blacksmithing',minSkill:50,difficulty:35,station:'Field Crafting',category:'components',inputs:{wood:1,stone:14,herbs:0},durability:110,placeable:false,component:true},
   {key:'iron-latch-set',name:'Iron Latch Set',description:'Precision hardware for doors, chests, and workshops.',skill:'blacksmithing',minSkill:60,difficulty:41,station:'Field Crafting',category:'components',inputs:{wood:1,stone:16,herbs:0},durability:120,placeable:false,component:true},
-  {key:'masterwork-tools',name:'Masterwork Tool Set',description:'An expert-grade set of durable working tools.',skill:'blacksmithing',minSkill:80,difficulty:53,station:'Field Crafting',category:'tools',inputs:{wood:4,stone:22,herbs:1},durability:160,placeable:false},
+  {key:'masterwork-tools',name:'Masterwork Tool Set',description:'Expert tools that double wood, stone, and herb gathers.',skill:'blacksmithing',minSkill:80,difficulty:53,station:'Field Crafting',category:'tools',inputs:{wood:4,stone:22,herbs:1},durability:160,placeable:false},
 
   {key:'bedroll',name:'Bedroll',description:'A simple woven bedroll for travel and camp.',skill:'tailoring',minSkill:0,difficulty:4,station:'Field Crafting',category:'camp',inputs:{wood:0,stone:0,herbs:4},durability:25,placeable:false},
   {key:'rope-coil',name:'Rope Coil',description:'Twisted plant fiber useful for camp and construction.',skill:'tailoring',minSkill:10,difficulty:10,station:'Field Crafting',category:'components',inputs:{wood:0,stone:0,herbs:5},durability:35,placeable:false,component:true},
@@ -175,8 +175,10 @@ export function resolveCraftAttempt({skillValue=0,difficulty=0,key='',minSkill=0
   // Anti-grind: trivial crafts vs current skill yield sharply reduced XP.
   const overskill=Math.max(0,currentSkill-Number(difficulty)-10);
   const grindScale=currentSkill>=100?0:Number(clamp(1-overskill/35,.05,1).toFixed(3));
-  const baseGain=.1+craftingHash(`${key}:gain-size`)*.3;
-  const skillGain=Number((baseGain*grindScale).toFixed(2));
+  const baseGain=.22+craftingHash(`${key}:gain-size`)*.28;
+  // Early levels come faster so the first 15–30 minutes feel progressive.
+  const earlyBoost=currentSkill<30?1.35:currentSkill<50?1.1:1;
+  const skillGain=Number((baseGain*grindScale*earlyBoost).toFixed(2));
   return{success,chance,roll:Number(roll.toFixed(4)),quality,skillGain,locked:false,grindScale};
 }
 

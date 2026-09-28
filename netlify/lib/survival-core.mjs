@@ -4,11 +4,11 @@ import {farmTierModifiers,seasonStrategy,weatherStrategy} from './progression-co
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 export const CROPS=Object.freeze([
-  {key:'wheat',name:'Wheat',unlock:0,growHours:2,yield:3,xp:1.2,color:0xd6b34c,season:'spring'},
-  {key:'carrot',name:'Carrots',unlock:0,growHours:3,yield:3,xp:1.4,color:0xe98632,season:'spring'},
-  {key:'potato',name:'Potatoes',unlock:20,growHours:4,yield:4,xp:1.8,color:0xb89462,season:'autumn'},
-  {key:'pumpkin',name:'Pumpkins',unlock:45,growHours:7,yield:2,xp:2.8,color:0xe77422,season:'autumn'},
-  {key:'farm-herbs',name:'Garden Herbs',unlock:65,growHours:5,yield:4,xp:2.4,color:0x71a84d,season:'summer'}
+  {key:'wheat',name:'Wheat',unlock:0,growHours:1.25,yield:3,xp:2.0,color:0xd6b34c,season:'spring'},
+  {key:'carrot',name:'Carrots',unlock:0,growHours:2.5,yield:3,xp:1.6,color:0xe98632,season:'spring'},
+  {key:'potato',name:'Potatoes',unlock:15,growHours:3.5,yield:4,xp:2.0,color:0xb89462,season:'autumn'},
+  {key:'pumpkin',name:'Pumpkins',unlock:45,growHours:6,yield:2,xp:2.8,color:0xe77422,season:'autumn'},
+  {key:'farm-herbs',name:'Garden Herbs',unlock:65,growHours:4.5,yield:4,xp:2.4,color:0x71a84d,season:'summer'}
 ]);
 export const HUNT_UNLOCKS=Object.freeze([
   {level:0,key:'tracking',name:'Basic tracking'},
@@ -49,9 +49,10 @@ export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18,
   const drain=7*Number(tier.moistureDrainScale||1)*(weatherFx.cropGrowth<0.7?1.25:1);
   const moisture=clamp(Number(plot.moisture??80)-dryHours*drain+(rain?dryHours*20:0),0,100);
   const soil=clamp(Number(plot.soil??plot.metadata?.soil??55)+Number(tier.soilBonus||0)*0.02,0,100);
-  const disease=Number(event?.effects?.cropHealthDrain||1);
+  const disease=Number(event?.effects?.cropHealthDrain||1)*Number(plot.metadata?.cropHealthDrainScale||1);
   const health=clamp(Number(plot.health??100)-(moisture<18?dryHours*3*disease:0)-(soil<25?dryHours*1.2:0),0,100);
   if(health<=0)return{...plot,stage:'dead',progress:0,moisture,health,soil,farmTier:tier};
+  const placeableGrowth=Number(plot.metadata?.farmGrowthBonus||1);
   const progress=clamp(
     hours/crop.growHours
       *weatherGrowthFactor(weather,temperature)
@@ -59,6 +60,7 @@ export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18,
       *Number(weatherFx.cropGrowth||1)
       *Number(seasonFx.cropGrowth||1)
       *Number(tier.growthBonus||1)
+      *placeableGrowth
       *(health/100)
       *(0.85+soil/400),
     0,
@@ -67,12 +69,14 @@ export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18,
   const stage=progress>=1?'ready':progress>=.65?'mature':progress>=.32?'young':progress>=.1?'sprout':'seed';
   return{...plot,stage,progress:Number(progress.toFixed(3)),moisture:Number(moisture.toFixed(1)),health:Number(health.toFixed(1)),soil:Number(soil.toFixed(1)),farmTier:tier};
 }
-export function cropHarvest(cropKey,skill=0,health=100,{soil=55,event=null}={}){
+export function cropHarvest(cropKey,skill=0,health=100,{soil=55,event=null,season='spring',yieldBonus=0}={}){
   const crop=cropByKey(cropKey);if(!crop)return null;
   const bonus=Math.floor(clamp(skill,0,100)/35);
   const soilMod=0.75+clamp(soil,0,100)/200;
   const eventMod=cropYieldModifier(event);
-  const quantity=Math.max(1,Math.round(crop.yield*(clamp(health,10,100)/100)*soilMod*eventMod)+bonus);
+  const seasonFx=seasonStrategy(season);
+  const harvestMod=Number(seasonFx.harvestBonus||1);
+  const quantity=Math.max(1,Math.round(crop.yield*(clamp(health,10,100)/100)*soilMod*eventMod*harvestMod)+bonus+Math.max(0,Math.floor(Number(yieldBonus)||0)));
   return{itemKey:crop.key,name:crop.name,quantity,xp:Number((crop.xp+quantity*.12).toFixed(2)),seedPouches:1,soilRemaining:clamp(soil-8,10,100)};
 }
 export function fertilizeSoil(soil=55,amount=20){return clamp(Number(soil||55)+clamp(amount,1,40),0,100);}
