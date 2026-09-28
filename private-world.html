@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — My World</title>
   <link rel="stylesheet" href="./styles.css?v=living-worlds-5" />
-  <link rel="stylesheet" href="./private-world.css?v=gameplay-loop-1" />
+  <link rel="stylesheet" href="./private-world.css?v=progression-1" />
 </head>
 <body>
   <main id="app">
     <div id="world" aria-label="Your interactive private world"></div>
     <section class="topbar" aria-label="World status">
-      <div class="world-title"><div class="eyebrow">GPTWORLD · MY WORLD</div><h1 id="worldName">Living Homestead</h1></div>
+      <div class="world-title"><div class="eyebrow">GPTWORLD · MY WORLD</div><h1 id="worldName">Living Homestead</h1><div id="homesteadLevelLabel" class="eyebrow" style="margin-top:4px;opacity:.85">Homestead Level: Wilderness Camp</div></div>
       <div class="status-strip"><span id="privateClock">08:00</span><span id="season">Spring</span><span id="weather">Clear</span><span id="temperature">13°C</span><span id="syncState" class="sync-state" data-state="connecting" role="status" aria-live="polite">Connecting</span></div>
     </section>
     <div class="world-actions"><button id="skillsButton" class="craft-button" type="button">Farm</button><button id="huntButton" class="craft-button hunt-button" type="button">Hunt</button><button id="craftButton" class="craft-button" type="button">Craft</button><button id="returnTown" class="return-town" type="button">Return to Town</button></div>
@@ -55,6 +55,7 @@
     <section id="loading" class="welcome" aria-modal="true" role="dialog"><div class="welcome-card"><div class="eyebrow">PRIVATE LIVING WORLD</div><h2 id="loadingTitle">Opening your world…</h2><p id="loadingMessage">Loading its persistent landscape and catching up bounded offline ecology.</p><button id="retry" type="button" hidden>Try again</button><a class="loading-return" href="./index.html">Return to Public Town</a></div></section>
   </main>
   <script src="./private-world-shell.js?v=living-worlds-10"></script>
-  <script type="module" src="./private-world.js?v=gameplay-loop-1"></script>
+  <script defer src="./progression-ui.js?v=progression-1"></script>
+  <script type="module" src="./private-world.js?v=progression-1"></script>
 </body>
 </html>

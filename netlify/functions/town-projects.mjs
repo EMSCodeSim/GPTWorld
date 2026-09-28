@@ -15,6 +15,7 @@ import {
   CRAFTED_MATERIALS
 } from '../lib/town-projects-core.mjs';
 import {ensureTownProjectsSchema,townProjectsSchemaReady} from '../lib/town-projects-schema.mjs';
+import {townIdentityFromProjects} from '../lib/progression-core.mjs';
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{
   status,
@@ -217,11 +218,13 @@ async function statusPayload(sql,player=null){
   const active=views.find(view=>view.status!=='complete')||null;
   const completed=views.filter(view=>view.status==='complete');
   const stock=stockpileRows[0]?.value||{};
+  const townIdentity=townIdentityFromProjects(completed.map(view=>view.key));
   return{
     ok:true,
     activeProject:active,
     projects:views,
     completedProjects:completed,
+    townIdentity,
     structures:completedStructures(rows),
     unlocks:unlockedCapabilities(rows),
     demand:demandView(demand),

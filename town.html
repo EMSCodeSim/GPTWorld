@@ -32,7 +32,7 @@ button.action:disabled{opacity:.45;cursor:not-allowed}
   <strong>THE FIRST SETTLEMENT</strong>
 </header>
 <h1>Living Town</h1>
-<p>Private land produces. The public town consumes, trades, and grows through shared Community Projects. Completing a project permanently changes the settlement.</p>
+<p id="townIdentityLine">Private land produces. The public town consumes, trades, and grows through shared Community Projects. Completing a project permanently changes the settlement.</p>
 <div class="tabs">
   <button type="button" data-tab="projects" class="active">Community Projects</button>
   <button type="button" data-tab="demand">Town Demand</button>
@@ -190,6 +190,12 @@ function drawUpgrades(){
 
 function draw(){
   drawProjects();drawDemand();drawHistory();drawUpgrades();
+  const line=document.getElementById('townIdentityLine');
+  if(line&&town?.townIdentity?.name){
+    line.textContent=`Town identity: ${town.townIdentity.name}. ${town.townIdentity.explanation||'Completed projects shape how the settlement is known.'}`;
+  }else if(line&&town?.completedProjects?.length){
+    line.textContent=`Growing settlement · ${town.completedProjects.length} community project${town.completedProjects.length===1?'':'s'} complete.`;
+  }
   if(!clientId)status.textContent='Enter the world as a traveler before contributing or upgrading.';
 }
 

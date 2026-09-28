@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import {pickActiveEvent,eventStillActive,mergeEventDemandBias,eventPlayerBrief,npcWorldAwareLine} from '../lib/living-events-core.mjs';
 import {normalizeDemand,tickDemand,demandTier,projectByKey} from '../lib/town-projects-core.mjs';
+import {npcFamiliarityLine,pendingTownArrivals,townIdentityFromProjects,timeOfDayEffects,weatherStrategy,seasonStrategy} from '../lib/progression-core.mjs';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const dbUrl=()=>globalThis.Netlify?.env?.get?.('DATABASE_URL')||process.env.DATABASE_URL;
@@ -38,13 +39,25 @@ function agingState(existing={},now=Date.now()){
   return {...existing,version:1,bornAt:born,ageDays:Math.round(ageDays*100)/100,travel,routeCells,trailStrength,structurePatina,forestRegrowth,deterioration,updatedAt:new Date(now).toISOString()};
 }
 
-function npcState(hour,existing={},recent=[],weather={},needs={}){
+function npcState(hour,existing={},recent=[],weather={},needs={},extraResidents=[]){
   const period=hour<6?'night':hour<10?'morning':hour<17?'day':hour<21?'evening':'night';
   const profiles={
     'Mara the Keeper':{role:'Innkeeper',home:'Wayfarer Inn',traits:['social','observant'],plans:{morning:['Wayfarer Inn',2,-4,'preparing the common room'],day:['Wayfarer Inn',2,-4,'serving travelers and collecting rumors'],evening:['storehouse',4,7,'checking settlement supplies'],night:['Wayfarer Inn',2,-4,'resting at the inn']}},
     'Tovan the Smith':{role:'Smith',home:'smithy',traits:['practical','steady'],plans:{morning:['smithy',9,2,'lighting the forge'],day:['smithy',9,2,'working metal and repairing tools'],evening:['council hall',-6,5,'discussing materials and repairs'],night:['smithy',9,2,'banking the forge']}},
     'Edda the Healer':{role:'Healer',home:'healer’s cottage',traits:['careful','curious'],plans:{morning:['healer’s cottage',-4,-4,'sorting herbs and remedies'],day:['herb plots',-10,13,'gathering and studying plants'],evening:['healer’s cottage',-4,-4,'tending patients and recording remedies'],night:['healer’s cottage',-4,-4,'resting at the cottage']}}
   };
+  for(const resident of extraResidents||[]){
+    if(!resident?.npcKey||profiles[resident.npcKey])continue;
+    const day=resident.routine?.day||[resident.role||'town',0,0,'working in town'];
+    const night=resident.routine?.night||['Wayfarer Inn',2,-4,'resting'];
+    profiles[resident.npcKey]={
+      role:resident.role||'Resident',
+      home:day[0],
+      traits:['newcomer','helpful'],
+      plans:{morning:day,day,evening:day,night},
+      arrivalValue:resident.value||''
+    };
+  }
   const memoriesByNpc={...(existing.memories||{})},people={...(existing.people||{})};
   for(const [name,profile] of Object.entries(profiles)){
     const old=Array.isArray(memoriesByNpc[name])?memoriesByNpc[name]:[],seen=new Set(old.map(m=>m.event_id));
@@ -113,12 +126,19 @@ export default async req=>{
           }
         }catch{/* optional until migrated */}
         const worldLine=npcWorldAwareLine({npcName,role:person.role,project,demand,event,needs:settlementNeeds});
+        const recentActs=[];
+        if(mem.some(m=>/wood|lumber/i.test(m.text||'')))recentActs.push('lumber');
+        if(mem.some(m=>/town_project|contributed/i.test(m.type||'')||/contributed/i.test(m.text||'')))recentActs.push('town_project');
+        if(mem.some(m=>/herb/i.test(m.text||'')))recentActs.push('herbs');
+        if(mem.some(m=>/meat|hunt|food/i.test(m.text||'')))recentActs.push('hunt');
+        const familiarLine=npcFamiliarityLine({npcName,role:person.role,traveler,familiarity:rel.familiarity,helpfulActs:rel.helpfulActs,recentActs});
         const greeting=level==='trusted'?`${npcName} greets you warmly.`:level==='familiar'?`${npcName} recognizes you.`:`${npcName} studies the new face.`;
         const memory=mem.length?` I remember: ${mem[mem.length-1].text}`:'';
         const requestText=request?` We could use ${request.resource}; ${request.reason}.`:'';
-        const worldText=worldLine?` ${worldLine}`:'';
+        const familiarText=familiarLine?` ${familiarLine}`:'';
+        const worldText=worldLine&&!familiarLine?` ${worldLine}`:(worldLine&&familiarLine?` ${worldLine}`:'');
         life.people[npcName]=person;await sql`UPDATE world_state SET value=${JSON.stringify(life)}::jsonb,updated_at=now() WHERE key='npc_life'`;await sql`INSERT INTO world_events (player_id,event_type,payload) VALUES (NULL,'npc_interaction',${JSON.stringify({npc:npcName,traveler,relationship:level})}::jsonb)`;
-        return json({ok:true,npc:npcName,role:person.role,relationship:level,familiarity:rel.familiarity,greeting,memory,request,worldLine,event:event?eventPlayerBrief(event):null,dialogue:`${greeting}${memory}${worldText}${requestText}`});
+        return json({ok:true,npc:npcName,role:person.role,relationship:level,familiarity:rel.familiarity,helpfulActs:Number(rel.helpfulActs||0),greeting,memory,request,worldLine,familiarLine,event:event?eventPlayerBrief(event):null,dialogue:`${greeting}${familiarText}${memory}${worldText}${requestText}`});
       }
       if(body.action!=='observe_travel')return json({ok:false,error:'invalid_action'},400);
       const x=clamp(Number(body.x||0),-40,40),z=clamp(Number(body.z||0),-40,40);
@@ -157,7 +177,37 @@ export default async req=>{
     }
 
     const recent=await sql`SELECT we.id,we.event_type,we.payload,we.created_at,p.display_name FROM world_events we LEFT JOIN players p ON p.id=we.player_id ORDER BY we.created_at DESC LIMIT 40`;
-    const nextNpc=npcState(hour,world.npc_life||{},recent.reverse(),world.living_weather||{},world.settlement_needs||{}); await sql`UPDATE world_state SET value=${JSON.stringify(nextNpc)}::jsonb,updated_at=now() WHERE key='npc_life'`; world.npc_life=nextNpc;
+    // Town population growth: completed projects attract a few meaningful residents.
+    let extraResidents=[],townIdentity=townIdentityFromProjects([]);
+    try{
+      await sql`INSERT INTO world_state(key,value,updated_at) VALUES
+        ('town_arrivals','{"version":1,"residents":[]}'::jsonb,now()),
+        ('town_identity','{"version":1,"key":"frontier_settlement","name":"Frontier Settlement","completed":[]}'::jsonb,now())
+        ON CONFLICT(key) DO NOTHING`;
+      const completed=await sql`SELECT project_key FROM town_projects WHERE status='complete'`;
+      const completedKeys=completed.map(row=>row.project_key);
+      townIdentity=townIdentityFromProjects(completedKeys);
+      await sql`UPDATE world_state SET value=${JSON.stringify({version:1,...townIdentity})}::jsonb,updated_at=now() WHERE key='town_identity'`;
+      const arrivalRows=await sql`SELECT value FROM world_state WHERE key='town_arrivals' LIMIT 1`;
+      const arrivalState=arrivalRows[0]?.value||{version:1,residents:[]};
+      const existing=arrivalState.residents||[];
+      const foodSecure=Number(world.settlement_needs?.score||0)>=60;
+      const pending=pendingTownArrivals({completedProjects:completedKeys,existingNpcs:existing.map(r=>r.npcKey),foodSecure});
+      const recentArrivals=[];
+      for(const arrival of pending){
+        existing.push({npcKey:arrival.npcKey,role:arrival.role,value:arrival.value,routine:arrival.routine,arrivedAt:new Date().toISOString(),projectKey:arrival.projectKey||null});
+        recentArrivals.push(arrival);
+        await sql`INSERT INTO town_history(event_key,title,summary,payload) VALUES(
+          ${`arrival:${arrival.npcKey}`},
+          ${`${arrival.npcKey} arrived`},
+          ${`${arrival.npcKey} settled in town. ${arrival.value||''}`},
+          ${JSON.stringify({npcKey:arrival.npcKey,role:arrival.role,projectKey:arrival.projectKey||null})}::jsonb
+        ) ON CONFLICT DO NOTHING`;
+      }
+      extraResidents=existing;
+      await sql`UPDATE world_state SET value=${JSON.stringify({version:1,residents:existing,recent:recentArrivals.slice(0,3)})}::jsonb,updated_at=now() WHERE key='town_arrivals'`;
+    }catch{/* optional until progression/town migrations */}
+    const nextNpc=npcState(hour,world.npc_life||{},recent.reverse(),world.living_weather||{},world.settlement_needs||{},extraResidents); await sql`UPDATE world_state SET value=${JSON.stringify(nextNpc)}::jsonb,updated_at=now() WHERE key='npc_life'`; world.npc_life=nextNpc;
 
     // Condition-driven living events with real gameplay effects (demand / crop / hunt modifiers).
     let activeEvent=eventStillActive(world.living_world_event,now)?world.living_world_event:null;
@@ -198,6 +248,26 @@ export default async req=>{
       await sql`UPDATE world_state SET value=${JSON.stringify(demand)}::jsonb,updated_at=now() WHERE key='town_demand'`;
     }
 
-    return json({ok:true,weather:world.living_weather,needs:world.settlement_needs,npcs:world.npc_life,aging,stockpile:world.settlement_stockpile||{},event:activeEvent,eventBrief:eventPlayerBrief(activeEvent),demand,demandTiers:Object.fromEntries(Object.entries(demand).filter(([k])=>!['version','updatedAt','lastTick','activeEvent'].includes(k)).map(([k,v])=>[k,demandTier(v)]))});
+    const tod=timeOfDayEffects(hour);
+    const weatherFx=weatherStrategy(world.living_weather?.condition||'clear',world.living_weather?.temperatureC||18);
+    const seasonName=['Winter','Winter','Spring','Spring','Spring','Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'][new Date().getUTCMonth()]||'Spring';
+    return json({
+      ok:true,
+      weather:world.living_weather,
+      needs:world.settlement_needs,
+      npcs:world.npc_life,
+      aging,
+      stockpile:world.settlement_stockpile||{},
+      event:activeEvent,
+      eventBrief:eventPlayerBrief(activeEvent),
+      demand,
+      demandTiers:Object.fromEntries(Object.entries(demand).filter(([k])=>!['version','updatedAt','lastTick','activeEvent'].includes(k)).map(([k,v])=>[k,demandTier(v)])),
+      townIdentity,
+      townResidents:extraResidents,
+      timeOfDay:tod,
+      weatherStrategy:weatherFx,
+      season:seasonStrategy(seasonName),
+      businessesOpen:tod.businessesOpen
+    });
   }catch(err){console.error('living systems error',err);return json({ok:false,error:'living_systems_failed',detail:String(err?.message||err).slice(0,180)},500)}
 };

@@ -47,6 +47,8 @@ let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,living
 let previousSkills=[];
 let craftingSkillFilter='all';
 let survivalMode='farm',huntMarker=null;
+let cartSpeedMod=1,progressionState=null;
+const discoveryMarkers=new Map();
 const keys=new Set(),velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();
 const interactables=[],animals=[],plants=[],clouds=[],blockers=[];
 const resourceStates=new Map(),resourceVisuals=new Map();
@@ -321,22 +323,47 @@ function addPlacedCraft(item){
 
 function addHomesteadBuilding(building){
   if(!building?.id||homesteadBuildings.has(String(building.id)))return;
-  const width=Number(building.width||7),depth=Number(building.depth||6),x=Number(building.x||0),z=Number(building.z||0);
+  const level=Math.max(1,Number(building.level||1));
+  const width=Number(building.width||(level>=3?8:level>=2?7:5));
+  const depth=Number(building.depth||(level>=3?7:level>=2?6:4));
+  const x=Number(building.x||0),z=Number(building.z||0);
+  const wallColor=level>=3?0x9a7d5c:level>=2?0x8f7354:0x7a6248;
+  const roofColor=level>=3?0x5a3a28:0x6b4a33;
+  const wallH=level>=3?3.5:level>=2?3.1:2.4;
   const group=new THREE.Group();group.position.set(x,0,z);
-  box(group,0x8f7354,[width,3.1,depth],[0,1.55,0]);
-  box(group,0x5a3d2c,[width+.35,.28,depth+.35],[0,3.2,0]);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,2.05,4),material(0x6b4a33));
-  roof.position.y=4.15;roof.rotation.y=Math.PI/4;roof.castShadow=true;roof.receiveShadow=true;group.add(roof);
-  box(group,0x3f2c22,[.18,1.35,width*.72],[-width/2+.12,2.55,0]);
-  box(group,0x3f2c22,[.18,1.35,width*.72],[width/2-.12,2.55,0]);
-  const door=box(group,0x4b3422,[1.2,2.1,.2],[0,1.05,depth/2+.12]);
-  door.castShadow=false;door.userData.buildingId=building.key||'homestead';door.userData.buildingKey=building.key||'homestead';door.userData.buildingRecordId=String(building.id);door.userData.buildingLabel='your homestead';
+  box(group,wallColor,[width,wallH,depth],[0,wallH/2,0]);
+  box(group,0x5a3d2c,[width+.35,.28,depth+.35],[0,wallH+.1,0]);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,level>=3?2.35:2.05,4),material(roofColor));
+  roof.position.y=wallH+1.05;roof.rotation.y=Math.PI/4;roof.castShadow=true;roof.receiveShadow=true;group.add(roof);
+  if(level>=2){
+    box(group,0x3f2c22,[.18,1.35,width*.72],[-width/2+.12,wallH-.55,0]);
+    box(group,0x3f2c22,[.18,1.35,width*.72],[width/2-.12,wallH-.55,0]);
+  }
+  if(level>=3)box(group,0x6d5742,[1.4,1.1,.16],[width*.22,1.6,depth/2+.08]);
+  const door=box(group,0x4b3422,[1.2,Math.min(2.1,wallH*.7),.2],[0,1.05,depth/2+.12]);
+  const label=level>=3?'improved cabin':level>=2?'your cabin':'your lean-to';
+  door.castShadow=false;door.userData.buildingId=building.key||'homestead';door.userData.buildingKey=building.key||'homestead';door.userData.buildingRecordId=String(building.id);door.userData.buildingLabel=label;
   homesteadDoors.push(door);scene.add(group);
   blockers.push({x,z,halfX:width/2*.9,halfZ:depth/2*.9});
-  const interactable={type:'building',label:'your homestead',building,object:group,radius:3.5};
+  const interactable={type:'building',label,building,object:group,radius:3.5};
   interactables.push(interactable);
   homesteadBuildings.set(String(building.id),{building,group,door,interactable});
   return group;
+}
+
+function addDiscoveryMarker(discovery){
+  if(!discovery||discovery.found||!scene)return;
+  const id=String(discovery.id);
+  if(discoveryMarkers.has(id))return;
+  const marker=new THREE.Mesh(
+    new THREE.SphereGeometry(0.35,10,10),
+    new THREE.MeshStandardMaterial({color:0xc2a45a,emissive:0x3a2f14,roughness:0.7,transparent:true,opacity:0.55})
+  );
+  marker.position.set(Number(discovery.x||0),0.55,Number(discovery.z||0));
+  marker.userData.discovery=discovery;
+  scene.add(marker);
+  discoveryMarkers.set(id,marker);
+  interactables.push({type:'discovery',label:discovery.name||'something unusual',discovery,object:marker,radius:2.8});
 }
 
 function enterHomestead(building){
@@ -395,9 +422,30 @@ function build(data){
   $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
   loadSurvival().then(()=>showHomesteadIdentity()).catch(()=>showHomesteadIdentity());
+  refreshProgressionOverlay();
   if(data.fromCache)showToast('Offline world loaded. Inventory is hidden until the server reconnects.');
   if(data.catchUp.steps)showToast(`Your world lived through ${data.catchUp.steps} ecology step${data.catchUp.steps===1?'':'s'} while you were away.`);
   else if(!data.fromCache)showToast('Your homestead remembers your work. Farm, hunt, craft — then bring goods to town.');
+}
+
+async function refreshProgressionOverlay(){
+  try{
+    const api=window.GPTWorldProgression;
+    if(!api?.loadProgression)return;
+    const data=await api.loadProgression(true);
+    if(!data)return;
+    progressionState=data;
+    cartSpeedMod=Number(data.transport?.speedMod||1);
+    const label=$('homesteadLevelLabel');
+    if(label)label.textContent=`Homestead Level: ${data.property?.name||'Wilderness Camp'}`;
+    for(const discovery of data.discoveries||[]){
+      if(!discovery.found)addDiscoveryMarker(discovery);
+    }
+    if(data.timeOfDay?.period==='night'&&sun){
+      sun.intensity=Math.min(sun.intensity,1.1);
+      if(skyLight)skyLight.intensity=Math.min(skyLight.intensity,1.2);
+    }
+  }catch{}
 }
 
 function skillBand(value){
@@ -421,7 +469,6 @@ function showHomesteadIdentity(){
     document.body.appendChild(card);
   }
   const skills=Object.fromEntries((survivalData?.skills||craftingData?.skills||[]).map(s=>[s.key||s.skill,Number(s.value||s.skill_value||0)]));
-  // Prefer crafting skills when available
   if(craftingData?.skills)for(const s of craftingData.skills)skills[s.key]=Number(s.value||0);
   if(survivalData?.skills)for(const s of survivalData.skills)skills[s.key]=Number(s.value||0);
   const farming=skills.farming||0,hunting=skills.hunting||0,carpentry=skills.carpentry||0;
@@ -430,16 +477,21 @@ function showHomesteadIdentity(){
   const growing=crops.length;
   const wood=Number(inventoryEls.wood?.textContent||loadedPayload?.inventory?.wood||0);
   const house=loadedPayload?.world?.buildings?.find(b=>b.key==='homestead'||b.type==='house');
-  const construction=house?'Complete':(craftingData?.house?.progress!=null?`${Math.round(Number(craftingData.house.progress)*100)}%`:'Not started');
+  const construction=house?`Tier ${Number(house.level||1)}`:(craftingData?.house?.progress!=null?`${Math.round(Number(craftingData.house.progress)*100)}%`:'Not started');
+  const profile=progressionState?.profile;
+  const property=progressionState?.property?.name||profile?.homesteadLevel||'Wilderness Camp';
+  const knownFor=(profile?.knownFor||[]).join(' · ')||'Settler';
   card.innerHTML=`<div style="font-size:11px;letter-spacing:.1em;opacity:.7">YOUR HOMESTEAD</div>
-    <strong style="display:block;margin:4px 0 8px;font-size:16px">${loadedPayload?.world?.name||'Living Homestead'}</strong>
-    <div>Farming: ${skillBand(farming)}</div>
-    <div>Hunting: ${skillBand(hunting)}</div>
-    <div>Carpentry: ${skillBand(carpentry)}</div>
+    <strong style="display:block;margin:4px 0 4px;font-size:16px">${loadedPayload?.world?.name||'Living Homestead'}</strong>
+    <div style="opacity:.85;margin-bottom:8px">${property}</div>
+    <div>Farming: ${skillBand(farming)} (${Math.floor(farming)})</div>
+    <div>Hunting: ${skillBand(hunting)} (${Math.floor(hunting)})</div>
+    <div>Carpentry: ${skillBand(carpentry)} (${Math.floor(carpentry)})</div>
+    <div style="margin-top:8px;opacity:.85">Known for: ${knownFor}</div>
     <div style="margin-top:8px;opacity:.85">Current activity</div>
     <div>🌾 ${ready?`${ready} crops ready`:`${growing} crops growing`}</div>
     <div>🪵 ${wood} lumber stored</div>
-    <div>🏠 Cabin ${construction}</div>
+    <div>🏠 Shelter ${construction}</div>
     <button type="button" style="margin-top:10px;border:0;border-radius:9px;padding:8px 10px;background:#3d4a3a;color:#f3efe5;font-weight:700;min-height:40px;cursor:pointer;width:100%">Got it</button>`;
   card.style.display='block';
   card.querySelector('button')?.addEventListener('click',()=>{card.style.display='none';});
@@ -484,7 +536,9 @@ const GENERATED_CRAFTING_ART=Object.freeze({
   'garden-stakes':[craftingArtSheet7,0,0],'irrigation-kit':[craftingArtSheet7,1,0],'scarecrow-kit':[craftingArtSheet7,2,0],
   'raised-bed-kit':[craftingArtSheet7,0,1],'seed-chest':[craftingArtSheet7,1,1],'skinning-knife':[craftingArtSheet7,2,1],
   'hide-rack':[craftingArtSheet8,0,0],'hunter-blind':[craftingArtSheet8,1,0],'composite-bow':[craftingArtSheet8,2,0],
-  'basic-bow':[craftingArtSheet8,0,1],'hunting-trap':[craftingArtSheet8,1,1]
+  'basic-bow':[craftingArtSheet8,0,1],'hunting-trap':[craftingArtSheet8,1,1],
+  'storage-shed':[craftingArtSheet2,0,0],'improved-cabin':[craftingArtSheet1,1,1],'hand-cart':[craftingArtSheet1,2,1],
+  'advanced-house':[craftingArtSheet1,1,1],'orchard-kit':[craftingArtSheet7,2,0]
 });
 function generatedCraftingIcon(key){
   const art=GENERATED_CRAFTING_ART[key];if(!art)return null;
@@ -761,7 +815,7 @@ function collides(x,z){return blockers.some(block=>Math.abs(x-block.x)<block.hal
 function updatePlayer(dt,time){
   if(!craftingPanel.hidden||!craftedUsePanel.hidden){animatePerson(player,false,time);return;}
   desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;
-  const strength=Math.min(1,desired.length());if(strength){desired.normalize().multiplyScalar(5.2*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z);}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));
+  const strength=Math.min(1,desired.length());if(strength){desired.normalize().multiplyScalar(5.2*Number(cartSpeedMod||1)*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z);}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));
   const nextX=clamp(player.position.x+velocity.x*dt,-33,33),nextZ=clamp(player.position.z+velocity.z*dt,-33,33);if(!collides(nextX,player.position.z))player.position.x=nextX;if(!collides(player.position.x,nextZ))player.position.z=nextZ;
   animatePerson(player,strength>.05,time);cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.65,player.position.z);
 }
@@ -882,7 +936,26 @@ async function gather(item){
   }catch(error){showToast(error.message==='resource_depleted'?'This resource has already been gathered.':'Gathering failed. Try again.');}
   finally{gatherBusy=false;actionButton.disabled=false;}
 }
-function interact(){if(!nearest)return;if(nearest.type==='building'){enterHomestead(nearest.building);return;}if(nearest.type==='farm'||nearest.type==='animal'){openSurvival(nearest,nearest?.type==='animal'?'hunt':'farm');return;}if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}showToast(typeof nearest.message==='function'?nearest.message():nearest.message);}
+function interact(){
+  if(!nearest)return;
+  if(nearest.type==='discovery'){
+    const api=window.GPTWorldProgression;
+    if(api?.findDiscovery){
+      api.findDiscovery(nearest.discovery.id).then(()=>{
+        const marker=discoveryMarkers.get(String(nearest.discovery.id));
+        if(marker){scene.remove(marker);discoveryMarkers.delete(String(nearest.discovery.id));}
+        const idx=interactables.indexOf(nearest);if(idx>=0)interactables.splice(idx,1);
+        refreshProgressionOverlay();
+      });
+    }
+    return;
+  }
+  if(nearest.type==='building'){enterHomestead(nearest.building);return;}
+  if(nearest.type==='farm'||nearest.type==='animal'){openSurvival(nearest,nearest?.type==='animal'?'hunt':'farm');return;}
+  if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}
+  if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}
+  showToast(typeof nearest.message==='function'?nearest.message():nearest.message);
+}
 function openPlacedCraftFromTap(event){
   if(!running||!craftTapStart||!craftingPanel.hidden||!craftedUsePanel.hidden)return;const distance=Math.hypot(event.clientX-craftTapStart.x,event.clientY-craftTapStart.y);craftTapStart=null;if(distance>12)return;
   const bounds=renderer.domElement.getBoundingClientRect();craftPointer.set((event.clientX-bounds.left)/bounds.width*2-1,-((event.clientY-bounds.top)/bounds.height)*2+1);craftRaycaster.setFromCamera(craftPointer,camera);
