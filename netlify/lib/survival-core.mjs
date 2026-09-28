@@ -1,5 +1,6 @@
 import {resolveHuntAttempt,huntingRange} from './hunting-core.mjs';
 import {cropYieldModifier} from './living-events-core.mjs';
+import {farmTierModifiers,seasonStrategy,weatherStrategy} from './progression-core.mjs';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 export const CROPS=Object.freeze([
@@ -13,8 +14,9 @@ export const HUNT_UNLOCKS=Object.freeze([
   {level:0,key:'tracking',name:'Basic tracking'},
   {level:0,key:'basic-bow',name:'Basic bow'},
   {level:15,key:'stalking',name:'Quiet stalking'},
-  {level:30,key:'reinforced-bow',name:'Reinforced bow'},
+  {level:30,key:'reinforced-bow',name:'Improved Bow'},
   {level:45,key:'wound_track',name:'Wound tracking'},
+  {level:50,key:'advanced-tracking',name:'Advanced Tracking'},
   {level:55,key:'hunting-trap',name:'Hunting trap'},
   {level:70,key:'composite-bow',name:'Composite bow'}
 ]);
@@ -35,19 +37,35 @@ export function seasonGrowthFactor(cropKey,season='spring'){
   if(s==='winter')return 0.55;
   return 0.85;
 }
-export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18,season='spring',event=null}={}){
+export function advanceCrop(plot,{now=new Date(),weather='clear',temperature=18,season='spring',event=null,farmTier=1}={}){
   if(!plot?.crop_key)return{...plot,stage:'prepared',progress:0,moisture:clamp(plot?.moisture??0,0,100),health:clamp(plot?.health??100,0,100),soil:clamp(plot?.soil??plot?.metadata?.soil??55,0,100)};
   const crop=cropByKey(plot.crop_key);if(!crop)return{...plot,stage:'dead',progress:0,health:0};
+  const tier=farmTierModifiers(Number(plot.metadata?.farmTier||farmTier||1));
+  const weatherFx=weatherStrategy(weather,temperature);
+  const seasonFx=seasonStrategy(season);
   const start=new Date(plot.planted_at).getTime(),end=new Date(now).getTime(),hours=Math.max(0,(end-start)/3600000);
   const moistureSince=new Date(plot.updated_at||plot.watered_at||plot.planted_at).getTime(),dryHours=Math.max(0,(end-moistureSince)/3600000);
-  const rain=String(weather).toLowerCase().includes('rain'),moisture=clamp(Number(plot.moisture??80)-dryHours*7+(rain?dryHours*20:0),0,100);
-  const soil=clamp(Number(plot.soil??plot.metadata?.soil??55),0,100);
+  const rain=String(weather).toLowerCase().includes('rain');
+  const drain=7*Number(tier.moistureDrainScale||1)*(weatherFx.cropGrowth<0.7?1.25:1);
+  const moisture=clamp(Number(plot.moisture??80)-dryHours*drain+(rain?dryHours*20:0),0,100);
+  const soil=clamp(Number(plot.soil??plot.metadata?.soil??55)+Number(tier.soilBonus||0)*0.02,0,100);
   const disease=Number(event?.effects?.cropHealthDrain||1);
   const health=clamp(Number(plot.health??100)-(moisture<18?dryHours*3*disease:0)-(soil<25?dryHours*1.2:0),0,100);
-  if(health<=0)return{...plot,stage:'dead',progress:0,moisture,health,soil};
-  const progress=clamp(hours/crop.growHours*weatherGrowthFactor(weather,temperature)*seasonGrowthFactor(plot.crop_key,season)*(health/100)*(0.85+soil/400),0,1);
+  if(health<=0)return{...plot,stage:'dead',progress:0,moisture,health,soil,farmTier:tier};
+  const progress=clamp(
+    hours/crop.growHours
+      *weatherGrowthFactor(weather,temperature)
+      *seasonGrowthFactor(plot.crop_key,season)
+      *Number(weatherFx.cropGrowth||1)
+      *Number(seasonFx.cropGrowth||1)
+      *Number(tier.growthBonus||1)
+      *(health/100)
+      *(0.85+soil/400),
+    0,
+    1
+  );
   const stage=progress>=1?'ready':progress>=.65?'mature':progress>=.32?'young':progress>=.1?'sprout':'seed';
-  return{...plot,stage,progress:Number(progress.toFixed(3)),moisture:Number(moisture.toFixed(1)),health:Number(health.toFixed(1)),soil:Number(soil.toFixed(1))};
+  return{...plot,stage,progress:Number(progress.toFixed(3)),moisture:Number(moisture.toFixed(1)),health:Number(health.toFixed(1)),soil:Number(soil.toFixed(1)),farmTier:tier};
 }
 export function cropHarvest(cropKey,skill=0,health=100,{soil=55,event=null}={}){
   const crop=cropByKey(cropKey);if(!crop)return null;

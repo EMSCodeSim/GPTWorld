@@ -101,7 +101,14 @@ export const CRAFTING_RECIPES=Object.freeze([
   {key:'skinning-knife',name:'Skinning Knife',description:'A small field blade for experienced hunters.',skill:'hunting',minSkill:10,difficulty:10,station:'Field Crafting',category:'hunting',inputs:{wood:1,stone:5,herbs:0},durability:55,placeable:false},
   {key:'hide-rack',name:'Hide Drying Rack',description:'A simple rack for processing hides at camp.',skill:'hunting',minSkill:20,difficulty:16,station:'Field Crafting',category:'hunting',inputs:{wood:6,stone:1,herbs:1},durability:60,placeable:true},
   {key:'hunter-blind',name:'Hunter Blind',description:'A portable blind for patient hunting.',skill:'hunting',minSkill:40,difficulty:28,station:'Field Crafting',category:'hunting',inputs:{wood:8,stone:2,herbs:5},durability:75,placeable:true},
-  {key:'composite-bow',name:'Composite Bow',description:'An expert hunting bow built for accuracy and durability.',skill:'hunting',minSkill:70,difficulty:46,station:'Field Crafting',category:'hunting',inputs:{wood:10,stone:3,herbs:6},durability:105,placeable:false}
+  {key:'composite-bow',name:'Composite Bow',description:'An expert hunting bow built for accuracy and durability.',skill:'hunting',minSkill:70,difficulty:46,station:'Field Crafting',category:'hunting',inputs:{wood:10,stone:3,herbs:6},durability:105,placeable:false},
+
+  // High-skill progression unlocks (significant, sparse).
+  {key:'storage-shed',name:'Large Storage Shed',description:'A weatherproof shed for bulk homestead storage.',skill:'carpentry',minSkill:30,difficulty:24,station:'Field Crafting',category:'storage',inputs:{wood:18,stone:6,herbs:0},durability:110,placeable:true,structureFamily:'storage',structureTier:2},
+  {key:'improved-cabin',name:'Improved Cabin',description:'A reinforced cabin with better shelter and interior work space.',skill:'carpentry',minSkill:45,difficulty:34,station:'Field Crafting',category:'structures',inputs:{wood:40,stone:22,herbs:2},durability:140,placeable:true,structureFamily:'shelter',structureTier:3},
+  {key:'hand-cart',name:'Hand Cart',description:'A sturdy cart for hauling bulk materials to town projects.',skill:'carpentry',minSkill:60,difficulty:42,station:'Field Crafting',category:'transport',inputs:{wood:16,stone:4,herbs:1},durability:120,placeable:false,transport:'hand-cart'},
+  {key:'advanced-house',name:'Advanced House',description:'A major dwelling for a developed estate.',skill:'carpentry',minSkill:80,difficulty:54,station:'Field Crafting',category:'structures',inputs:{wood:55,stone:30,herbs:3},durability:180,placeable:true,structureFamily:'shelter',structureTier:3},
+  {key:'orchard-kit',name:'Orchard Kit',description:'Saplings and markers for a lasting orchard stand.',skill:'farming',minSkill:30,difficulty:24,station:'Field Crafting',category:'farm',inputs:{wood:6,stone:2,herbs:8},durability:90,placeable:true}
 ]);
 
 /** Configurable homestead blueprint — Construction 80+. */
@@ -163,7 +170,8 @@ export function resolveCraftAttempt({skillValue=0,difficulty=0,key='',minSkill=0
   if(currentSkill<Number(minSkill||0))return{success:false,chance:0,roll:0,quality:null,skillGain:0,locked:true};
   const chance=craftingChance(currentSkill,difficulty),roll=craftingHash(`${key}:success`),success=roll<chance;
   const qualityRoll=craftingHash(`${key}:quality`),mastery=clamp((currentSkill-Number(difficulty)+20)/120,0,1);
-  const quality=!success?null:qualityRoll<.05+mastery*.14?'exceptional':qualityRoll<.32+mastery*.28?'fine':'standard';
+  // Quality mainly for crafted products: poor / standard / fine / exceptional.
+  const quality=!success?null:qualityRoll<.04?'poor':qualityRoll<.05+mastery*.14?'exceptional':qualityRoll<.32+mastery*.28?'fine':'standard';
   // Anti-grind: trivial crafts vs current skill yield sharply reduced XP.
   const overskill=Math.max(0,currentSkill-Number(difficulty)-10);
   const grindScale=currentSkill>=100?0:Number(clamp(1-overskill/35,.05,1).toFixed(3));
@@ -189,7 +197,7 @@ export function houseMaterialLoss(blueprint=HOUSE_BLUEPRINT,success=true){
 }
 
 export function qualityDurability(base,quality){
-  const multiplier=quality==='exceptional'?1.35:quality==='fine'?1.15:1;
+  const multiplier=quality==='exceptional'?1.35:quality==='fine'?1.15:quality==='poor'?0.85:1;
   return Math.max(1,Math.round(Number(base||1)*multiplier));
 }
 

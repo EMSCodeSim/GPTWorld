@@ -31,6 +31,7 @@ export const NON_STACKABLE_CRAFTED_KEYS=Object.freeze(new Set([
 ]));
 
 export const QUALITY_PRICE_MOD=Object.freeze({
+  poor:0.7,
   standard:1,
   fine:1.35,
   exceptional:1.75
@@ -60,7 +61,8 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'herb-broth':5,'field-meal':7,'preserved-rations':10,'hearth-feast':15,
   'garden-stakes':6,'irrigation-kit':12,'scarecrow-kit':13,'raised-bed-kit':16,'seed-chest':22,
   'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30,
-  'basic-bow':10,'reinforced-bow':20,'hunting-trap':16
+  'basic-bow':10,'reinforced-bow':20,'hunting-trap':16,
+  'storage-shed':22,'improved-cabin':48,'hand-cart':36,'advanced-house':70,'orchard-kit':18
 });
 
 /**
@@ -200,7 +202,9 @@ export function splitStackPlan(stackQuantity,requested){
 }
 
 export function qualityModifier(quality){
-  return QUALITY_PRICE_MOD[String(quality||'standard')]||1;
+  const key=String(quality||'standard');
+  if(key==='poor')return 0.7;
+  return QUALITY_PRICE_MOD[key]||1;
 }
 
 export function npcPurchasePrice(itemKey,quality,merchant,demandState=null){

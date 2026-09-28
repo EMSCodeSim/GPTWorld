@@ -3,11 +3,12 @@ panel.id='wildlifeJournalPanel';
 panel.setAttribute('aria-label','Wildlife journal');
 panel.style.cssText='position:fixed;top:76px;right:12px;z-index:25;width:min(350px,calc(100vw - 24px));max-height:65vh;overflow:auto;background:#14231c;color:#f2f0df;border:1px solid #8b9b72;border-radius:12px;padding:14px;box-shadow:0 10px 30px #0009;font:14px/1.5 system-ui';
 panel.hidden=true;
-const button=document.createElement('button');button.type='button';button.textContent='Wildlife Journal';button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-expanded','false');button.style.cssText='position:fixed;top:76px;right:12px;z-index:24;background:#253d2d;color:#fff;border:1px solid #a5b788;border-radius:10px;padding:9px 12px;cursor:pointer';
-const heading=document.createElement('h2');heading.textContent='Wildlife Journal';heading.style.margin='0 0 8px';
+const button=document.createElement('button');button.type='button';button.textContent='Ecology Notes';button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-expanded','false');button.style.cssText='position:fixed;top:76px;right:12px;z-index:24;background:#253d2d;color:#fff;border:1px solid #a5b788;border-radius:10px;padding:9px 12px;cursor:pointer';
+const heading=document.createElement('h2');heading.textContent='Ecology Notes';heading.style.margin='0 0 8px';
+const hint=document.createElement('p');hint.textContent='Personal Field Journal (discoveries, tracked animals, crafting knowledge) opens from Homestead → Journal.';hint.style.cssText='margin:0 0 10px;color:#b8c6b8;font-size:12px;line-height:1.35';
 const close=document.createElement('button');close.type='button';close.textContent='Close';close.style.cssText='float:right;background:#304636;color:white;border:1px solid #889b77;border-radius:6px;padding:5px 9px';
 const content=document.createElement('div');content.setAttribute('aria-live','polite');
-panel.append(close,heading,content);document.body.append(button,panel);
+panel.append(close,heading,hint,content);document.body.append(button,panel);
 function show(open){panel.hidden=!open;button.hidden=open;button.setAttribute('aria-expanded',String(open));if(open)load();}
 button.addEventListener('click',()=>show(true));close.addEventListener('click',()=>show(false));
 const pct=v=>`${Math.round(Math.max(0,Math.min(1,Number(v)||0))*100)}%`;

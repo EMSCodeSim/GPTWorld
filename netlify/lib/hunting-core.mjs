@@ -3,6 +3,8 @@
  * Deterministic and skill-driven; keeps mobile controls simple.
  */
 
+import {animalProfile,loudPlayerFleeBonus,timeOfDayEffects,animalBehaviorState} from './progression-core.mjs';
+
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const TRACK_FRESHNESS=Object.freeze([
@@ -33,11 +35,15 @@ export function playerNoise({moving=false,running=false,crouching=false}={}){
   return 0.15;
 }
 
-export function animalDetectionRange({species='wildlife',kind='herbivore',skill=0,wary=false}={}){
-  const base=kind==='predator'?7.5:kind==='bird'?9:5.5;
-  const waryBonus=wary?1.8:0;
+export function animalDetectionRange({species='wildlife',kind='herbivore',skill=0,wary=false,noise=0,hour=12}={}){
+  const profile=animalProfile(species);
+  const base=kind==='predator'||profile.kind==='predator'?7.5:kind==='bird'?9:Number(profile.fleeDistance||5.5);
+  const waryBonus=wary||profile.temperament==='skittish'?1.8:0;
   const skillShrink=clamp(skill,0,100)*0.025;
-  return Number(clamp(base+waryBonus-skillShrink,3.2,12).toFixed(2));
+  const loud=loudPlayerFleeBonus(noise);
+  const tod=timeOfDayEffects(hour);
+  const nightShrink=tod.period==='night'&&profile.kind!=='predator'?0.8:1;
+  return Number(clamp((base+waryBonus+loud-skillShrink)*nightShrink,3.2,14).toFixed(2));
 }
 
 export function huntingRange(equipment='basic-bow'){
@@ -47,27 +53,34 @@ export function huntingRange(equipment='basic-bow'){
   return 5;
 }
 
-export function buildTrackSign({animal,player,now=Date.now(),lastSeenAt=null,skill=0}={}){
+export function buildTrackSign({animal,player,now=Date.now(),lastSeenAt=null,skill=0,hour=12,weather='clear',tracksWashed=false}={}){
   if(!animal)return null;
-  const ageSec=lastSeenAt?Math.max(0,(now-Number(lastSeenAt))/1000):120;
+  let ageSec=lastSeenAt?Math.max(0,(now-Number(lastSeenAt))/1000):120;
+  if(tracksWashed)ageSec=Math.max(ageSec,950);
   const fresh=freshnessForAge(ageSec);
+  const tod=timeOfDayEffects(hour);
+  const profile=animalProfile(animal.speciesName||animal.species||'wildlife');
+  const advanced=clamp(skill,0,100)>=50;
+  const skillBonus=clamp(skill,0,100)>=30||advanced;
+  const quality=Number(clamp(fresh.quality+Number(tod.trackingBonus||0)-(profile.trackDifficulty||0)*0.15,0.08,1).toFixed(2));
   const dx=Number(animal.x)-Number(player?.x||0);
   const dz=Number(animal.z)-Number(player?.z||0);
   const distance=Number(Math.hypot(dx,dz).toFixed(1));
   const direction=cardinalDirection(dx,dz);
-  const skillBonus=clamp(skill,0,100)>=30;
+  const behavior=animal.behavior||animalBehaviorState(animal.species||animal.speciesName,{hour}).behavior;
   return{
     animalId:String(animal.id),
     species:String(animal.speciesName||animal.species||'wildlife'),
-    kind:String(animal.kind||'herbivore'),
+    kind:String(animal.kind||profile.kind||'herbivore'),
     freshness:fresh.key,
     freshnessLabel:fresh.label,
-    quality:fresh.quality,
+    quality,
     direction:skillBonus?direction:'roughly '+direction,
     distance:skillBonus?distance:Math.round(distance),
-    behavior:animal.behavior||'roaming',
+    behavior,
+    temperament:profile.temperament,
     ageSec:Math.round(ageSec),
-    xp:Number((0.35+fresh.quality*0.4).toFixed(2))
+    xp:Number((0.35+quality*0.4+(advanced?0.25:0)).toFixed(2))
   };
 }
 
@@ -116,12 +129,14 @@ export function resolveHuntAttempt({
   for(const char of String(key)){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}
   const roll=(hash>>>0)/4294967296;
   const success=roll<chance;
-  const predator=kind==='predator';
+  const profile=animalProfile(species);
+  const predator=kind==='predator'||profile.kind==='predator';
+  const value=Number(profile.harvestValue||1);
   // Near-miss can wound instead of full harvest.
   const woundOnly=!success&&roll<chance+0.12&&equipment!=='hunting-trap';
   const rewards=success?[
-    {key:'raw-meat',name:'Raw Meat',quantity:predator?3:2},
-    {key:'hide',name:'Hide',quantity:1}
+    {key:'raw-meat',name:'Raw Meat',quantity:Math.max(1,Math.round((predator?3:2)*value))},
+    {key:'hide',name:'Hide',quantity:value>=1.4?2:1}
   ]:[];
   return{
     ok:true,
@@ -131,9 +146,10 @@ export function resolveHuntAttempt({
     chance:Number(chance.toFixed(3)),
     roll:Number(roll.toFixed(4)),
     maxRange,
-    xp:Number((success?(predator?2.8:1.8)+(tracked?0.3:0)+(stalked?0.3:0):(woundOnly?0.7:0.25)).toFixed(2)),
+    xp:Number((success?(predator?2.8:1.8)*value+(tracked?0.3:0)+(stalked?0.3:0):(woundOnly?0.7:0.25)).toFixed(2)),
     rewards,
     species,
+    temperament:profile.temperament,
     trackingXp:tracked?0.5:0
   };
 }
