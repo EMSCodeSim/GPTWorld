@@ -18,13 +18,13 @@
     const style=document.createElement('style');
     style.id='progressionStyles';
     style.textContent=`
-      #progressionDock{position:fixed;left:10px;bottom:max(118px,calc(env(safe-area-inset-bottom)+108px));z-index:26;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+      #progressionDock{position:fixed;left:10px;top:max(118px,calc(env(safe-area-inset-top)+96px));z-index:26;display:flex;flex-direction:column;gap:6px;pointer-events:none}
       #progressionDock button{pointer-events:auto;min-height:40px;border:1px solid rgba(210,179,106,.45);border-radius:12px;background:rgba(14,22,17,.92);color:#f3efe5;font:700 12px/1.2 system-ui,sans-serif;padding:8px 10px;touch-action:manipulation}
-      .prog-panel{position:fixed;inset:0;z-index:1002;display:none;background:rgba(6,13,9,.84);padding:max(14px,env(safe-area-inset-top)) 12px max(14px,env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch}
+      .prog-panel{position:fixed;inset:0;z-index:1002;display:none;background:rgba(6,13,9,.84);padding:max(14px,env(safe-area-inset-top)) 12px max(14px,env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch;touch-action:manipulation}
       .prog-panel.open{display:block}
       .prog-card{width:min(520px,100%);margin:0 auto;background:rgba(19,35,24,.99);border:1px solid rgba(210,179,106,.55);border-radius:18px;padding:14px;color:#f3ead5}
       .prog-card header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-      .prog-card header button{border:0;background:transparent;color:#f4e3b9;font-size:30px;line-height:1}
+      .prog-card header button{border:0;background:transparent;color:#f4e3b9;font-size:30px;line-height:1;min-height:44px;min-width:44px;touch-action:manipulation}
       .prog-card h2,.prog-card h3{margin:4px 0 8px}
       .prog-muted{color:#b8c6b8;font-size:13px;line-height:1.35}
       .prog-list{display:grid;gap:8px;margin:10px 0}
@@ -33,16 +33,16 @@
       .prog-item strong{display:block}
       .prog-item small{display:block;color:#b8c6b8;margin-top:3px}
       .prog-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}
-      .prog-tabs button{min-height:36px;border:1px solid #526653;border-radius:999px;background:#28402e;color:#f3ead5;font-weight:700;padding:6px 10px;font-size:12px}
+      .prog-tabs button{min-height:36px;border:1px solid #526653;border-radius:999px;background:#28402e;color:#f3ead5;font-weight:700;padding:6px 10px;font-size:12px;touch-action:manipulation}
       .prog-tabs button.active{background:#d2b36a;border-color:#d2b36a;color:#17231a}
       .prog-check{display:grid;gap:4px;margin:8px 0;font-size:13px}
-      .prog-away{position:fixed;left:50%;top:max(70px,calc(env(safe-area-inset-top)+58px));transform:translateX(-50%);z-index:40;width:min(340px,calc(100vw - 24px));background:rgba(14,22,17,.95);border:1px solid rgba(210,179,106,.5);border-radius:14px;padding:12px 14px;color:#f3efe5;box-shadow:0 12px 28px rgba(0,0,0,.35)}
+      .prog-away{position:fixed;left:50%;top:max(70px,calc(env(safe-area-inset-top)+58px));transform:translateX(-50%);z-index:1100;width:min(340px,calc(100vw - 24px));background:rgba(14,22,17,.95);border:1px solid rgba(210,179,106,.5);border-radius:14px;padding:12px 14px;color:#f3efe5;box-shadow:0 12px 28px rgba(0,0,0,.35);pointer-events:auto}
       .prog-away ul{margin:8px 0 10px;padding-left:18px}
-      .prog-away button{width:100%;min-height:42px;border:0;border-radius:10px;background:#3d4a3a;color:#f3efe5;font-weight:800}
+      .prog-away button{width:100%;min-height:44px;border:0;border-radius:10px;background:#3d4a3a;color:#f3efe5;font-weight:800;touch-action:manipulation;cursor:pointer}
       .prog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-      .prog-actions button{min-height:44px;border:0;border-radius:10px;background:#d2b36a;color:#17231a;font-weight:800}
+      .prog-actions button{min-height:44px;border:0;border-radius:10px;background:#d2b36a;color:#17231a;font-weight:800;touch-action:manipulation}
       .prog-actions button.secondary{background:#28402e;color:#f3ead5;border:1px solid #526653}
-      @media(max-width:800px){#progressionDock{left:8px;bottom:max(126px,calc(env(safe-area-inset-bottom)+116px))}.prog-card{border-radius:16px;padding:12px}}
+      @media(max-width:800px){#progressionDock{left:8px;top:max(108px,calc(env(safe-area-inset-top)+88px))}.prog-card{border-radius:16px;padding:12px}}
     `;
     document.head.appendChild(style);
   }
