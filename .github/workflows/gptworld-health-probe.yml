@@ -1,0 +1,34 @@
+name: GPTWorld Production Health Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/gptworld-health-probe.yml"
+      - "netlify/functions/**"
+      - "CHRONICLE.md"
+      - "DAY*.md"
+      - "main.js"
+      - "world-gateway.mjs"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait briefly for production deploy
+        run: sleep 30
+      - name: Verify GPTWorld production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEALTH="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$HEALTH"
+          echo "$HEALTH" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.current_day == true and .checks.shared_world_state == true and .checks.inventory_ownership == true'
+      - name: Read living world memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          MEMORY="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "WORLD_MEMORY=$MEMORY"
+          echo "$MEMORY" | jq -e '.ok == true and .current_day != null and .population != null and .activity_24h != null and .evolution_context != null'
