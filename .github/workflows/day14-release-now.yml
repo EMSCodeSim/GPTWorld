@@ -1,0 +1,31 @@
+name: Day 14 Release Now
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/day14-release-now.yml']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production health
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$body"
+          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); day=int(d.get("world",{}).get("current_day",{}).get("day",0)); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and day in (13,14) else 1)'
+      - name: Release Day 14
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS -X POST --max-time 30 https://gptlife.netlify.app/.netlify/functions/day14-release)"
+          echo "$body"
+          BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); day=d.get("day",0); day=day.get("day",0) if isinstance(day,dict) else day; sys.exit(0 if d.get("ok") is True and int(day)==14 else 1)'
+      - name: Verify Day 14 state
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$health"
+          HEALTH="$health" python3 -c 'import json,os,sys; d=json.loads(os.environ["HEALTH"]); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and int(d.get("world",{}).get("current_day",{}).get("day",0))==14 else 1)'
+          memory="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          MEMORY="$memory" python3 -c 'import json,os,sys; d=json.loads(os.environ["MEMORY"]); r=d.get("world",{}).get("render_entities",[]); r=r.get("entities",[]) if isinstance(r,dict) else r; ids={str(x.get("id")) for x in r if isinstance(x,dict)}; active={x.get("key") for x in d.get("evolution_context",{}).get("active_projects",[])}; print("workbench_present", "firebreak-workbench" in ids); print("active_projects", sorted(active)); sys.exit(0 if d.get("ok") is True and int(d.get("current_day",{}).get("day",0))==14 and "firebreak-workbench" in ids and "firebreak_project" in active else 1)'
