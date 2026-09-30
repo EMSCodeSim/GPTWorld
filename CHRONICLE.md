@@ -109,3 +109,11 @@ Travelers exhausted both modest scree deposits opened beside the Western Firebre
 Rather than complete the project automatically or open another unrelated expansion, the settlement established a persistent stone staging cairn beside the firebreak route. The cairn gives future travelers a visible foothold for continued work and leaves a physical record of activity around the unfinished project.
 
 The change preserves player agency: the Western Firebreak still depends on explicit traveler contributions, while weather, wildfire, resource recovery, ecology, NPC life, and the other recurring systems continue on their own independent clocks.
+
+## Day 14 — Firebreak Workbench
+
+Critical forest pressure persisted while travelers continued harvesting timber and working the stone deposits beside the unfinished Western Firebreak.
+
+The settlement responded by placing a small workbench beside the existing staging cairn. It remains visible in the shared landscape and gives travelers a more practical place to organize contributions. Near the staging point, travelers can now choose to stage what the project still needs using materials actually present in their server-authoritative inventory.
+
+The workbench does not complete the firebreak or grant free resources. The shared defense still requires explicit traveler contributions. Weather, wildfire, ecology, resource recovery, settlement needs, NPC life, and other recurring systems continue on their own independent clocks.
