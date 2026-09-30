@@ -22,7 +22,8 @@ function ensureUI(){
     <div id="firebreakStatus" style="margin:8px 0 10px;line-height:1.4"></div>
     <div id="firebreakButtons" style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="firebreakWood" type="button">Stage up to 3 wood</button>
-      <button id="firebreakStone" type="button">Stage up to 8 stone</button>\n      <button id="firebreakNeeded" type="button">Stage what’s needed</button>
+      <button id="firebreakStone" type="button">Stage up to 8 stone</button>
+      <button id="firebreakNeeded" type="button">Stage what’s needed</button>
     </div>
     <div id="firebreakHint" style="font-size:12px;opacity:.72;margin-top:8px">The stone spur now feeds this staging point. Materials committed here count directly toward the shared firebreak.</div>`;
   document.body.appendChild(panel);
@@ -31,7 +32,8 @@ function ensureUI(){
     b.style.cssText='background:#d9c896;color:#17231a;border:0;border-radius:9px;padding:9px 11px;font-weight:800;cursor:pointer;touch-action:manipulation';
   }
   document.getElementById('firebreakWood').addEventListener('click',()=>contribute(3,0));
-  document.getElementById('firebreakStone').addEventListener('click',()=>contribute(0,8));\n  document.getElementById('firebreakNeeded').addEventListener('click',contributeNeeded);
+  document.getElementById('firebreakStone').addEventListener('click',()=>contribute(0,8));
+  document.getElementById('firebreakNeeded').addEventListener('click',contributeNeeded);
 }
 function toast(message){
   const t=document.getElementById('toast');if(!t)return;
@@ -56,7 +58,9 @@ function render(){
     status.textContent=`Shared progress: ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. Server pack: ${Number(serverPack.wood||0)} wood · ${Number(serverPack.stone||0)} stone.`;
     buttons.style.display='flex';
     document.getElementById('firebreakWood').disabled=busy||Number(serverPack.wood||0)<1||w>=Number(state.woodGoal||6);
-    document.getElementById('firebreakStone').disabled=busy||Number(serverPack.stone||0)<1||s>=Number(state.stoneGoal||24);\n    const neededWood=Math.max(0,Number(state.woodGoal||6)-w),neededStone=Math.max(0,Number(state.stoneGoal||24)-s);\n    document.getElementById('firebreakNeeded').disabled=busy||((neededWood<1||Number(serverPack.wood||0)<1)&&(neededStone<1||Number(serverPack.stone||0)<1));
+    document.getElementById('firebreakStone').disabled=busy||Number(serverPack.stone||0)<1||s>=Number(state.stoneGoal||24);
+    const neededWood=Math.max(0,Number(state.woodGoal||6)-w),neededStone=Math.max(0,Number(state.stoneGoal||24)-s);
+    document.getElementById('firebreakNeeded').disabled=busy||((neededWood<1||Number(serverPack.wood||0)<1)&&(neededStone<1||Number(serverPack.stone||0)<1));
   }
 }
 async function refresh(){
@@ -71,7 +75,12 @@ async function refresh(){
     render();
   }catch{}
 }
-function contributeNeeded(){\n  const needWood=Math.max(0,Number(state.woodGoal||6)-Number(state.wood||0));\n  const needStone=Math.max(0,Number(state.stoneGoal||24)-Number(state.stone||0));\n  return contribute(Math.min(needWood,Math.max(0,Number(serverPack.wood||0))),Math.min(needStone,Math.max(0,Number(serverPack.stone||0))));\n}\nasync function contribute(wood,stone){
+function contributeNeeded(){
+  const needWood=Math.max(0,Number(state.woodGoal||6)-Number(state.wood||0));
+  const needStone=Math.max(0,Number(state.stoneGoal||24)-Number(state.stone||0));
+  return contribute(Math.min(needWood,Math.max(0,Number(serverPack.wood||0))),Math.min(needStone,Math.max(0,Number(serverPack.stone||0))));
+}
+async function contribute(wood,stone){
   const id=clientId(),g=game();if(!id||busy)return;
   const giveWood=Math.min(wood,Math.max(0,Number(serverPack.wood||0)));
   const giveStone=Math.min(stone,Math.max(0,Number(serverPack.stone||0)));
