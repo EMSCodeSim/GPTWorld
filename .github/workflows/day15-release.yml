@@ -1,0 +1,37 @@
+name: Day 15 Production Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'netlify/functions/day15-release.mjs'
+      - '.github/workflows/day15-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Netlify production deploy
+        run: sleep 60
+      - name: Verify pre-release health
+        run: |
+          set -euo pipefail
+          H="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 14'
+      - name: Release Day 15
+        run: |
+          set -euo pipefail
+          R="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors -X POST https://gptlife.netlify.app/.netlify/functions/day15-release)"
+          echo "RELEASE=$R"
+          echo "$R" | jq -e '.ok == true and (.released == true or .already_released == true) and .day == 15'
+      - name: Verify post-release health and memory
+        run: |
+          set -euo pipefail
+          H="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$H"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 15 and .checks.inventory_ownership == true'
+          M="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and .current_day.day == 15 and (.world.render_entities.entities // .world.render_entities // []) | any(.id == "firebreak-survey-line")'
