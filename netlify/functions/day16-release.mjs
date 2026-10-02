@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const DAY=16;
+// Day 16 extends the already-surveyed western firebreak worksite without completing the player project.
 const ENTITIES=[
   {id:'western-firewatch-post',type:'object',x:-24.55,z:15.15,width:1.15,height:2.6,depth:1.15,color:'#795f42',label:'Western firewatch post'},
   {id:'western-firewatch-bell',type:'object',x:-24.2,z:15.05,width:.32,height:.42,depth:.32,color:'#8d7652',label:'Firewatch bell'},
