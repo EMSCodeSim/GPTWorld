@@ -20,13 +20,13 @@ jobs:
         run: |
           set -euo pipefail
           H="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
-          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 14'
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day == 14 or .world.current_day.day == 15)'
       - name: Release Day 15
         run: |
           set -euo pipefail
           R="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors -X POST https://gptlife.netlify.app/.netlify/functions/day15-release)"
           echo "RELEASE=$R"
-          echo "$R" | jq -e '.ok == true and (.released == true or .already_released == true) and .day == 15'
+          echo "$R" | jq -e '.ok == true and (.released == true or .already_released == true) and .day.day == 15'
       - name: Verify post-release health and memory
         run: |
           set -euo pipefail
@@ -34,4 +34,4 @@ jobs:
           echo "HEALTH=$H"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 15 and .checks.inventory_ownership == true'
           M="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and .current_day.day == 15 and (.world.render_entities.entities // .world.render_entities // []) | any(.id == "firebreak-survey-line")'
+          echo "$M" | jq -e '.ok == true and .current_day.day == 15 and ((.world.render_entities.entities // .world.render_entities // []) | any(.id == "firebreak-survey-line"))'
