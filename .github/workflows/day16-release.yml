@@ -1,0 +1,48 @@
+name: Day 16 Production Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'netlify/functions/day16-release.mjs'
+      - '.github/workflows/day16-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Test
+        run: npm test
+      - name: Syntax check Day 16
+        run: node --check netlify/functions/day16-release.mjs
+      - name: Wait for Netlify production deploy
+        run: sleep 60
+      - name: Verify pre-release health
+        run: |
+          set -euo pipefail
+          H="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$H"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day == 15 or .world.current_day.day == 16) and .checks.inventory_ownership == true'
+      - name: Release Day 16
+        run: |
+          set -euo pipefail
+          R="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors -X POST https://gptlife.netlify.app/.netlify/functions/day16-release)"
+          echo "RELEASE=$R"
+          echo "$R" | jq -e '.ok == true and (((.day|type)=="object" and .day.day == 16) or ((.day|type)=="number" and .day == 16))'
+      - name: Verify post-release health and memory
+        run: |
+          set -euo pipefail
+          H="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$H"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 16 and .checks.inventory_ownership == true'
+          M="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and .current_day.day == 16 and ((.world.render_entities.entities // .world.render_entities // []) | any(.id == "western-firewatch-post"))'
