@@ -117,3 +117,12 @@ Critical forest pressure persisted while travelers continued harvesting timber a
 The settlement responded by placing a small workbench beside the existing staging cairn. It remains visible in the shared landscape and gives travelers a more practical place to organize contributions. Near the staging point, travelers can now choose to stage what the project still needs using materials actually present in their server-authoritative inventory.
 
 The workbench does not complete the firebreak or grant free resources. The shared defense still requires explicit traveler contributions. Weather, wildfire, ecology, resource recovery, settlement needs, NPC life, and other recurring systems continue on their own independent clocks.
+
+
+## Day 17 — Blacksmith Material Yard
+
+A traveler gathered heavily and repeatedly contributed wood, stone, and coins to the community blacksmith while the town entered a Construction Boom.
+
+A persistent material yard now sits beside the unfinished blacksmith, with a short work path, timber stack, stone pile, and supply crate. The new yard turns player contributions into visible shared-world evidence rather than leaving them only as counters and event records.
+
+The blacksmith itself remains unfinished and server-authoritative; future progress still depends on actual contributions. Weather, ecology, disasters, settlement consumption, NPC routines, resource recovery, and world aging continue on their independent clocks.
