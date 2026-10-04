@@ -45,4 +45,4 @@ jobs:
           echo "HEALTH=$H"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 17 and .checks.inventory_ownership == true'
           M="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and .current_day.day == 17 and ((.world.render_entities.entities // .world.render_entities // []) | any(.id == "blacksmith-material-yard"))'
+          echo "$M" | jq -e '.ok == true and .current_day.day == 17 and (((.world.render_entities // []) | if type=="array" then . else (.entities // []) end) | any(.id == "blacksmith-material-yard"))'
