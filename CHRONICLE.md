@@ -118,7 +118,6 @@ The settlement responded by placing a small workbench beside the existing stagin
 
 The workbench does not complete the firebreak or grant free resources. The shared defense still requires explicit traveler contributions. Weather, wildfire, ecology, resource recovery, settlement needs, NPC life, and other recurring systems continue on their own independent clocks.
 
-
 ## Day 17 — Blacksmith Material Yard
 
 A traveler gathered heavily and repeatedly contributed wood, stone, and coins to the community blacksmith while the town entered a Construction Boom.
@@ -126,3 +125,11 @@ A traveler gathered heavily and repeatedly contributed wood, stone, and coins to
 A persistent material yard now sits beside the unfinished blacksmith, with a short work path, timber stack, stone pile, and supply crate. The new yard turns player contributions into visible shared-world evidence rather than leaving them only as counters and event records.
 
 The blacksmith itself remains unfinished and server-authoritative; future progress still depends on actual contributions. Weather, ecology, disasters, settlement consumption, NPC routines, resource recovery, and world aging continue on their independent clocks.
+
+## Day 18 — Blacksmith Framing Begins
+
+Two active travelers continued supporting the settlement, with 11 resource gathers, 18 storehouse deposits, and 7 community-project contributions recorded during the previous 24 hours. The blacksmith received repeated deliveries of wood and stone while the Construction Boom continued.
+
+A persistent framing bench, two upright frame posts, and a framing beam now stand beside the Day 17 material yard. The visible framing deepens the same player-driven construction story without completing the blacksmith or granting free project progress.
+
+Weather, disasters, ecology, resource recovery, settlement consumption, NPC routines and memories, and world aging continue independently of the numbered Chronicle day.
