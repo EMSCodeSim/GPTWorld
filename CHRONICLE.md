@@ -133,3 +133,11 @@ Two active travelers continued supporting the settlement, with 11 resource gathe
 A persistent framing bench, two upright frame posts, and a framing beam now stand beside the Day 17 material yard. The visible framing deepens the same player-driven construction story without completing the blacksmith or granting free project progress.
 
 Weather, disasters, ecology, resource recovery, settlement consumption, NPC routines and memories, and world aging continue independently of the numbered Chronicle day.
+
+## Day 19 — The Empty Meadow
+
+Player activity quieted to one active traveler and three herb gathers during the latest 24-hour window, so the settlement did not launch another major construction or expansion.
+
+Instead, the landscape now visibly remembers a change produced by the autonomous ecosystem. Eco Year 24 recorded the extinction of the Meadow Grazer and severe pressure on the remaining herbivore population. A short trail beyond the existing western game route now leads to an old grazer marker and patches of ungrazed meadow grass.
+
+The Empty Meadow does not alter the ecology simulation or manufacture new wildlife. Weather, predation, migration, breeding, resource recovery, settlement needs, NPC life, disasters, and world aging continue independently. The new site simply makes the world's ecological history physically discoverable.
