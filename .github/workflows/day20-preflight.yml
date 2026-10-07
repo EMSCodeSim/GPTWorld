@@ -1,0 +1,24 @@
+name: Day 20 Preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/day20-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production health and capture living world
+        run: |
+          set -euo pipefail
+          H="$(curl --fail --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "HEALTH=$H"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 19 and .checks.inventory_ownership == true'
+          M="$(curl --fail --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "MEMORY_SUMMARY=$(echo "$M" | jq -c '{current_day,population,activity_24h,living_memory:{forest:.living_memory.forest,pressures:.living_memory.pressures},recent_events:(.recent_events[:20])}')"
+          echo "$M" | jq -e '.ok == true and .current_day.day == 19'
