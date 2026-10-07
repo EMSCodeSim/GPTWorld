@@ -22,3 +22,4 @@ jobs:
           M="$(curl --fail --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
           echo "MEMORY_SUMMARY=$(echo "$M" | jq -c '{current_day,population,activity_24h,living_memory:{forest:.living_memory.forest,pressures:.living_memory.pressures},recent_events:(.recent_events[:20])}')"
           echo "$M" | jq -e '.ok == true and .current_day.day == 19'
+
