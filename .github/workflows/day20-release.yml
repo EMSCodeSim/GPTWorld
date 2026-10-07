@@ -47,3 +47,4 @@ jobs:
           M="$(curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors https://gptlife.netlify.app/.netlify/functions/world-memory)"
           echo "MEMORY=$(echo "$M" | jq -c '{current_day,population}')"
           echo "$M" | jq -e '.ok == true and .current_day.day == 20 and (((.world.render_entities // []) | if type=="array" then . else (.entities // []) end) | any(.id == "empty-meadow-rewilding-grass-1"))'
+
