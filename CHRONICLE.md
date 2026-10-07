@@ -141,3 +141,12 @@ Player activity quieted to one active traveler and three herb gathers during the
 Instead, the landscape now visibly remembers a change produced by the autonomous ecosystem. Eco Year 24 recorded the extinction of the Meadow Grazer and severe pressure on the remaining herbivore population. A short trail beyond the existing western game route now leads to an old grazer marker and patches of ungrazed meadow grass.
 
 The Empty Meadow does not alter the ecology simulation or manufacture new wildlife. Weather, predation, migration, breeding, resource recovery, settlement needs, NPC life, disasters, and world aging continue independently. The new site simply makes the world's ecological history physically discoverable.
+
+
+## Day 20 — Meadow Reclamation
+
+Player activity remained quiet, with one traveler active but no meaningful player actions recorded during the latest 24-hour window. The autonomous world continued regardless: weather and disaster systems ticked hourly, settlement consumption continued, and ecology advanced to Year 25 with two additional extinctions.
+
+The Empty Meadow is now visibly changing. Tall ungrazed grasses and young saplings persist around the Day 19 site, deepening the same ecological story instead of creating an unrelated settlement project.
+
+The vegetation does not change the autonomous ecology simulation. Weather, disasters, ecology, resource recovery, settlement needs, NPC routines and memories, and world aging continue independently of the numbered Chronicle day.
