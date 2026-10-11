@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
+import {resizeRetroViewport} from './lib/retro-visuals.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
@@ -402,8 +403,8 @@ function build(data){
   data=restorePrivateInteriorSpawn(data);
   loadedPayload=data;terrain=data.world.terrain;currentEcology=data.world.ecology;worldSeed=data.world.seed;
   resourceStates.clear();for(const node of data.world.resources||[])resourceStates.set(node.nodeId,node);
-  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.1,210);
-  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;worldEl.replaceChildren(renderer.domElement);
+  scene=new THREE.Scene();camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,210);
+  renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;worldEl.replaceChildren(renderer.domElement);
   skyLight=new THREE.HemisphereLight(0xc7e7ff,0x38442d,2.1);scene.add(skyLight);
   sun=new THREE.DirectionalLight(0xffedc6,2.45);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
   ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),material(plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
@@ -1000,7 +1001,7 @@ async function syncPositionNow(){
 }
 function requestKey(action){return`${action}-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;}
 async function leave(){if(!running)return;returnTown.disabled=true;await savePosition();try{const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'return_public',idempotencyKey:requestKey('return'),position:{x:player.position.x,z:player.position.z}})}),data=await response.json();if(!data.ok)throw Error(data.error||'return_failed');sessionStorage.setItem('gptworld-public-spawn',JSON.stringify(data.position));location.assign('./index.html?from=private');}catch{showToast('Return failed. Your world remains saved; try again.');returnTown.disabled=false;}}
-function resize(){if(!renderer)return;const width=worldEl.clientWidth,height=worldEl.clientHeight;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
+function resize(){if(!renderer)return;resizeRetroViewport(renderer,camera,worldEl.clientWidth,worldEl.clientHeight);}
 function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}if(time-lastLivingRefresh>12000)refreshLivingWorld();renderer.render(scene,camera);}
 async function load(){
   retry.hidden=true;activeClientId=localStorage.getItem(CLIENT_KEY)||'';
