@@ -188,8 +188,34 @@ function animalDistance(animal,target=null){
   const x=Number(position?.x??animal?.x??0),z=Number(position?.z??animal?.z??0);
   return Math.hypot(Number(player?.position?.x||0)-x,Number(player?.position?.z||0)-z);
 }
-function bestBow(){const gear=new Set(survivalData?.equipment||[]);if(gear.has(equippedBow))return equippedBow;return ['composite-bow','reinforced-bow','basic-bow'].find(key=>gear.has(key))||null;}
-function equipBow(key){if(!(survivalData?.equipment||[]).includes(key))return;equippedBow=key;localStorage.setItem('gptworld-equipped-bow',key);updateBowVisual();updateHuntHud(true);renderSurvival();}
+function bestBow(){const gear=new Set(survivalData?.equipment||[]);if(avatarEquipmentLoaded)return gear.has(equippedBow)?equippedBow:null;if(gear.has(equippedBow))return equippedBow;return ['composite-bow','reinforced-bow','basic-bow'].find(key=>gear.has(key))||null;}
+let avatarEquipmentLoaded=false;
+window.addEventListener('gptworld:avatar-equipment',event=>{
+  avatarEquipmentLoaded=true;
+  const key=event.detail?.mainHand||'';
+  equippedBow=key.endsWith('-bow')?key:'';
+  localStorage.setItem('gptworld-equipped-bow',equippedBow);
+  updateBowVisual();updateHuntHud(true);
+});
+async function saveHuntingBowToAvatar(key){
+  const clientId=activeClientId;if(!clientId)return;
+  const url='/.netlify/functions/avatar';
+  const response=await fetch(url+'?clientId='+encodeURIComponent(clientId),{cache:'no-store'});
+  const state=await response.json();
+  if(!response.ok||!state.ok)throw Error(state.error||'equipment_unavailable');
+  const bow=state.items.find(item=>item.key===key&&!item.placed);
+  if(!bow)throw Error('bow_not_in_backpack');
+  const saved=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'equip',slot:'mainHand',itemId:bow.id})});
+  const result=await saved.json();
+  if(!saved.ok||!result.ok)throw Error(result.error||'equip_failed');
+  window.dispatchEvent(new Event('gptworld:equipment-refresh'));
+}
+function equipBow(key){
+  if(!(survivalData?.equipment||[]).includes(key))return;
+  equippedBow=key;localStorage.setItem('gptworld-equipped-bow',key);
+  updateBowVisual();updateHuntHud(true);renderSurvival();
+  saveHuntingBowToAvatar(key).catch(error=>showToast('Bow equip did not save: '+error.message));
+}
 function updateBowVisual(){if(!player)return;if(bowVisual){player.remove(bowVisual);bowVisual=null;}if(!bestBow())return;const group=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:0x80502d,roughness:.8});const curve=new THREE.TorusGeometry(.42,.035,6,20,Math.PI);const wood=new THREE.Mesh(curve,mat);wood.rotation.z=Math.PI/2;group.add(wood);const string=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.85,5),new THREE.MeshStandardMaterial({color:0xd8cba7}));group.add(string);group.position.set(.36,1.02,.18);group.rotation.y=.5;player.add(group);bowVisual=group;}
 function animateBowShot(){if(!player||!bestBow())return;updateBowVisual();bowAnimationUntil=performance.now()+620;}
 
