@@ -218,6 +218,10 @@ async function craft(sql,actor,recipe,key){
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key=${recipe.skill} LIMIT 1`;
   const skillBefore=Number(skillRows[0]?.skill_value||0);
   if(skillBefore<Number(recipe.minSkill||0))return{ok:false,error:'recipe_locked',requiredSkill:Number(recipe.minSkill||0),currentSkill:skillBefore};
+  if(recipe.skill==='blacksmithing'){
+    const forge=await sql`SELECT 1 FROM player_crafted_items item JOIN player_world_sessions session ON session.player_id=item.player_id AND session.private_world_id=item.world_id WHERE item.player_id=${actor.id} AND item.item_key='portable-forge' AND item.placed_at IS NOT NULL AND session.current_world_type='private' LIMIT 1`;
+    if(!forge.length)return{ok:false,error:'portable_forge_required'};
+  }
   const input=recipe.inputs;
   const claimed=await sql`
     INSERT INTO crafting_action_receipts(player_id,world_id,idempotency_key,recipe_key,response)
