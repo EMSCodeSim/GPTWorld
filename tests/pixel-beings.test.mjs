@@ -125,6 +125,8 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
   assert.equal(person.userData.pixel.feature, true);
   assert.equal(person.userData.pixel.stylized, true);
   assert.equal(person.userData.pixel.cartoon, true);
+  assert.ok(person.userData.pixel.mouth);
+  assert.ok(person.userData.rig.mouth);
   assert.ok(person.userData.rig.armL.isMesh);
   assert.ok(person.userData.rig.armR.isMesh);
   assert.ok(person.userData.rig.legL.isMesh);
