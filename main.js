@@ -319,6 +319,9 @@ function renderMerchantTrade(){
     const tier=hot?(Number(hot[1])>=85?'URGENT':'HIGH'):null;
     merchantIntro.textContent=hot?`${base} Town demand: ${hot[0].toUpperCase()} — ${tier}.` : base;
   }
+  let forgeOffer=document.getElementById('portableForgeOffer');
+  if(!forgeOffer&&merchantIntro){forgeOffer=document.createElement('button');forgeOffer.id='portableForgeOffer';forgeOffer.type='button';forgeOffer.style.cssText='display:block;width:100%;padding:14px;margin:10px 0;background:#74542d;color:#fff1d4;border:1px solid #b08a4b;border-radius:10px;touch-action:manipulation';merchantIntro.insertAdjacentElement('afterend',forgeOffer);forgeOffer.addEventListener('click',async()=>{if(activeMerchantKey!=='blacksmith'||forgeOffer.disabled)return;forgeOffer.disabled=true;forgeOffer.textContent='Buying forge…';try{const clientId=localStorage.getItem(CLIENT_KEY);const response=await fetch(MERCHANT_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId,action:'buy_portable_forge',merchantKey:'blacksmith',idempotencyKey:crypto.randomUUID()})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Purchase failed');showMerchantReceipt('Portable Forge purchased! Enter your private world, open Craft, and place the forge from your possessions.');await loadMerchantCatalog('blacksmith');renderMerchantTrade();}catch(error){showMerchantReceipt('Forge purchase failed: '+error.message);}finally{forgeOffer.disabled=false;forgeOffer.textContent='Buy Portable Forge · 75 coins';}});}
+  if(forgeOffer){forgeOffer.hidden=activeMerchantKey!=='blacksmith';forgeOffer.textContent='Buy Portable Forge · 75 coins';}
   if(merchantBudget)merchantBudget.textContent=String(merchant?.budget??'—');
   if(merchantPlayerCoins)merchantPlayerCoins.textContent=String(merchantCatalog?.coins??state.inventory.coins??0);
   const items=eligibleBag(activeMerchantKey);
