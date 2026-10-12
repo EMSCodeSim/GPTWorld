@@ -37,6 +37,8 @@ test('public and private worlds apply the same equipment attachments', () => {
   assert.match(privateWorld, /equippedMainHand/);
   assert.match(equip3d, /attachments/);
   assert.match(equip3d, /attachMainHand|mainHand/);
+  assert.match(equip3d, /CHARACTER_LAYER/);
+  assert.match(equip3d, /markOnCharacterLayer/);
 });
 
 test('hunting requires equipped main-hand weapon server-side', () => {

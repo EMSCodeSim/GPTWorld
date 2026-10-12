@@ -3,6 +3,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {createPixelHumanoid, animatePixelHumanoid} from './lib/pixel-beings.mjs';
 import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+import {CHARACTER_LAYER} from './lib/retro-visuals.mjs';
 
 const API = '/.netlify/functions/avatar';
 const CLIENT_KEY = 'gptworld-client-id';
@@ -104,11 +105,15 @@ function ensurePreview() {
   const camera = new THREE.PerspectiveCamera(32, (canvas.clientWidth || 280) / (canvas.clientHeight || 360), 0.1, 20);
   camera.position.set(1.55, 1.55, 3.1);
   camera.lookAt(0, 1.15, 0);
+  camera.layers.enable(CHARACTER_LAYER);
   const hemi = new THREE.HemisphereLight(0xf2e6c9, 0x2a3a30, 1.05);
   const key = new THREE.DirectionalLight(0xfff1d0, 1.15);
   key.position.set(2.2, 4.2, 2.4);
   const fill = new THREE.DirectionalLight(0x9ec2ff, 0.35);
   fill.position.set(-2.5, 1.5, -1.5);
+  hemi.layers.enable(CHARACTER_LAYER);
+  key.layers.enable(CHARACTER_LAYER);
+  fill.layers.enable(CHARACTER_LAYER);
   scene.add(hemi, key, fill);
   const character = createPixelHumanoid(THREE, {
     outfit: 0x526f62,
@@ -141,9 +146,8 @@ function startPreviewLoop() {
 }
 
 function syncPreview() {
-  if (!data) return;
   const p = ensurePreview();
-  applyAvatarEquipment(THREE, p.character, data);
+  if (data?.slots && Array.isArray(data.items)) applyAvatarEquipment(THREE, p.character, data);
   const w = canvas.clientWidth || 280;
   const h = canvas.clientHeight || 360;
   p.renderer.setSize(w, h, false);
@@ -167,13 +171,29 @@ async function request(body) {
 
 function paintStats() {
   const b = data?.bonuses || {defense: 0, damage: 0, range: 0, carryingCapacity: 0};
+  const slotsReady = Boolean(data?.slots);
   statsEl.innerHTML = `
     <div class="avatar-stat"><span>Defense</span><strong>${b.defense || 0}</strong></div>
     <div class="avatar-stat"><span>Weapon dmg</span><strong>${b.damage || 0}</strong></div>
     <div class="avatar-stat"><span>Hunt range</span><strong>${b.range || 0}</strong></div>
     <div class="avatar-stat"><span>Carry bonus</span><strong>+${b.carryingCapacity || 0}</strong></div>
-    <p class="avatar-stat-note">Defense is shown from equipped armor. Player HP combat is not live yet — only hunting uses weapon range and damage. Carry bonus applies when a backpack is equipped.</p>
+    <p class="avatar-stat-note">${slotsReady
+      ? 'Defense is shown from equipped armor. Player HP combat is not live yet — hunting uses weapon range and damage. Carry bonus applies when a backpack is equipped.'
+      : 'Live stylized preview ready. Sign in as a traveler to load and equip backpack gear.'}</p>
   `;
+  if (!slotsReady) {
+    slots.replaceChildren();
+    for (const [key, label] of Object.entries(SLOT_NAMES)) {
+      const row = document.createElement('div');
+      row.className = 'avatar-slot';
+      const name = document.createElement('span');
+      name.textContent = `${SYMBOLS[key]} ${label}`;
+      const value = document.createElement('strong');
+      value.textContent = 'Empty';
+      row.append(name, value);
+      slots.append(row);
+    }
+  }
 }
 
 function showCompare(candidate, currentKey) {
@@ -306,14 +326,18 @@ async function mutate(body) {
 async function open() {
   panel.hidden = false;
   status.textContent = 'Loading your character…';
+  ensurePreview();
+  syncPreview();
+  startPreviewLoop();
   try {
     data = await request();
     el('avatarHeading').textContent = `${data.name}'s avatar`;
     status.textContent = 'Equip gear from your backpack. Changes save to your traveler and update the walking character.';
     paint();
-    startPreviewLoop();
   } catch (error) {
     status.textContent = error.message;
+    // Keep the live stylized preview visible even before a traveler session loads.
+    paintStats();
   }
 }
 
