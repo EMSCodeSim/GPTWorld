@@ -198,7 +198,7 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
   if(!gear.length)return{ok:false,error:'equipment_required'};
   const old=await sql`SELECT status,respawn_after,updated_at,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND animal_id=${animalId}`;
   if(old[0]?.status==='harvested'&&(!old[0].respawn_after||new Date(old[0].respawn_after)>new Date()))return{ok:false,error:'animal_already_harvested'};
-  if(old[0]?.status==='active'&&Date.now()-new Date(old[0].updated_at).getTime()<12000)return{ok:false,error:'hunt_cooldown'};
+  if(old[0]?.status==='active'&&Date.now()-new Date(old[0].updated_at).getTime()<1200)return{ok:false,error:'hunt_cooldown'};
   const meta=old[0]?.metadata||{};
   const noise=playerNoise({moving:Boolean(body.moving),running:Boolean(body.running),crouching:Boolean(body.crouching)});
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='hunting'`;
@@ -210,7 +210,7 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
     eventPenalty:huntDifficultyBonus(event)
   });
   const previousHealth=Math.max(1,Math.min(100,Number(meta.health??100)));
-  const damage=outcome.success?previousHealth:outcome.woundOnly?Math.min(previousHealth-1,35):Math.min(previousHealth-1,Math.max(4,Math.round(outcome.chance*18)));
+  const damage=outcome.success?previousHealth:outcome.woundOnly?Math.min(previousHealth,35):Math.min(previousHealth,Math.max(4,Math.round(outcome.chance*18)));
   const remainingHealth=Math.max(0,previousHealth-damage);
   if(outcome.success){
     const claimed=await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,harvested_at,respawn_after,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'harvested',now(),now()+interval '24 hours',${JSON.stringify({equipment,health:0,tracked:meta.tracked,stalked:meta.stalked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='harvested',harvested_at=now(),respawn_after=now()+interval '24 hours',metadata=EXCLUDED.metadata,updated_at=now() WHERE private_hunting_state.status='active' OR private_hunting_state.respawn_after<=now() RETURNING animal_id`;
