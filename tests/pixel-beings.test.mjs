@@ -127,12 +127,16 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
   assert.ok(person.userData.rig.legL.isMesh);
   assert.ok(person.userData.rig.legR.isMesh);
   assert.ok(person.userData.rig.head.isMesh);
+  assert.ok(person.userData.rig.legLPivot.children.length > 1);
+  assert.ok(person.userData.rig.kneeL);
+  assert.ok(person.userData.rig.elbowR);
   assert.ok(person.userData.pixel.eyeL);
   assert.equal(person.layers.value, CHARACTER_LAYER);
   assert.equal(person.userData.rig.armL.layers.value, CHARACTER_LAYER);
 
   animatePixelHumanoid(person, true, 1200, 1);
-  assert.notEqual(person.userData.rig.legL.rotation.x, 0);
+  assert.notEqual(person.userData.rig.legLPivot.rotation.x, 0);
+  assert.notEqual(person.userData.rig.kneeL.rotation.x, 0);
 
   person.userData.rig.armR.rotation.x = -1.2;
   animatePixelHumanoid(person, false, 2000, 1);
@@ -156,6 +160,8 @@ test('feature creatures keep gait rigs, ears, and character layer', () => withDo
   assert.ok(creature.userData.rig.body.isMesh);
   assert.ok(creature.userData.rig.head.isMesh);
   assert.ok(creature.userData.rig.tail.isMesh);
+  assert.equal(creature.userData.rig.legPivots.length, 4);
+  assert.equal(creature.userData.rig.lowerLegs.length, 4);
   assert.ok(creature.userData.pixel.earL);
   assert.equal(creature.layers.value, CHARACTER_LAYER);
 
