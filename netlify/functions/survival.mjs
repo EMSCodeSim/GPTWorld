@@ -16,7 +16,7 @@ async function context(sql,clientId){
     WHERE p.client_id=${clientId} LIMIT 1`;
   return rows[0]||null;
 }
-async function ensureSkills(sql,playerId){for(const key of CRAFTING_SKILL_KEYS)await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${playerId},${key}) ON CONFLICT(player_id,skill_key) DO NOTHING`;}
+async function ensureSkills(sql,playerId){for(const key of new Set([...CRAFTING_SKILL_KEYS,'archery']))await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${playerId},${key}) ON CONFLICT(player_id,skill_key) DO NOTHING`;}
 async function livingAnimals(sql,actor,atMs=Date.now()){
   const rows=await sql`SELECT key,value FROM world_state WHERE key IN ('weather_sim','ecosystem','forest_pressure','living_world_event')`;
   const living=Object.fromEntries(rows.map(row=>[row.key,row.value]));
@@ -37,7 +37,7 @@ async function payload(sql,actor){
   const [{animals,ecology,event,season},plots,skills,items,hunted]=await Promise.all([
     livingAnimals(sql,actor,generatedAt),
     sql`SELECT * FROM private_farm_plots WHERE world_id=${actor.world_id} AND player_id=${actor.id} ORDER BY created_at`,
-    sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key IN ('farming','hunting') ORDER BY skill_key`,
+    sql`SELECT skill_key,skill_value,attempts FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key IN ('farming','hunting','archery') ORDER BY skill_key`,
     sql`SELECT item_key,COALESCE(quantity,1) AS quantity FROM player_crafted_items WHERE player_id=${actor.id} AND placed_at IS NULL`,
     sql`SELECT animal_id,status,respawn_after,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND player_id=${actor.id}`
   ]);
@@ -202,9 +202,10 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
   const meta=old[0]?.metadata||{};
   const noise=playerNoise({moving:Boolean(body.moving),running:Boolean(body.running),crouching:Boolean(body.crouching)});
   const skillRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='hunting'`;
+  const archeryRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='archery'`;
   const outcome=resolveHunt({
     key:`${actor.id}:${animalId}:${key}`,species:animal.speciesName||animal.species,kind:animal.kind,
-    skill:skillRows[0]?.skill_value,equipment,distance,injury:animal.injury,noise,
+    skill:Math.min(100,Number(skillRows[0]?.skill_value||0)*0.65+Number(archeryRows[0]?.skill_value||0)*0.35),equipment,distance,injury:animal.injury,noise,
     tracked:Boolean(meta.tracked),stalked:Boolean(meta.stalked),wounded:Boolean(meta.wounded),
     eventPenalty:huntDifficultyBonus(event)
   });
@@ -218,7 +219,9 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
     await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'active',${JSON.stringify({equipment,lastOutcome:'escaped',tracked:meta.tracked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='active',metadata=EXCLUDED.metadata,updated_at=now()`;
   }
   const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${outcome.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='hunting' RETURNING skill_value`;
-  return{ok:true,action:'hunt',...outcome,animalId,skillValue:Number(skill[0]?.skill_value||0),noise};
+  const archeryXp=Math.max(0.2,Math.min(2.5,Number(outcome.xp||0)));
+  const archery=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${archeryXp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='archery' RETURNING skill_value`;
+  return{ok:true,action:'hunt',...outcome,animalId,skillValue:Number(skill[0]?.skill_value||0),archerySkillValue:Number(archery[0]?.skill_value||0),archeryXp,noise};
 }
 async function harvestAnimal(sql,actor,animalId){
   const rows=await sql`SELECT * FROM private_hunting_state WHERE world_id=${actor.world_id} AND animal_id=${animalId} AND player_id=${actor.id} FOR UPDATE`;
