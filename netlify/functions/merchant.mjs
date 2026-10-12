@@ -297,29 +297,46 @@ async function buyPortableForge(sql,actor,key){
   const price=75;
   const prior=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
   if(prior.length)return prior[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:prior[0].response;
-  const rows=await sql`
-    WITH claim AS (
-      INSERT INTO merchant_trade_receipts(player_id,idempotency_key,merchant_key,response)
-      SELECT ${actor.id},${key},'blacksmith','{"ok":false,"error":"pending"}'::jsonb
-      FROM player_inventory WHERE player_id=${actor.id} AND coins>=${price}
-      ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id
-    ), debit AS (
-      UPDATE player_inventory SET coins=coins-${price},updated_at=now()
-      WHERE player_id=${actor.id} AND coins>=${price} AND EXISTS(SELECT 1 FROM claim)
-      RETURNING coins
-    ), item AS (
-      INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,quantity,metadata)
-      SELECT ${actor.id},w.id,'portable-forge','Portable Forge','blacksmithing','standard',150,150,'Tovan the Smith',1,'{"purchased":true,"placeable":true}'::jsonb
-      FROM player_worlds w,debit WHERE w.owner_player_id=${actor.id}
-      RETURNING id
-    ), receipt AS (
-      UPDATE merchant_trade_receipts SET response=jsonb_build_object('ok',true,'action','buy_portable_forge','itemId',item.id::text,'coins',debit.coins,'price',${price}::int)
-      FROM item,debit WHERE player_id=${actor.id} AND idempotency_key=${key} RETURNING response
-    ) SELECT response FROM receipt
+  // Claim the idempotency key in a separate statement. PostgreSQL cannot safely
+  // INSERT and UPDATE the same receipt row within one data-modifying CTE.
+  const claim=await sql`
+    INSERT INTO merchant_trade_receipts(player_id,idempotency_key,merchant_key,response)
+    VALUES(${actor.id},${key},'blacksmith','{"ok":false,"error":"pending"}'::jsonb)
+    ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id
   `;
-  if(rows.length)return rows[0].response;
-  const raced=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
-  return raced[0]?.response||{ok:false,error:'insufficient_coins_or_private_world_missing'};
+  if(!claim.length){
+    const raced=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
+    return raced[0]?.response?.error==='pending'?{ok:false,error:'action_in_progress'}:raced[0]?.response||{ok:false,error:'action_in_progress'};
+  }
+  try{
+    const rows=await sql`
+      WITH debit AS (
+        UPDATE player_inventory SET coins=coins-${price},updated_at=now()
+        WHERE player_id=${actor.id} AND coins>=${price}
+          AND EXISTS(SELECT 1 FROM player_worlds WHERE owner_player_id=${actor.id})
+        RETURNING coins
+      ), item AS (
+        INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,quantity,metadata)
+        SELECT ${actor.id},w.id,'portable-forge','Portable Forge','blacksmithing','standard',150,150,'Tovan the Smith',1,'{"purchased":true,"placeable":true}'::jsonb
+        FROM player_worlds w,debit WHERE w.owner_player_id=${actor.id}
+        RETURNING id
+      ), finalized AS (
+        UPDATE merchant_trade_receipts receipt
+        SET response=jsonb_build_object('ok',true,'action','buy_portable_forge','itemId',item.id::text,'coins',debit.coins,'price',${price}::int)
+        FROM item,debit WHERE receipt.player_id=${actor.id} AND receipt.idempotency_key=${key}
+        RETURNING receipt.response
+      ) SELECT response FROM finalized
+    `;
+    if(rows.length)return rows[0].response;
+    const failed={ok:false,error:'insufficient_coins_or_private_world_missing'};
+    await sql`UPDATE merchant_trade_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key}`;
+    return failed;
+  }catch(error){
+    // A failed SQL statement rolls back its coin deduction and item creation.
+    const failed={ok:false,error:'forge_purchase_failed'};
+    await sql`UPDATE merchant_trade_receipts SET response=${JSON.stringify(failed)}::jsonb WHERE player_id=${actor.id} AND idempotency_key=${key} AND response->>'error'='pending'`;
+    throw error;
+  }
 }
 
 export default async req=>{
