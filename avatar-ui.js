@@ -103,7 +103,7 @@ function paint(){
   }
   // Existing hunting controls already animate bow shots. Keep their equipped bow in sync.
   const main=byId.get(data.slots.mainHand);
-  window.dispatchEvent(new CustomEvent('gptworld:avatar-equipment',{detail:{mainHand:main?.key||'',slots:data.slots}}));
+  window.dispatchEvent(new CustomEvent('gptworld:avatar-equipment',{detail:{mainHand:main?.key||'',slots:data.slots,items:data.items}}));
 }
 async function mutate(body){
   if(busy)return;busy=true;status.textContent='Saving equipment…';
