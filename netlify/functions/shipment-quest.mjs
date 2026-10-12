@@ -1,0 +1,105 @@
+import {neon} from '@neondatabase/serverless';
+import {SHIPMENT_QUEST_ID,SHIPMENT_POINTS,SHIPMENT_REWARD,shipmentNext,shipmentNarrative} from '../lib/shipment-quest-core.mjs';
+const respond=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+const clean=(s,n=100)=>String(s||'').trim().slice(0,n);
+async function ensure(sql){
+ await sql`CREATE TABLE IF NOT EXISTS player_story_quests (
+  player_id bigint NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  quest_key text NOT NULL,
+  stage text NOT NULL DEFAULT 'not_started',
+  choice text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(player_id,quest_key)
+ )`;
+}
+async function actorFor(sql,clientId){
+ const rows=await sql`SELECT p.id,p.display_name,p.x,p.z,COALESCE(i.coins,0) coins
+ FROM players p LEFT JOIN player_inventory i ON i.player_id=p.id WHERE p.client_id=${clientId} LIMIT 1`;
+ return rows[0];
+}
+async function read(sql,actor){
+ const rows=await sql`SELECT stage,choice,started_at,completed_at FROM player_story_quests
+ WHERE player_id=${actor.id} AND quest_key=${SHIPMENT_QUEST_ID}`;
+ const quest=rows[0]||{stage:'not_started',choice:null,started_at:null,completed_at:null};
+ return{ok:true,quest:{...quest,key:SHIPMENT_QUEST_ID,description:shipmentNarrative(quest.stage)},
+ player:{coins:Number(actor.coins||0)}};
+}
+function atPoint(actor,point){return Math.hypot(Number(actor.x)-point.x,Number(actor.z)-point.z)<=6.5;}
+export default async req=>{
+ if(!process.env.DATABASE_URL)return respond({ok:false,error:'database_not_configured'},503);
+ if(!['GET','POST'].includes(req.method))return respond({ok:false,error:'method_not_allowed'},405);
+ const sql=neon(process.env.DATABASE_URL);
+ try{
+  const url=new URL(req.url),body=req.method==='POST'?await req.json().catch(()=>({})):{};
+  const clientId=clean(req.method==='GET'?url.searchParams.get('clientId'):body.clientId,80);
+  if(!clientId)return respond({ok:false,error:'client_id_required'},400);
+  await ensure(sql);
+  let actor=await actorFor(sql,clientId);
+  if(!actor)return respond({ok:false,error:'player_not_registered'},404);
+  if(req.method==='GET')return respond(await read(sql,actor));
+  const action=clean(body.action,35),key=clean(body.idempotencyKey,90);
+  if(!key)return respond({ok:false,error:'idempotency_key_required'},400);
+  // Position is server-owned and refreshed by normal world movement saves.
+  // Tovan is near the town smithy; discovery sites are in the eastern forest.
+  const position=SHIPMENT_POINTS[({accept:'tovan',turn_in:'tovan',inspect_tracks:'tracks',recover:'cache',fight_wolf:'wolf',avoid_wolf:'wolf'})[action]];
+  // All requests are restricted to the public world.
+  const session=await sql`SELECT current_world_type FROM player_world_sessions WHERE player_id=${actor.id} LIMIT 1`;
+  if(session[0]?.current_world_type==='private')return respond({ok:false,error:'return_to_public_world'},409);
+  const record=await read(sql,actor),stage=record.quest.stage;
+  const equipped=action==='fight_wolf'?await sql`
+   SELECT 1 FROM player_equipped_items e
+   JOIN player_crafted_items item ON item.id=e.item_id
+   WHERE e.player_id=${actor.id} AND e.slot='mainHand' AND item.player_id=${actor.id}
+   AND item.placed_at IS NULL AND item.item_key IN ('basic-bow','reinforced-bow','composite-bow') LIMIT 1
+  `:null;
+  const hasBow=Boolean(equipped?.length);
+  const next=shipmentNext(stage,action,{hasBow});
+  if(!next)return respond({ok:false,error:action==='fight_wolf'&&!hasBow?'equip_bow_first':'quest_action_unavailable',quest:record.quest},409);
+  // Accept actions use NPC proximity validated against a server-stored player coordinate.
+  // Forest actions also require visiting their physical discovery point.
+  if(position&&!atPoint(actor,position))return respond({ok:false,error:'approach_quest_location',target:position},409);
+  // Conditional stage transitions prevent duplicate rewards from repeat clicks.
+  if(action==='accept'){
+   await sql`INSERT INTO player_story_quests(player_id,quest_key,stage,started_at)
+    VALUES(${actor.id},${SHIPMENT_QUEST_ID},'tracking',now())
+    ON CONFLICT(player_id,quest_key) DO NOTHING`;
+  }else if(action==='turn_in'){
+   const reward=SHIPMENT_REWARD;
+   const done=await sql`
+    WITH advanced AS (
+     UPDATE player_story_quests SET stage='completed',completed_at=now(),updated_at=now()
+     WHERE player_id=${actor.id} AND quest_key=${SHIPMENT_QUEST_ID} AND stage='shipment_recovered'
+     RETURNING player_id
+    ), payout AS (
+     UPDATE player_inventory SET coins=coins+${reward.coins},stone=stone+${reward.stone},updated_at=now()
+     WHERE player_id=${actor.id} AND EXISTS(SELECT 1 FROM advanced) RETURNING coins,stone
+    ), smith AS (
+     UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${reward.blacksmithingXp}),updated_at=now()
+     WHERE player_id=${actor.id} AND skill_key='blacksmithing' AND EXISTS(SELECT 1 FROM payout)
+     RETURNING skill_value
+    )
+    SELECT payout.coins,payout.stone FROM payout
+   `;
+   if(!done.length)return respond({ok:false,error:'reward_unavailable_retry'},409);
+  }else{
+   const chosen=action==='fight_wolf'?'bow':action==='avoid_wolf'?'stealth':null;
+   const rows=await sql`UPDATE player_story_quests SET stage=${next},choice=COALESCE(${chosen},choice),updated_at=now()
+    WHERE player_id=${actor.id} AND quest_key=${SHIPMENT_QUEST_ID} AND stage=${stage}
+    RETURNING stage`;
+   if(!rows.length)return respond({ok:false,error:'quest_state_changed'},409);
+   if(action==='fight_wolf'){
+    await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${actor.id},'archery') ON CONFLICT DO NOTHING`;
+    await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${SHIPMENT_REWARD.archeryXp}),attempts=attempts+1,updated_at=now()
+      WHERE player_id=${actor.id} AND skill_key='archery'`;
+   }
+  }
+  actor=await actorFor(sql,clientId);
+  const result=await read(sql,actor);
+  return respond({...result,action,reward:next==='completed'?SHIPMENT_REWARD:null});
+ }catch(error){
+  console.error('Shipment quest failed',error);
+  return respond({ok:false,error:'quest_request_failed'},500);
+ }
+};
