@@ -1,8 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,markCharacterObject,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelBankMaterial,createPixelPatchMaterial} from './lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
-import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs?v=pixar-cartoon-2';
+import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs?v=pixar-cartoon-2';
 import {createPixelDoorMaterial,createPixelCloud,createPixelBarrel,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
 import {WORLD_GATEWAY,isInsideWorldGateway} from './world-gateway.mjs';

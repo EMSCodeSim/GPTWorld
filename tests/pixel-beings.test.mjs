@@ -44,8 +44,9 @@ class Group {
   constructor() {
     this.children = [];
     this.userData = {};
-    this.position = { set() {} };
-    this.rotation = { y: 0 };
+    this.position = { x: 0, y: 0, z: 0, set(...args) { [this.x, this.y, this.z] = args; } };
+    this.rotation = { x: 0, y: 0, z: 0 };
+    this.scale = { x: 1, y: 1, z: 1, set(...args) { [this.x, this.y, this.z] = args; } };
     this.layers = { mask: 1, set(v) { this.mask = 1 << v; this.value = v; } };
   }
   add(...items) { this.children.push(...items); }
@@ -123,6 +124,7 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
   assert.equal(person.userData.pixel.kind, 'humanoid');
   assert.equal(person.userData.pixel.feature, true);
   assert.equal(person.userData.pixel.stylized, true);
+  assert.equal(person.userData.pixel.cartoon, true);
   assert.ok(person.userData.rig.armL.isMesh);
   assert.ok(person.userData.rig.armR.isMesh);
   assert.ok(person.userData.rig.legL.isMesh);

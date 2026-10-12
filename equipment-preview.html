@@ -14,14 +14,14 @@
 </head>
 <body>
   <div class="hud">
-    <h1>Stylized traveler</h1>
-    <p>Pixar-inspired humanoid with equipped reinforced bow, leather tunic, traveler backpack, leather boots, and wooden shield. Idle → walk → draw animation.</p>
+    <h1>Cartoon traveler</h1>
+    <p>Pixar-style adventurer with big eyes, soft proportions, reinforced bow, leather tunic, backpack, boots, and wooden shield. Idle → walk → draw.</p>
   </div>
   <div id="stage"></div>
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-    import {createPixelHumanoid, animatePixelHumanoid} from './lib/pixel-beings.mjs';
-    import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+    import {createPixelHumanoid, animatePixelHumanoid} from './lib/pixel-beings.mjs?v=pixar-cartoon-2';
+    import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs?v=pixar-cartoon-2';
     import {CHARACTER_LAYER} from './lib/retro-visuals.mjs';
 
     const stage = document.getElementById('stage');

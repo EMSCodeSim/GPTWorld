@@ -1,8 +1,8 @@
 // Shared public/private Avatar & Pack sheet — same equipment definitions and
 // the same stylized 3D humanoid used in-world.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-import {createPixelHumanoid, animatePixelHumanoid} from './lib/pixel-beings.mjs';
-import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+import {createPixelHumanoid, animatePixelHumanoid} from './lib/pixel-beings.mjs?v=pixar-cartoon-2';
+import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs?v=pixar-cartoon-2';
 import {CHARACTER_LAYER} from './lib/retro-visuals.mjs';
 
 const API = '/.netlify/functions/avatar';

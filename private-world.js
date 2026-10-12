@@ -1,8 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
-import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs?v=pixar-cartoon-2';
+import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs?v=pixar-cartoon-2';
 import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
