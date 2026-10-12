@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from './lib/pixel-beings.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
 import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
@@ -128,7 +128,8 @@ function addWildlife(object){
   const group=createPixelCreature(THREE,{color:baseColor,predator,runner,bodyScale:bodySize,width:.72+bodySize*.1,height:.7,depth:1.2});
   group.position.set(object.x,0,object.z);group.rotation.y=-Number(object.heading||0);group.scale.setScalar(.9+bodySize*.12);
   const rig=group.userData.rig||{};
-  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs:rig.legs||[],head:rig.head,tail:rig.tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore',rig};
+  const pixel=group.userData.pixel;
+  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs:rig.legs||[],head:rig.head,tail:rig.tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore',rig,pixel};
   scene.add(group);animals.push(group);
   interactables.push({type:'animal',label:species.replaceAll('-',' '),livingEntityId:object.entityId||null,message:()=>{const b=group.userData.behavior;return `This ${species.replaceAll('-',' ')} is ${b}. Track it or hunt with a bow.`;},object:group,radius:4.4});
   return group;
@@ -405,7 +406,7 @@ function build(data){
   for(const item of data.world.placedItems||[]){if(item?.metadata?.interior===true)continue;addPlacedCraft(item);}
   homesteadBuildings.clear();homesteadDoors.length=0;
   for(const building of data.world.buildings||[])addHomesteadBuilding(building);
-  camera.position.set(player.position.x+12,14,player.position.z+12);clock=new THREE.Clock();
+  camera.position.set(player.position.x+13,15.5,player.position.z+13);clock=new THREE.Clock();
   $('worldName').textContent=data.world.name;for(const [key,element] of Object.entries(inventoryEls))element.textContent=data.fromCache?'—':Number(data.inventory?.[key]||0);
   applyLivingVisuals();updateStatus();loading.hidden=true;running=true;resize();animate();
   loadSurvival().then(()=>showHomesteadIdentity()).catch(()=>showHomesteadIdentity());
@@ -804,7 +805,7 @@ function updatePlayer(dt,time){
   desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;
   const strength=Math.min(1,desired.length());if(strength){desired.normalize().multiplyScalar(5.2*Number(cartSpeedMod||1)*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z);}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));
   const nextX=clamp(player.position.x+velocity.x*dt,-33,33),nextZ=clamp(player.position.z+velocity.z*dt,-33,33);if(!collides(nextX,player.position.z))player.position.x=nextX;if(!collides(player.position.x,nextZ))player.position.z=nextZ;
-  animatePerson(player,strength>.05,time);cameraTarget.copy(player.position).add(new THREE.Vector3(12,14,12));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.65,player.position.z);
+  animatePerson(player,strength>.05,time);cameraTarget.copy(player.position).add(new THREE.Vector3(13,15.5,13));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.7,player.position.z);
 }
 
 function animalLandPosition(current,candidate){
@@ -834,7 +835,8 @@ function updateAnimals(dt,time){
       }
     }
     const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();const distance=dt*data.speed*(data.behavior==='fleeing'?2.3:1),candidate={x:animal.position.x+offset.x*distance,z:animal.position.z+offset.z*distance},land=animalLandPosition(animal.position,candidate);animal.position.x=land.x;animal.position.z=land.z;animal.rotation.y=Math.atan2(offset.x,offset.z);}
-    const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
+    const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);if(data.head)data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;if(data.tail)data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
+    animatePixelCreature(animal,moving,time,data.behavior||'roaming');
   }
 }
 
