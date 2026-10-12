@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
+import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelBankMaterial,createPixelPatchMaterial} from './lib/pixel-terrain.mjs';
 import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from './lib/pixel-beings.mjs';
