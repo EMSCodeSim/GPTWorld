@@ -240,7 +240,8 @@ async function craft(sql,actor,recipe,key){
   const outcome=resolveCraftAttempt({skillValue:skillBefore,difficulty:recipe.difficulty,key:`${actor.id}:${recipe.key}:${key}`,minSkill:recipe.minSkill});
   const spent=spentInputs(recipe,outcome.success),durability=qualityDurability(recipe.durability,outcome.quality);
   const canStack=outcome.success&&isStackableCrafted(recipe.key);
-  const quality=outcome.quality||'standard';
+  // The persisted item schema supports standard/fine/exceptional, not poor.
+  const quality=outcome.quality==='poor'?'standard':outcome.quality||'standard';
   let rows;
   try{rows=await sql`
     WITH inventory_change AS (
