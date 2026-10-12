@@ -208,7 +208,7 @@ window.addEventListener('focus',refreshWalkingAvatar);
 const shipmentAdventure=createShipmentAdventure({THREE,scene,interactables,player,
  syncPresence:syncPresenceFast,
  openTrade:()=>openMerchantTrade('blacksmith'),
- onReward:data=>{if(data?.player?.coins!=null)applyCoinBalance(data.player.coins);showToast('Tovan rewarded you! Trail Repair Fittings unlocked.');}
+ onReward:data=>{if(data?.player)mergeInventory(data.player);showToast('Tovan rewarded you! Trail Repair Fittings unlocked.');}
 });
 const keys=new Set();let joystickX=0,joystickY=0,nearest=null,gameStarted=false,elapsedWorldMinutes=state.worldMinutes??360,lastSave=0,toastTimer=null,gathering=false,presenceBusy=false;const velocity=new THREE.Vector3(),desired=new THREE.Vector3(),cameraTarget=new THREE.Vector3();const chronicle=state.chronicle?.length?state.chronicle:[{stamp:'Founding Day · Dawn',text:'The first settlement woke beneath a pale sky. Five buildings stood along the dirt road.'},{stamp:'Founding Day · Dawn',text:'Mara opened the Wayfarer Inn. Tovan lit the smithy forge. Edda began mapping the valley’s medicinal plants.'}];renderInventory();renderChronicle();
 function renderInventory(){for(const k of Object.keys(resourceEls)){if(resourceEls[k])resourceEls[k].textContent=String(state.inventory[k]||0)}}
