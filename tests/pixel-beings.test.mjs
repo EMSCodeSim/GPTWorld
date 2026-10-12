@@ -6,35 +6,38 @@ import {
   createPixelCreature,
   animatePixelCreature
 } from '../lib/pixel-beings.mjs';
+import {CHARACTER_LAYER} from '../lib/retro-visuals.mjs';
 
-class Geometry {}
+class Geometry {
+  clone() { return new Geometry(); }
+}
 class Material {
   constructor(options = {}) {
     Object.assign(this, options);
     this.userData = {};
-    if (this.map) {
-      this.map.repeat = this.map.repeat || { set() {} };
-      this.map.offset = this.map.offset || { set() {} };
-    }
   }
+  clone() { return new Material(this); }
 }
 class Mesh {
   constructor(geometry, material) {
+    this.isMesh = true;
     this.geometry = geometry;
     this.material = material;
+    this.children = [];
+    this.layers = { mask: 1, set(v) { this.mask = 1 << v; this.value = v; } };
     this.position = { x: 0, y: 0, z: 0, set(...args) { [this.x, this.y, this.z] = args; } };
     this.rotation = { x: 0, y: 0, z: 0 };
-    this.scale = { set() {} };
+    this.scale = { x: 1, y: 1, z: 1, set(...args) { [this.x, this.y, this.z] = args; } };
     this.castShadow = false;
   }
+  add(...items) { this.children.push(...items); }
   clone() { return new Mesh(this.geometry, this.material); }
-}
-class Sprite {
-  constructor(material) {
-    this.material = material;
-    this.center = { set() {} };
-    this.scale = { set() {} };
-    this.position = { x: 0, y: 0, z: 0 };
+  traverse(fn) {
+    fn(this);
+    for (const child of this.children) {
+      if (typeof child.traverse === 'function') child.traverse(fn);
+      else fn(child);
+    }
   }
 }
 class Group {
@@ -43,39 +46,39 @@ class Group {
     this.userData = {};
     this.position = { set() {} };
     this.rotation = { y: 0 };
+    this.layers = { mask: 1, set(v) { this.mask = 1 << v; this.value = v; } };
   }
   add(...items) { this.children.push(...items); }
+  traverse(fn) {
+    fn(this);
+    for (const child of this.children) {
+      if (typeof child.traverse === 'function') child.traverse(fn);
+      else fn(child);
+    }
+  }
 }
 
 function threeMock() {
   return {
     Group,
     Mesh,
-    Sprite,
     BoxGeometry: class extends Geometry {},
     CircleGeometry: class extends Geometry {},
+    SphereGeometry: class extends Geometry {},
+    CapsuleGeometry: class extends Geometry {},
+    ConeGeometry: class extends Geometry {},
+    TorusGeometry: class extends Geometry {},
     MeshStandardMaterial: Material,
     MeshBasicMaterial: Material,
-    SpriteMaterial: Material,
     CanvasTexture: class {
       constructor(canvas) {
         this.image = canvas;
-        this.canvas = canvas;
-        this.repeat = { set() {} };
-        this.offset = { set() {} };
         this.needsUpdate = false;
-        this.wrapS = null;
-        this.wrapT = null;
         this.colorSpace = null;
-        this.magFilter = null;
-        this.minFilter = null;
-        this.generateMipmaps = true;
       }
     },
     SRGBColorSpace: 'srgb',
     NearestFilter: 'nearest',
-    ClampToEdgeWrapping: 'clamp',
-    RepeatWrapping: 'repeat',
     FrontSide: 0
   };
 }
@@ -91,6 +94,15 @@ function withDocument(run) {
           return {
             imageSmoothingEnabled: true,
             fillStyle: '#000',
+            strokeStyle: '#000',
+            lineWidth: 1,
+            lineCap: 'round',
+            beginPath() {},
+            moveTo() {},
+            quadraticCurveTo() {},
+            ellipse() {},
+            stroke() {},
+            fill() {},
             fillRect() {},
             clearRect() {}
           };
@@ -105,33 +117,29 @@ function withDocument(run) {
   }
 }
 
-test('pixel humanoids expose sprite atlases and a gather-compatible stub rig', () => withDocument(() => {
+test('feature humanoids expose mesh limbs, faces, and character layer', () => withDocument(() => {
   const THREE = threeMock();
   const person = createPixelHumanoid(THREE, { outfit: 0x526f62, pack: true });
   assert.equal(person.userData.pixel.kind, 'humanoid');
-  assert.ok(person.userData.pixel.sprite);
-  assert.ok(person.userData.pixel.material.map);
-  assert.ok(person.userData.rig.armL);
-  assert.ok(person.userData.rig.armR);
-  assert.ok(person.userData.rig.legL);
-  assert.ok(person.userData.rig.legR);
-  assert.ok(person.userData.rig.torso);
-  assert.ok(person.userData.rig.head);
-  assert.ok(person.children.length >= 2);
+  assert.equal(person.userData.pixel.feature, true);
+  assert.ok(person.userData.rig.armL.isMesh);
+  assert.ok(person.userData.rig.armR.isMesh);
+  assert.ok(person.userData.rig.legL.isMesh);
+  assert.ok(person.userData.rig.legR.isMesh);
+  assert.ok(person.userData.rig.head.isMesh);
+  assert.ok(person.userData.pixel.eyeL);
+  assert.equal(person.layers.value, CHARACTER_LAYER);
+  assert.equal(person.userData.rig.armL.layers.value, CHARACTER_LAYER);
 
-  person.rotation.y = Math.PI / 2;
   animatePixelHumanoid(person, true, 1200, 1);
-  assert.equal(person.userData.pixel.dir, 1);
-  assert.ok(person.userData.pixel.frame >= 1);
   assert.notEqual(person.userData.rig.legL.rotation.x, 0);
 
   person.userData.rig.armR.rotation.x = -1.2;
   animatePixelHumanoid(person, false, 2000, 1);
-  assert.equal(person.userData.pixel.gathering, true);
-  assert.equal(person.userData.pixel.frame, 0);
+  assert.equal(person.userData.rig.armR.rotation.x, -1.2);
 }));
 
-test('pixel creatures keep directional frames and a four-leg gait rig', () => withDocument(() => {
+test('feature creatures keep gait rigs, ears, and character layer', () => withDocument(() => {
   const THREE = threeMock();
   const creature = createPixelCreature(THREE, {
     color: 0xb39a67,
@@ -143,18 +151,17 @@ test('pixel creatures keep directional frames and a four-leg gait rig', () => wi
     depth: 1.1
   });
   assert.equal(creature.userData.pixel.kind, 'creature');
-  assert.ok(creature.userData.pixel.sprite);
+  assert.equal(creature.userData.pixel.feature, true);
   assert.equal(creature.userData.rig.legs.length, 4);
-  assert.ok(creature.userData.rig.body);
-  assert.ok(creature.userData.rig.head);
-  assert.ok(creature.userData.rig.tail);
-  assert.equal(creature.userData.rig.bodyBaseY, creature.userData.rig.body.position.y);
+  assert.ok(creature.userData.rig.body.isMesh);
+  assert.ok(creature.userData.rig.head.isMesh);
+  assert.ok(creature.userData.rig.tail.isMesh);
+  assert.ok(creature.userData.pixel.earL);
+  assert.equal(creature.layers.value, CHARACTER_LAYER);
 
-  creature.rotation.y = Math.PI;
   animatePixelCreature(creature, true, 900, 'fleeing');
-  assert.equal(creature.userData.pixel.dir, 2);
-  assert.ok(creature.userData.pixel.frame >= 1);
+  assert.notEqual(creature.userData.rig.legs[0].rotation.x, 0);
 
   animatePixelCreature(creature, false, 900, 'feeding');
-  assert.equal(creature.userData.pixel.frame, 0);
+  assert.ok(creature.userData.rig.head.rotation.x > 0.2);
 }));
