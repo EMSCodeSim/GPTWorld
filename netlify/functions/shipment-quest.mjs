@@ -1,4 +1,5 @@
 import {neon} from '@neondatabase/serverless';
+import {resolveHunt} from '../lib/survival-core.mjs';
 import {SHIPMENT_QUEST_ID,SHIPMENT_POINTS,SHIPMENT_REWARD,shipmentNext,shipmentNarrative} from '../../lib/shipment-quest-core.mjs';
 const respond=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const clean=(s,n=100)=>String(s||'').trim().slice(0,n);
@@ -60,6 +61,25 @@ export default async req=>{
   // Accept actions use NPC proximity validated against a server-stored player coordinate.
   // Forest actions also require visiting their physical discovery point.
   if(position&&!atPoint(actor,position))return respond({ok:false,error:'approach_quest_location',target:position},409);
+  let combat=null;
+  if(action==='fight_wolf'){
+    const [weapon,skills]=await Promise.all([
+      sql`SELECT i.item_key FROM player_equipped_items e JOIN player_crafted_items i ON i.id=e.item_id WHERE e.player_id=${actor.id} AND e.slot='mainHand' AND i.placed_at IS NULL LIMIT 1`,
+      sql`SELECT skill_key,skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key IN ('hunting','archery')`
+    ]);
+    const values=Object.fromEntries(skills.map(row=>[row.skill_key,Number(row.skill_value)]));
+    combat=resolveHunt({key:`shipment:${actor.id}:${key}`,species:'wolf',kind:'predator',skill:(values.hunting||0)*.65+(values.archery||0)*.35,
+      equipment:weapon[0]?.item_key||'basic-bow',distance:2.8,noise:.3,tracked:true,stalked:true});
+    if(!combat.success){
+      await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${actor.id},'archery') ON CONFLICT DO NOTHING`;
+      await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${Math.max(.2,combat.xp)}),attempts=attempts+1,updated_at=now()
+        WHERE player_id=${actor.id} AND skill_key='archery'`;
+      return respond({...record,combat:{success:false,chance:combat.chance,xp:combat.xp},message:'Your arrow misses or glances off. The wolf stays near the wagon. Try again or sneak past.'});
+    }
+  }
+  if(action==='turn_in'){
+    await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${actor.id},'blacksmithing') ON CONFLICT DO NOTHING`;
+  }
   // Conditional stage transitions prevent duplicate rewards from repeat clicks.
   if(action==='accept'){
    await sql`INSERT INTO player_story_quests(player_id,quest_key,stage,started_at)
@@ -91,13 +111,13 @@ export default async req=>{
    if(!rows.length)return respond({ok:false,error:'quest_state_changed'},409);
    if(action==='fight_wolf'){
     await sql`INSERT INTO player_crafting_skills(player_id,skill_key) VALUES(${actor.id},'archery') ON CONFLICT DO NOTHING`;
-    await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${SHIPMENT_REWARD.archeryXp}),attempts=attempts+1,updated_at=now()
+    await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${combat?.xp||SHIPMENT_REWARD.archeryXp}),attempts=attempts+1,updated_at=now()
       WHERE player_id=${actor.id} AND skill_key='archery'`;
    }
   }
   actor=await actorFor(sql,clientId);
   const result=await read(sql,actor);
-  return respond({...result,action,reward:next==='completed'?SHIPMENT_REWARD:null});
+  return respond({...result,action,combat:combat?{success:true,chance:combat.chance,xp:combat.xp}:null,reward:next==='completed'?SHIPMENT_REWARD:null});
  }catch(error){
   console.error('Shipment quest failed',error);
   return respond({ok:false,error:'quest_request_failed'},500);
