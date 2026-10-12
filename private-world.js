@@ -1,8 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
-import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs?v=pixar-cartoon-2';
+import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs?v=pixar-cartoon-2';
 import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
@@ -80,7 +80,9 @@ function makeHumanoid(){
 }
 
 function animatePerson(group,moving,time){
-  animatePixelHumanoid(group,moving,time);if(group===player){const t=Math.max(0,(bowAnimationUntil-performance.now())/620);if(bowVisual){bowVisual.rotation.y=.5+t*.85;bowVisual.position.z=.18-t*.28;}else if(t>0&&group.userData.rig){group.userData.rig.armRPivot.rotation.x=-.9*t;group.userData.rig.elbowR.rotation.x=-.35*t;}}
+  const attack=group===player?Math.max(0,(bowAnimationUntil-performance.now())/620):0;
+  animatePixelHumanoid(group,moving,time,1,{attack});
+  if(group===player&&bowVisual&&attack>0){bowVisual.rotation.y=.5+attack*.85;bowVisual.position.z=.18-attack*.28;}
 }
 
 function growthFor(object){return clamp((currentEcology.plantGrowth??.58)*(.82+hash01(`${worldSeed}:${object.id}`)*.35),.28,1);}
@@ -189,7 +191,15 @@ function animalDistance(animal,target=null){
   const x=Number(position?.x??animal?.x??0),z=Number(position?.z??animal?.z??0);
   return Math.hypot(Number(player?.position?.x||0)-x,Number(player?.position?.z||0)-z);
 }
-function bestBow(){const gear=new Set(survivalData?.equipment||[]);if(avatarEquipmentLoaded)return gear.has(equippedBow)?equippedBow:null;if(gear.has(equippedBow))return equippedBow;return ['composite-bow','reinforced-bow','basic-bow'].find(key=>gear.has(key))||null;}
+function bestBow(){
+  const gear=new Set(survivalData?.equipment||[]);
+  const serverEquipped=survivalData?.equippedMainHand;
+  if(serverEquipped&&gear.has(serverEquipped))return serverEquipped;
+  if(avatarEquipmentLoaded)return gear.has(equippedBow)?equippedBow:null;
+  if(gear.has(equippedBow))return equippedBow;
+  // Without an equipped main-hand weapon, bow attacks are unavailable.
+  return null;
+}
 let avatarEquipmentLoaded=false;
 function applyWalkingAvatar(data){
   if(!player||!data?.slots||!data?.items)return;
@@ -418,7 +428,7 @@ function syncHuntSnapshotAnimals(list=[]){
     if(target.object.userData)target.object.userData.behavior=animal.behavior||target.object.userData.behavior;
   }
 }
-async function loadSurvival({render=true}={}){const response=await fetch(`${SURVIVAL_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'survival_load_failed');survivalData=data;updateBowVisual();syncFarmPlots(data.plots);syncHuntSnapshotAnimals(data.animals||[]);if(render&&!survivalPanel.hidden)renderSurvival();updateHuntHud(true);return data;}
+async function loadSurvival({render=true}={}){const response=await fetch(`${SURVIVAL_API}?clientId=${encodeURIComponent(activeClientId)}`,{cache:'no-store'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'survival_load_failed');survivalData=data;if(data.equippedMainHand){equippedBow=data.equippedMainHand;localStorage.setItem('gptworld-equipped-bow',equippedBow);}updateBowVisual();syncFarmPlots(data.plots);syncHuntSnapshotAnimals(data.animals||[]);if(render&&!survivalPanel.hidden)renderSurvival();updateHuntHud(true);return data;}
 async function openSurvival(target=null,mode='farm'){survivalMode=mode;survivalTarget=target;survivalPanel.hidden=false;velocity.set(0,0,0);keys.clear();resetJoystick();survivalResult.hidden=true;$('survivalTitle').textContent=mode==='hunt'?'Hunting':'Farming';try{await syncPositionNow();await loadSurvival();if(mode==='hunt'){if(target?.type==='animal')selectHuntTarget(target,{announce:false});else if(!huntTarget)chooseNearestAnimal();}renderSurvival();}catch(error){survivalMessage(error.message==='survival_migration_required'?'The farming and hunting database update is not installed yet.':'Could not sync the living-land ledger.');}}
 function hideSurvival(){survivalPanel.hidden=true;if(survivalMode!=='hunt'){survivalTarget=null;clearHuntMarker();}}
 async function beginFieldHunt(){

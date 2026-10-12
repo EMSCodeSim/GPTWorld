@@ -17,7 +17,9 @@ test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(ui,/animalDistance\(animal,target=null\)/);
   assert.match(ui,/animalDistance\(animal,target\)/);
   assert.match(ui,/!data\.serverDriven/);
-  assert.match(ui,/gear\.has\('composite-bow'\)/);
+  assert.match(ui,/equippedMainHand/);
+  assert.match(ui,/function bestBow/);
+  assert.match(ui,/avatarEquipmentLoaded/);
   assert.match(api,/generatedAt/);
   assert.match(api,/snapshotAt/);
   assert.match(ui,/syncHuntSnapshotAnimals/);

@@ -28,6 +28,17 @@ import {
 } from '../lib/progression-core.mjs';
 import {CRAFTING_SKILL_KEYS} from '../lib/crafting-core.mjs';
 import {projectByKey,progressPercent} from '../lib/town-projects-core.mjs';
+import {equipmentDefinition} from '../lib/equipment-core.mjs';
+
+async function equippedCapacityBonus(sql,playerId){
+  try{
+    const rows=await sql`SELECT i.item_key FROM player_equipped_items e
+      JOIN player_crafted_items i ON i.id=e.item_id
+      WHERE e.player_id=${playerId} AND e.slot='back' AND i.placed_at IS NULL AND i.quantity>0 LIMIT 1`;
+    const def=equipmentDefinition(rows[0]?.item_key);
+    return Number(def?.carryingCapacity||0);
+  }catch{return 0;}
+}
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const dbUrl=()=>globalThis.Netlify?.env?.get?.('DATABASE_URL')||process.env.DATABASE_URL;
@@ -227,7 +238,8 @@ async function homesteadContext(sql,player){
   const property=propertyDevelopmentLevel(context);
   const hasCart=craftedKeys.includes('hand-cart');
   const cartLoad=Number(cart.wood||0)+Number(cart.stone||0)+Number(cart.herbs||0);
-  const transport=transportForPlayer({hasCart,cartLoad,skills});
+  const capacityBonus=await equippedCapacityBonus(sql,player.id);
+  const transport=transportForPlayer({hasCart,cartLoad,skills,capacityBonus});
   return{
     world,
     skills,
@@ -583,10 +595,12 @@ async function cartTransfer(sql,player,body,idempotencyKey){
   }
   const nextCargo=(await sql`SELECT wood,stone,herbs FROM player_cart_cargo WHERE player_id=${player.id}`)[0];
   const nextInv=(await sql`SELECT wood,stone,herbs,coins FROM player_inventory WHERE player_id=${player.id}`)[0];
+  const capacityBonus=await equippedCapacityBonus(sql,player.id);
   const transport=transportForPlayer({
     hasCart:true,
     cartLoad:Number(nextCargo.wood)+Number(nextCargo.stone)+Number(nextCargo.herbs),
-    skills:state.skills
+    skills:state.skills,
+    capacityBonus
   });
   const response={ok:true,cart:nextCargo,inventory:nextInv,transport};
   if(idempotencyKey)await sql`INSERT INTO progression_action_receipts(player_id,idempotency_key,action,response) VALUES(${player.id},${idempotencyKey},'cart_transfer',${JSON.stringify(response)}::jsonb) ON CONFLICT DO NOTHING`;

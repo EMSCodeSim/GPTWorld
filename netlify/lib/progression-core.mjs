@@ -681,22 +681,25 @@ export const TRANSPORT_TIERS=Object.freeze([
   {key:'wagon',name:'Wagon',capacity:320,speedMod:0.78,minSkill:90,future:true}
 ]);
 
-export function transportForPlayer({hasCart=false,cartLoad=0,skills=[]}={}){
+export function transportForPlayer({hasCart=false,cartLoad=0,skills=[],capacityBonus=0}={}){
   const carpentry=skillMap(skills).get('carpentry')||0;
   const tier=hasCart&&carpentry>=60
     ?TRANSPORT_TIERS.find(item=>item.key==='hand-cart')
     :TRANSPORT_TIERS[0];
-  const load=clamp(cartLoad,0,tier.capacity);
-  const loadRatio=load/Math.max(1,tier.capacity);
+  // Equipped traveler-backpack (and similar) only — never ownership alone.
+  const capacity=Number(tier.capacity)+Math.max(0,Number(capacityBonus)||0);
+  const load=clamp(cartLoad,0,capacity);
+  const loadRatio=load/Math.max(1,capacity);
   const speedMod=tier.key==='backpack'?1:Number(clamp(tier.speedMod+(1-tier.speedMod)*(1-loadRatio),tier.speedMod,1).toFixed(3));
   return{
     key:tier.key,
-    name:tier.name,
-    capacity:tier.capacity,
+    name:capacityBonus>0&&tier.key==='backpack'?'Traveler Backpack':tier.name,
+    capacity,
     load,
-    remaining:Math.max(0,tier.capacity-load),
+    remaining:Math.max(0,capacity-load),
     speedMod,
-    heavilyLoaded:loadRatio>=0.65
+    heavilyLoaded:loadRatio>=0.65,
+    capacityBonus:Math.max(0,Number(capacityBonus)||0)
   };
 }
 
