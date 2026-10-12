@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
 import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
+import {applyAvatarEquipment} from './lib/avatar-equipment-3d.mjs';
 import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
@@ -79,7 +80,7 @@ function makeHumanoid(){
 }
 
 function animatePerson(group,moving,time){
-  animatePixelHumanoid(group,moving,time);if(group===player&&bowVisual){const t=Math.max(0,(bowAnimationUntil-performance.now())/620);bowVisual.rotation.y=.5+t*.85;bowVisual.position.z=.18-t*.28;}
+  animatePixelHumanoid(group,moving,time);if(group===player){const t=Math.max(0,(bowAnimationUntil-performance.now())/620);if(bowVisual){bowVisual.rotation.y=.5+t*.85;bowVisual.position.z=.18-t*.28;}else if(t>0&&group.userData.rig){group.userData.rig.armRPivot.rotation.x=-.9*t;group.userData.rig.elbowR.rotation.x=-.35*t;}}
 }
 
 function growthFor(object){return clamp((currentEcology.plantGrowth??.58)*(.82+hash01(`${worldSeed}:${object.id}`)*.35),.28,1);}
@@ -190,8 +191,25 @@ function animalDistance(animal,target=null){
 }
 function bestBow(){const gear=new Set(survivalData?.equipment||[]);if(avatarEquipmentLoaded)return gear.has(equippedBow)?equippedBow:null;if(gear.has(equippedBow))return equippedBow;return ['composite-bow','reinforced-bow','basic-bow'].find(key=>gear.has(key))||null;}
 let avatarEquipmentLoaded=false;
+function applyWalkingAvatar(data){
+  if(!player||!data?.slots||!data?.items)return;
+  applyAvatarEquipment(THREE,player,data);
+  player.userData.avatarEquipmentLoaded=true;
+  updateBowVisual();
+}
+async function refreshWalkingAvatar(){
+  const clientId=activeClientId||localStorage.getItem(CLIENT_KEY);if(!clientId||!player)return;
+  try{
+    const response=await fetch('/.netlify/functions/avatar?clientId='+encodeURIComponent(clientId),{cache:'no-store'});
+    const data=await response.json();
+    if(response.ok&&data.ok){applyWalkingAvatar(data);const equipped=data.items.find(item=>item.id===data.slots.mainHand);
+      avatarEquipmentLoaded=true;equippedBow=equipped?.key?.endsWith('-bow')?equipped.key:'';updateBowVisual();updateHuntHud(true);}
+  }catch(error){console.warn('Avatar equipment not available',error);}
+}
+window.addEventListener('focus',refreshWalkingAvatar);
 window.addEventListener('gptworld:avatar-equipment',event=>{
   avatarEquipmentLoaded=true;
+  if(event.detail?.items)applyWalkingAvatar(event.detail);
   const key=event.detail?.mainHand||'';
   equippedBow=key.endsWith('-bow')?key:'';
   localStorage.setItem('gptworld-equipped-bow',equippedBow);
@@ -216,7 +234,7 @@ function equipBow(key){
   updateBowVisual();updateHuntHud(true);renderSurvival();
   saveHuntingBowToAvatar(key).catch(error=>showToast('Bow equip did not save: '+error.message));
 }
-function updateBowVisual(){if(!player)return;if(bowVisual){player.remove(bowVisual);bowVisual=null;}if(!bestBow())return;const group=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:0x80502d,roughness:.8});const curve=new THREE.TorusGeometry(.42,.035,6,20,Math.PI);const wood=new THREE.Mesh(curve,mat);wood.rotation.z=Math.PI/2;group.add(wood);const string=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.85,5),new THREE.MeshStandardMaterial({color:0xd8cba7}));group.add(string);group.position.set(.36,1.02,.18);group.rotation.y=.5;player.add(group);bowVisual=group;}
+function updateBowVisual(){if(!player)return;if(bowVisual){player.remove(bowVisual);bowVisual=null;}if(player.userData.avatarEquipmentLoaded||!bestBow())return;const group=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:0x80502d,roughness:.8});const curve=new THREE.TorusGeometry(.42,.035,6,20,Math.PI);const wood=new THREE.Mesh(curve,mat);wood.rotation.z=Math.PI/2;group.add(wood);const string=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.85,5),new THREE.MeshStandardMaterial({color:0xd8cba7}));group.add(string);group.position.set(.36,1.02,.18);group.rotation.y=.5;player.add(group);bowVisual=group;}
 function animateBowShot(){if(!player||!bestBow())return;updateBowVisual();bowAnimationUntil=performance.now()+620;}
 
 function clearHuntMarker(){if(huntMarker?.parent)huntMarker.parent.remove(huntMarker);huntMarker?.geometry?.dispose?.();huntMarker?.material?.dispose?.();huntMarker=null;}
@@ -1218,11 +1236,11 @@ async function load(){
       const pending=await getQueuedPrivatePosition(activeClientId);if(pending)data.session.position=pending.position;
       await cachePrivateWorld(data,activeClientId);
     }catch{cacheAvailable=false;setSyncState('failed');}
-    build(data);await flushQueuedPosition();
+    build(data);refreshWalkingAvatar();await flushQueuedPosition();
   }catch(error){
     const mayUseCache=!error.status||error.status>=500;
     if(mayUseCache){
-      try{const cached=await getCachedPrivateWorld(activeClientId),pending=await getQueuedPrivatePosition(activeClientId);if(cached){if(pending)cached.session.position=pending.position;build(cached);setSyncState('offline');return;}}catch{cacheAvailable=false;}
+      try{const cached=await getCachedPrivateWorld(activeClientId),pending=await getQueuedPrivatePosition(activeClientId);if(cached){if(pending)cached.session.position=pending.position;build(cached);refreshWalkingAvatar();setSyncState('offline');return;}}catch{cacheAvailable=false;}
     }
     setSyncState(navigator.onLine?'failed':'offline');loadingTitle.textContent='Your world could not open';loadingMessage.textContent=error.message==='living_worlds_migration_required'?'The Living Worlds database migration has not been applied.':mayUseCache?'No saved copy is available on this device yet. Reconnect once to create it.':'Your public progress is safe. Try loading the private world again.';retry.hidden=false;
   }
