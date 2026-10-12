@@ -882,7 +882,7 @@ async function craftRecipe(recipe){
     if(!response.ok||!data.ok)throw Error(data.error||'craft_failed');
     showCraftingResult(data,recipe);
     await loadCrafting();for(const [key,element] of Object.entries(inventoryEls))element.textContent=Number(craftingData.inventory?.[key]||0);
-  }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='recipe_locked'?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}.`:error.message==='private_world_required'?'Craft inside your personal world.':'Please try again. No success was recorded.');}
+  }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='recipe_locked'?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}.`:error.message==='private_world_required'?'Craft inside your personal world.':error.message==='portable_forge_required'?'Place a Portable Forge in your private world for this advanced Blacksmithing recipe.':`Craft failed (${error.message}). No skill XP was awarded.`);}
   finally{craftBusy=false;renderCrafting();}
 }
 async function placeCraftedItem(item){
