@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
 import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from './lib/pixel-beings.mjs';
+import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
@@ -134,13 +135,9 @@ function addWildlife(object){
 }
 
 function addLivingPlant(entity){
-  const group=new THREE.Group(),width=Math.max(.08,Number(entity.width||.4)),height=Math.max(.08,Number(entity.height||.4)),depth=Math.max(.08,Number(entity.depth||.4));
-  group.position.set(Number(entity.x||0),0,Number(entity.z||0));const part=String(entity.part||'');
-  if(part==='blade'){const mesh=new THREE.Mesh(new THREE.ConeGeometry(Math.max(.06,width*.48),height,6),material(entity.color||0x6f9b55));mesh.position.y=height/2;mesh.rotation.z=.08;group.add(mesh);}
-  else if(part==='stem'){const mesh=new THREE.Mesh(new THREE.CylinderGeometry(width*.3,width*.46,height,7),material(entity.color||0x684b32));mesh.position.y=height/2;group.add(mesh);}
-  else if(part==='crown'){const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(.5,1),material(entity.color||0x4f793e));mesh.position.y=Math.max(.38,height*.72);mesh.scale.set(width,height,depth);group.add(mesh);}
-  else if(part==='flower'){const mesh=new THREE.Mesh(new THREE.SphereGeometry(.5,9,7),material(entity.color||0xd8bd62));mesh.position.y=Math.max(.18,height*.8);mesh.scale.set(width,height,depth);group.add(mesh);}
-  else box(group,entity.color||0x5f7f48,[width,height,depth],[0,height/2,0]);
+  const part=String(entity.part||'');
+  const group=createPixelLivingPlantPart(THREE,entity);
+  group.position.set(Number(entity.x||0),0,Number(entity.z||0));
   group.userData={phase:hash01(entity.id)*Math.PI*2,entityId:String(entity.id),livingPlant:true};scene.add(group);plants.push(group);
   if(part==='crown'||part==='plant-patch'||String(entity.id).endsWith('-center')){const label=String(entity.speciesName||entity.species||'wild plant').replaceAll('-',' '),stage=String(entity.plantStage||entity.stage||'mature').replaceAll('-',' '),health=Math.round(Number(entity.plantHealth??100)*(Number(entity.plantHealth??100)<=1?100:1)),available=Number(entity.harvestAvailable);interactables.push({type:'plant',label,livingEntityId:String(entity.id),object:group,radius:2.5,message:`${label} · ${stage} · health ${health}%${Number.isFinite(available)?` · ${Math.max(0,Math.floor(available))} naturally available`:''}. Wildlife can feed here; gatherable plants are marked separately.`});}
   return group;
@@ -169,7 +166,7 @@ function syncLivingEntities(entities=[]){
 }
 
 function addCloud(index){
-  const group=new THREE.Group();for(let i=0;i<5;i++){const puff=new THREE.Mesh(new THREE.SphereGeometry(2.2+i*.12,10,7),new THREE.MeshStandardMaterial({color:0xd9e1df,transparent:true,opacity:.72,depthWrite:false}));puff.scale.y=.55;puff.position.set((i-2)*1.65,(i%2)*.45,0);group.add(puff);}group.position.set(-28+index*18,18+index%2*2,-20+(index%3)*18);scene.add(group);clouds.push(group);
+  const group=createPixelCloud(THREE,index);scene.add(group);clouds.push(group);
 }
 
 function removeFarmPlots(){for(const object of farmPlotObjects.values()){scene.remove(object);object.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}farmPlotObjects.clear();for(let i=interactables.length-1;i>=0;i--)if(interactables[i].type==='farm')interactables.splice(i,1);}
@@ -323,9 +320,11 @@ function addHomesteadBuilding(building){
     box(group,0x3f2c22,[.18,1.35,width*.72],[width/2-.12,wallH-.55,0]);
   }
   if(level>=3)box(group,0x6d5742,[1.4,1.1,.16],[width*.22,1.6,depth/2+.08]);
-  const door=box(group,0x4b3422,[1.2,Math.min(2.1,wallH*.7),.2],[0,1.05,depth/2+.12]);
+  const door=new THREE.Mesh(new THREE.BoxGeometry(1.2,Math.min(2.1,wallH*.7),.2),createPixelDoorMaterial(THREE,0x4b3422));
+  door.position.set(0,1.05,depth/2+.12);
+  if(level>=2){for(const x of[-width*.28,width*.28]){const win=createPixelWindow(THREE);win.position.set(x,wallH*.62,depth/2+.11);group.add(win);}}
   const label=level>=3?'improved cabin':level>=2?'your cabin':'your lean-to';
-  door.castShadow=false;door.userData.buildingId=building.key||'homestead';door.userData.buildingKey=building.key||'homestead';door.userData.buildingRecordId=String(building.id);door.userData.buildingLabel=label;
+  door.castShadow=false;door.userData.buildingId=building.key||'homestead';door.userData.buildingKey=building.key||'homestead';door.userData.buildingRecordId=String(building.id);door.userData.buildingLabel=label;group.add(door);
   homesteadDoors.push(door);scene.add(group);
   blockers.push({x,z,halfX:width/2*.9,halfZ:depth/2*.9});
   const interactable={type:'building',label,building,object:group,radius:3.5};

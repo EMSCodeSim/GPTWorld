@@ -27,6 +27,7 @@ import {
   createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial
 } from '../lib/pixel-terrain.mjs';
 import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from '../lib/pixel-beings.mjs';
+import {createPixelDoorMaterial,createPixelWindow,createPixelBarrel,createPixelLivingPlantPart,createPixelCloud} from '../lib/pixel-props.mjs';
 import {createPineArt,createHerbArt,createRockArt} from '../vegetation-art.js';
 
 const stage=document.getElementById('stage');
@@ -55,7 +56,14 @@ const wall=new THREE.Mesh(new THREE.BoxGeometry(5,3.1,4.5),createPixelWallMateri
 wall.position.y=1.55;wall.castShadow=true;building.add(wall);
 const roof=new THREE.Mesh(new THREE.ConeGeometry(4.2,2.1,4),createPixelRoofMaterial(THREE,0x5b3b2d));
 roof.position.y=4;roof.rotation.y=Math.PI/4;roof.castShadow=true;building.add(roof);
+const door=new THREE.Mesh(new THREE.BoxGeometry(1.15,2.05,.18),createPixelDoorMaterial(THREE));
+door.position.set(0,1.025,2.35);building.add(door);
+for(const x of[-1.3,1.3]){const win=createPixelWindow(THREE);win.position.set(x,1.85,2.36);building.add(win);}
+const barrel=createPixelBarrel(THREE,1);barrel.position.set(2.2,0,1.4);building.add(barrel);
 scene.add(building);
+scene.add(createPixelCloud(THREE,2));
+const meadow=createPixelLivingPlantPart(THREE,{part:'blade',width:.5,height:.9,color:0x6f9b55});
+meadow.position.set(5.5,0,3.2);scene.add(meadow);
 
 const pine=createPineArt(THREE,1);pine.group.position.set(-3,0,8);scene.add(pine.group);
 const herbs=createHerbArt(THREE,1,1);herbs.position.set(1,0,7);scene.add(herbs);
