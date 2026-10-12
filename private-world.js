@@ -76,7 +76,7 @@ function box(parent,value,size,pos,options={}){const mesh=new THREE.Mesh(new THR
 function setSyncState(state,label){syncStateEl.dataset.state=state;syncStateEl.textContent=label||({connecting:'Connecting',synced:'Synced',offline:'Offline',failed:'Sync failed'}[state]||state);}
 
 function makeHumanoid(){
-  return createPixelHumanoid(THREE,{outfit:0x526f62,skin:0xdca77d,hair:0x553824,accent:0x3d4850,pack:true});
+  return createPixelHumanoid(THREE,{outfit:0x526f62,skin:0xdca77d,hair:0x553824,accent:0x3d4850,pack:false});
 }
 
 function animatePerson(group,moving,time){
