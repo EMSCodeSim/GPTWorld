@@ -1,10 +1,13 @@
-const CACHE_NAME='gptworld-private-shell-v17';
+const CACHE_NAME='gptworld-private-shell-v18';
 const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 const PRIVATE_SHELL=[
   './private-world.html',
   './private-world-shell.js?v=living-worlds-10',
-  './private-world.js?v=craft-filter-1',
+  './private-world.js?v=equipment-3d-1',
   './private-world-cache.mjs?v=living-worlds-5',
+  './avatar-ui.js?v=avatar-2',
+  './avatar-ui.css?v=avatar-1',
+  './lib/avatar-equipment-3d.mjs',
   './private-world.css?v=craft-filter-1',
   './styles.css?v=living-worlds-5',
   './assets/crafting/campfire-kit.webp',
