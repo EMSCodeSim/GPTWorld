@@ -67,7 +67,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   if(quest.stage==='wolf_resolved')actions.push(['Recover scattered shipment','recover']);
   if(quest.stage==='shipment_recovered')actions.push(['Return supplies to Tovan','turn_in']);
   if(quest.stage==='completed')actions.push(['Quest completed ✓','none']);
-  if(quest.stage==='not_started'||quest.stage==='shipment_recovered')actions.push(['Trade with Tovan','trade']);
+  actions.push(['Trade with Tovan','trade']);
   for(const [label,action] of actions){
    const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=busy||action==='none';
    button.addEventListener('click',()=>action==='trade'?(close(),openTrade()):act(action));buttons.append(button);
