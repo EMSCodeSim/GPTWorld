@@ -16,7 +16,7 @@ async function ensure(sql){
  )`;
 }
 async function actorFor(sql,clientId){
- const rows=await sql`SELECT p.id,p.display_name,p.x,p.z,COALESCE(i.coins,0) coins
+ const rows=await sql`SELECT p.id,p.display_name,p.x,p.z,COALESCE(i.coins,0) coins,COALESCE(i.stone,0) stone,COALESCE(i.wood,0) wood,COALESCE(i.herbs,0) herbs
  FROM players p LEFT JOIN player_inventory i ON i.player_id=p.id WHERE p.client_id=${clientId} LIMIT 1`;
  return rows[0];
 }
@@ -25,7 +25,7 @@ async function read(sql,actor){
  WHERE player_id=${actor.id} AND quest_key=${SHIPMENT_QUEST_ID}`;
  const quest=rows[0]||{stage:'not_started',choice:null,started_at:null,completed_at:null};
  return{ok:true,quest:{...quest,key:SHIPMENT_QUEST_ID,description:shipmentNarrative(quest.stage)},
- player:{coins:Number(actor.coins||0)}};
+ player:{coins:Number(actor.coins||0),stone:Number(actor.stone||0),wood:Number(actor.wood||0),herbs:Number(actor.herbs||0)}};
 }
 function atPoint(actor,point){return Math.hypot(Number(actor.x)-point.x,Number(actor.z)-point.z)<=6.5;}
 export default async req=>{
