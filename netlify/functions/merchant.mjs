@@ -292,6 +292,32 @@ async function splitStack(sql,actor,itemId,quantity,key){
   return rows[0].response;
 }
 
+// Fixed-price portable forge. Coin debit, item grant and receipt are one database statement.
+async function buyPortableForge(sql,actor,key){
+  const price=75;
+  const prior=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
+  if(prior.length)return prior[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:prior[0].response;
+  const rows=await sql`
+    WITH debit AS (
+      UPDATE player_inventory SET coins=coins-${price},updated_at=now()
+      WHERE player_id=${actor.id} AND coins>=${price}
+      RETURNING coins
+    ), item AS (
+      INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,quantity,metadata)
+      SELECT ${actor.id},w.id,'portable-forge','Portable Forge','blacksmithing','standard',150,150,'Tovan the Smith',1,'{"purchased":true,"placeable":true}'::jsonb
+      FROM player_worlds w,debit WHERE w.owner_player_id=${actor.id}
+      RETURNING id
+    ), receipt AS (
+      INSERT INTO merchant_trade_receipts(player_id,idempotency_key,merchant_key,response)
+      SELECT ${actor.id},${key},'blacksmith',jsonb_build_object('ok',true,'action','buy_portable_forge','itemId',item.id::text,'coins',debit.coins,'price',${price}::int)
+      FROM item,debit ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING response
+    ) SELECT response FROM receipt
+  `;
+  if(rows.length)return rows[0].response;
+  const raced=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
+  return raced[0]?.response||{ok:false,error:'insufficient_coins_or_private_world_missing'};
+}
+
 export default async req=>{
   if(!process.env.DATABASE_URL)return reply({ok:false,error:'database_not_configured'},503);
   const sql=neon(process.env.DATABASE_URL);
@@ -316,6 +342,7 @@ export default async req=>{
       const result=await payload(sql,actor,{merchantKey});
       return reply(result,result.ok?200:result.error==='merchant_not_found'?404:400);
     }
+    if(action==='buy_portable_forge'){if(!key)return reply({ok:false,error:'idempotency_key_required'},400);if(clean(body.merchantKey,40)!=='blacksmith')return reply({ok:false,error:'merchant_not_found'},400);const result=await buyPortableForge(sql,actor,key);return reply(result,result.ok?200:409);}
     if(action==='sell'){
       if(!key)return reply({ok:false,error:'idempotency_key_required'},400);
       const result=await sellItem(sql,actor,clean(body.merchantKey,40),clean(body.itemId,30),body.quantity,key);
