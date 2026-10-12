@@ -87,7 +87,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  }
  async function act(action){
   if(busy)return;
-  const target=action==='accept'||action==='turn_in'?SHIPMENT_POINTS.tovan:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
+  const target=action==='accept'||action==='turn_in'?SHIPMENT_POINTS.tovan:action==='inspect_tracks'?SHIPMENT_POINTS.tracks:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
   if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Approach the quest location before interacting.';return;}
   busy=true;notice.textContent='Saving quest progress…';paint();
   try{
@@ -98,7 +98,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
    const data=await response.json();
    if(!response.ok||!data.ok)throw Error(({equip_bow_first:'Equip a bow in your main hand first.',approach_quest_location:'Move closer to the forest marker or Tovan.',quest_action_unavailable:'That step is not available yet.',return_to_public_world:'Return to public town first.'})[data.error]||data.error||'Quest could not advance');
    quest=data.quest;
-   notice.textContent=data.reward?'Quest complete! 35 coins, 8 stone, +2 Blacksmithing and Trail Repair Fittings unlocked.':'Quest progress saved.';
+   notice.textContent=data.reward?'Quest complete! 35 coins, 8 stone, +2 Blacksmithing and Trail Repair Fittings unlocked.':data.combat&&!data.combat.success?(data.message||'The wolf remains. Try again or sneak around.'):'Quest progress saved.';
    if(data.reward)onReward?.(data);
   }catch(error){notice.textContent=error.message;}finally{busy=false;paint();}
  }
@@ -111,7 +111,6 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   else if(key==='cache'&&stage==='wolf_resolved')act('recover');
   else{open();}
  }
- const originalPaint=paint;
  // Markers only appear during their corresponding quest stage.
  reload();window.addEventListener('focus',reload);
  return{open,close,reload,interact,get stage(){return quest.stage;}};
