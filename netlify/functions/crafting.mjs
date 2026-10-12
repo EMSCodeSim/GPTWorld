@@ -36,6 +36,12 @@ async function ensureSkills(sql,playerId){
   }
 }
 
+async function shipmentRewardUnlocked(sql,playerId){
+ try{
+  const rows=await sql`SELECT 1 FROM player_story_quests WHERE player_id=${playerId} AND quest_key='missing-blacksmith-shipment' AND stage='completed' LIMIT 1`;
+  return rows.length>0;
+ }catch(error){if(/does not exist/.test(String(error.message)))return false;throw error;}
+}
 async function payload(sql,actor){
   await ensureSkills(sql,actor.id);
   const [skills,items,buildings]=await Promise.all([
@@ -48,12 +54,13 @@ async function payload(sql,actor){
       ?sql`SELECT id,building_key,building_type,x,z,level,width,depth,metadata,status FROM private_world_buildings WHERE world_id=${actor.world_id} ORDER BY created_at`
       :Promise.resolve([])
   ]);
+  const shipmentUnlocked=await shipmentRewardUnlocked(sql,actor.id);
   const skillRows=skills.map(skill=>({key:skill.skill_key,value:Number(skill.skill_value),attempts:Number(skill.attempts)}));
   const inventory={wood:Number(actor.wood||0),stone:Number(actor.stone||0),herbs:Number(actor.herbs||0),coins:Number(actor.coins||0)};
   const ownedComponents=items.filter(item=>!item.placed_at).flatMap(item=>Array(Math.max(1,Number(item.quantity||1))).fill(item.item_key));
   return{
     ok:true,
-    recipes:recipesForSkillView(skillRows),
+    recipes:recipesForSkillView(skillRows).filter(recipe=>!recipe.questKey||shipmentUnlocked),
     skills:skillRows,
     house:housePreview(skillRows,inventory,ownedComponents),
     buildings:buildings.map(row=>({id:String(row.id),key:row.building_key,type:row.building_type,x:Number(row.x),z:Number(row.z),level:Number(row.level||1),width:Number(row.width||HOUSE_BLUEPRINT.width),depth:Number(row.depth||HOUSE_BLUEPRINT.depth),metadata:row.metadata||{},status:row.status||'active'})),
@@ -224,6 +231,7 @@ async function craft(sql,actor,recipe,key){
     const forge=await sql`SELECT 1 FROM player_crafted_items item JOIN player_world_sessions session ON session.player_id=item.player_id AND session.private_world_id=item.world_id WHERE item.player_id=${actor.id} AND item.item_key='portable-forge' AND item.placed_at IS NOT NULL AND session.current_world_type='private' LIMIT 1`;
     if(!forge.length)return{ok:false,error:'portable_forge_required'};
   }
+  if(recipe.questKey&&!(await shipmentRewardUnlocked(sql,actor.id)))return{ok:false,error:'quest_required'};
   const input=recipe.inputs;
   const claimed=await sql`
     INSERT INTO crafting_action_receipts(player_id,world_id,idempotency_key,recipe_key,response)
