@@ -943,7 +943,7 @@ function interact(){
   }
   if(nearest.type==='building'){enterHomestead(nearest.building);return;}
   if(nearest.type==='farm'||nearest.type==='animal'){openSurvival(nearest,nearest?.type==='animal'?'hunt':'farm');return;}
-  if(nearest.placedItemId){openCraftedUse(nearest.object.userData.item);return;}
+  if(nearest.placedItemId){if(nearest.object.userData.item?.key==='portable-forge'){craftingSkillFilter='blacksmithing';openCrafting();return;}openCraftedUse(nearest.object.userData.item);return;}
   if(nearest.nodeId){const node=resourceStates.get(nearest.nodeId),now=performance.now();if(!nearest.inspectedAt||now-nearest.inspectedAt>5000){nearest.inspectedAt=now;showToast(plantDescription(nearest,node));promptEl.textContent=`Gather ${nearest.label} · interact again`;return;}nearest.inspectedAt=0;gather(nearest);return;}
   showToast(typeof nearest.message==='function'?nearest.message():nearest.message);
 }
