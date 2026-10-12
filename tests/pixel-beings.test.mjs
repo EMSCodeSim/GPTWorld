@@ -136,7 +136,7 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
 
   animatePixelHumanoid(person, true, 1200, 1);
   assert.notEqual(person.userData.rig.legLPivot.rotation.x, 0);
-  assert.notEqual(person.userData.rig.kneeL.rotation.x, 0);
+  assert.notEqual(person.userData.rig.kneeR.rotation.x, 0);
 
   person.userData.rig.armR.rotation.x = -1.2;
   animatePixelHumanoid(person, false, 2000, 1);
