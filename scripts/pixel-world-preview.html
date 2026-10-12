@@ -17,7 +17,7 @@
 <div id="stage" aria-label="Isolated pixel-art world preview"></div>
 <div class="hud">
   <h1>Isolated pixel preview</h1>
-  <p>No traveler registration. Verifies terrain, water, shoreline, paths, roofs, walls, trees, herbs, rocks, characters, and creatures.</p>
+  <p>No traveler registration. Verifies terrain, props, directional pixel characters, and wildlife walk frames.</p>
 </div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
@@ -26,7 +26,7 @@ import {
   createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,
   createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial
 } from '../lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from '../lib/pixel-beings.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from '../lib/pixel-beings.mjs';
 import {createPixelDoorMaterial,createPixelWindow,createPixelBarrel,createPixelLivingPlantPart,createPixelCloud} from '../lib/pixel-props.mjs';
 import {createPineArt,createHerbArt,createRockArt} from '../vegetation-art.js';
 
@@ -35,7 +35,7 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(RETRO_SKY);
 scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
 const camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,200);
-camera.position.set(16,18,16);
+camera.position.set(13,15.5,13);
 const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));
 stage.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));
@@ -75,26 +75,34 @@ const npc=createPixelHumanoid(THREE,{outfit:0x455c6b,hair:0x3a2b23});
 npc.position.set(2.4,0,1.2);scene.add(npc);
 const creature=createPixelCreature(THREE,{color:0xb39a67,runner:true,bodyScale:1.05,width:.9,height:.75,depth:1.35});
 creature.position.set(-1.2,0,3.4);creature.rotation.y=Math.PI*.15;scene.add(creature);
+const predator=createPixelCreature(THREE,{color:0x6b4d38,predator:true,bodyScale:1.1,width:1,height:.8,depth:1.4});
+predator.position.set(-3.2,0,1.6);predator.rotation.y=-Math.PI*.35;scene.add(predator);
 
-camera.lookAt(0,.8,2);
+camera.lookAt(player.position.x,.7,player.position.z);
 function resize(){resizeRetroViewport(renderer,camera,stage.clientWidth,stage.clientHeight)}
 window.addEventListener('resize',resize);resize();
 const clock=new THREE.Clock();
 function animate(t){
   requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),.05);
+  clock.getDelta();
+  player.rotation.y=Math.atan2(Math.sin(t*.0008),Math.cos(t*.0008));
   animatePixelHumanoid(player,true,t,1.1);
+  npc.userData.rig.armR.rotation.x=-.9+Math.sin(t*.01)*.35;
   animatePixelHumanoid(npc,false,t);
   creature.position.x=-2+Math.sin(t*.001)*.8;
-  creature.rotation.y=Math.atan2(Math.cos(t*.001),0);
-  const gait=Math.sin(t*.01)*.35;
-  creature.userData.rig.legs.forEach((leg,i)=>leg.rotation.x=i%2?gait:-gait);
+  creature.rotation.y=Math.atan2(Math.cos(t*.001),Math.sin(t*.001)*.01||.01);
+  animatePixelCreature(creature,true,t,'roaming');
+  predator.rotation.y=t*.0006;
+  animatePixelCreature(predator,true,t,'fleeing');
   water.position.y=.02+Math.sin(t*.0015)*.025;
   if(water.material.map){water.material.map.offset.y=(t*.00004)%1;water.material.map.needsUpdate=true;}
+  camera.position.set(player.position.x+13,15.5,player.position.z+13);
+  camera.lookAt(player.position.x,.7,player.position.z);
   renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
 window.__pixelPreviewReady=true;
+window.__pixelPreviewActors={player,npc,creature,predator};
 </script>
 </body>
 </html>
