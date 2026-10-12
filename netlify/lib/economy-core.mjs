@@ -50,7 +50,7 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'wooden-door':12,
   'stone-foundation':11,
   'iron-fittings':13,
-  'practice-rivets':3,'rough-nails':4,'simple-brackets':6,
+  'practice-rivets':3,'rough-nails':4,'simple-brackets':6,'trail-repair-fittings':12,
   'reed-mat':5,
   'trail-rations':3,
   'seed-pouch':4,
@@ -107,7 +107,7 @@ export const MERCHANTS=Object.freeze([
     x:11,z:1.2,
     outfit:0x455c6b,
     lines:['“Metal and tools, if they’re sound.”'],
-    accepts:Object.freeze(['iron-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife','iron-chestplate']),
+    accepts:Object.freeze(['iron-fittings','trail-repair-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife','iron-chestplate']),
     specialtyMod:0.9,
     defaultBudget:120,
     replenishAmount:120
