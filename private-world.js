@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
+import {configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
 import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
 import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from './lib/pixel-beings.mjs';
 import {createPixelDoorMaterial,createPixelCloud,createPixelLivingPlantPart,createPixelWindow} from './lib/pixel-props.mjs';
@@ -45,7 +45,7 @@ const constructionPanel=$('constructionPanel'),houseBlueprint=$('houseBlueprint'
 const craftedUsePanel=$('craftedUsePanel'),craftedUseTitle=$('craftedUseTitle'),craftedUseIcon=$('craftedUseIcon'),craftedUseStatus=$('craftedUseStatus'),craftedUseControls=$('craftedUseControls'),closeCraftedUse=$('closeCraftedUse');
 const survivalPanel=$('survivalPanel'),skillsButton=$('skillsButton'),huntButton=$('huntButton'),closeSurvival=$('closeSurvival'),survivalResult=$('survivalResult'),survivalSkills=$('survivalSkills'),survivalActions=$('survivalActions'),cropCatalog=$('cropCatalog'),huntCatalog=$('huntCatalog');
 
-let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation;
+let renderer,scene,camera,player,clock,sun,skyLight,ground,water,precipitation,hybridPresenter;
 let terrain,currentEcology,worldSeed=1,running=false,joystickX=0,joystickY=0,joystickPointer=null;
 let toastTimer,nearest=null,lastSave=0,lastLivingRefresh=0,saveBusy=false,livingRefreshBusy=false,gatherBusy=false,craftBusy=false,itemBusy=false,houseBusy=false,survivalBusy=false,activeClientId='',cacheAvailable=true,loadedPayload=null,craftingData=null,survivalData=null,survivalTarget=null;
 let previousSkills=[];
@@ -387,9 +387,11 @@ function build(data){
   resourceStates.clear();for(const node of data.world.resources||[])resourceStates.set(node.nodeId,node);
   scene=new THREE.Scene();scene.background=new THREE.Color(RETRO_SKY);scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
   camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,210);
-  renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));worldEl.replaceChildren(renderer.domElement);
-  skyLight=new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85);scene.add(skyLight);
-  sun=new THREE.DirectionalLight(0xffedc6,2.35);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
+  if(hybridPresenter){hybridPresenter.dispose();hybridPresenter=null;}
+  renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));worldEl.replaceChildren(renderer.domElement);
+  hybridPresenter=createHybridPresenter(THREE,renderer);
+  skyLight=enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));scene.add(skyLight);
+  sun=enableCharacterLighting(new THREE.DirectionalLight(0xffedc6,2.35));sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
   ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),createPixelGroundMaterial(THREE,plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
   water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,24),createPixelWaterMaterial(THREE,0x4c8190));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
   const shore=new THREE.Mesh(new THREE.RingGeometry(Math.max(.2,terrain.water.radius-.15),terrain.water.radius+.85,28),createPixelShoreMaterial(THREE,0x7a6d52));
@@ -989,8 +991,8 @@ async function syncPositionNow(){
 }
 function requestKey(action){return`${action}-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;}
 async function leave(){if(!running)return;returnTown.disabled=true;await savePosition();try{const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clientId:localStorage.getItem(CLIENT_KEY),action:'return_public',idempotencyKey:requestKey('return'),position:{x:player.position.x,z:player.position.z}})}),data=await response.json();if(!data.ok)throw Error(data.error||'return_failed');sessionStorage.setItem('gptworld-public-spawn',JSON.stringify(data.position));location.assign('./index.html?from=private');}catch{showToast('Return failed. Your world remains saved; try again.');returnTown.disabled=false;}}
-function resize(){if(!renderer)return;resizeRetroViewport(renderer,camera,worldEl.clientWidth,worldEl.clientHeight);}
-function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}if(time-lastLivingRefresh>12000)refreshLivingWorld();renderer.render(scene,camera);}
+function resize(){if(!renderer)return;resizeRetroViewport(renderer,camera,worldEl.clientWidth,worldEl.clientHeight,hybridPresenter);}
+function animate(time=0){if(!running)return;requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);updatePlayer(dt,time);updateAnimals(dt,time);updateEnvironment(dt,time);updateNearest();if(time-lastSave>5000){savePosition();lastSave=time;}if(time-lastLivingRefresh>12000)refreshLivingWorld();if(hybridPresenter)hybridPresenter.render(scene,camera);else renderer.render(scene,camera);}
 async function load(){
   retry.hidden=true;activeClientId=localStorage.getItem(CLIENT_KEY)||'';
   if(!activeClientId){loadingTitle.textContent='No registered traveler';loadingMessage.textContent='Enter the public town first so the server can identify your world owner.';return;}

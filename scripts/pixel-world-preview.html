@@ -7,7 +7,7 @@
 <style>
   html,body{margin:0;height:100%;background:#142019;color:#f3efe5;font:14px/1.4 "IBM Plex Sans",system-ui,sans-serif}
   #stage{position:fixed;inset:0}
-  #stage canvas{width:100%!important;height:100%!important;image-rendering:pixelated}
+  #stage canvas{width:100%!important;height:100%!important}
   .hud{position:fixed;left:14px;bottom:14px;z-index:2;max-width:min(420px,calc(100vw - 28px));padding:12px 14px;border:1px solid #52634b;background:rgba(18,28,20,.88);border-radius:12px}
   .hud h1{margin:0 0 4px;font:700 16px/1.2 "IBM Plex Sans",system-ui,sans-serif}
   .hud p{margin:0;color:#c9d2c4}
@@ -17,11 +17,14 @@
 <div id="stage" aria-label="Isolated pixel-art world preview"></div>
 <div class="hud">
   <h1>Isolated pixel preview</h1>
-  <p>No traveler registration. Verifies terrain, props, directional pixel characters, and wildlife walk frames.</p>
+  <p>No traveler registration. Pixel terrain stays chunky; characters and wildlife use polished full-res meshes with occlusion.</p>
 </div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from '../lib/retro-visuals.mjs';
+import {
+  configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,
+  RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR
+} from '../lib/retro-visuals.mjs';
 import {
   createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,
   createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial
@@ -36,10 +39,11 @@ scene.background=new THREE.Color(RETRO_SKY);
 scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
 const camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,200);
 camera.position.set(13,15.5,13);
-const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));
+const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));
+const hybrid=createHybridPresenter(THREE,renderer);
 stage.appendChild(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));
-const sun=new THREE.DirectionalLight(0xfff0cf,2.35);
+scene.add(enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85)));
+const sun=enableCharacterLighting(new THREE.DirectionalLight(0xfff0cf,2.35));
 sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
 
 const ground=new THREE.Mesh(new THREE.BoxGeometry(40,1,40),createPixelGroundMaterial(THREE,0x667d4e));
@@ -77,9 +81,12 @@ const creature=createPixelCreature(THREE,{color:0xb39a67,runner:true,bodyScale:1
 creature.position.set(-1.2,0,3.4);creature.rotation.y=Math.PI*.15;scene.add(creature);
 const predator=createPixelCreature(THREE,{color:0x6b4d38,predator:true,bodyScale:1.1,width:1,height:.8,depth:1.4});
 predator.position.set(-3.2,0,1.6);predator.rotation.y=-Math.PI*.35;scene.add(predator);
+// Occlusion check: character briefly walks behind the pine.
+const occludeProbe=createPixelHumanoid(THREE,{outfit:0x6a7f5c,hair:0x2c2218});
+occludeProbe.position.set(-3.1,0,7.2);scene.add(occludeProbe);
 
 camera.lookAt(player.position.x,.7,player.position.z);
-function resize(){resizeRetroViewport(renderer,camera,stage.clientWidth,stage.clientHeight)}
+function resize(){resizeRetroViewport(renderer,camera,stage.clientWidth,stage.clientHeight,hybrid)}
 window.addEventListener('resize',resize);resize();
 const clock=new THREE.Clock();
 function animate(t){
@@ -89,6 +96,9 @@ function animate(t){
   animatePixelHumanoid(player,true,t,1.1);
   npc.userData.rig.armR.rotation.x=-.9+Math.sin(t*.01)*.35;
   animatePixelHumanoid(npc,false,t);
+  occludeProbe.position.x=-3.1+Math.sin(t*.0007)*.9;
+  occludeProbe.rotation.y=Math.atan2(Math.cos(t*.0007),1);
+  animatePixelHumanoid(occludeProbe,true,t,.9);
   creature.position.x=-2+Math.sin(t*.001)*.8;
   creature.rotation.y=Math.atan2(Math.cos(t*.001),Math.sin(t*.001)*.01||.01);
   animatePixelCreature(creature,true,t,'roaming');
@@ -98,11 +108,11 @@ function animate(t){
   if(water.material.map){water.material.map.offset.y=(t*.00004)%1;water.material.map.needsUpdate=true;}
   camera.position.set(player.position.x+13,15.5,player.position.z+13);
   camera.lookAt(player.position.x,.7,player.position.z);
-  renderer.render(scene,camera);
+  hybrid.render(scene,camera);
 }
 requestAnimationFrame(animate);
 window.__pixelPreviewReady=true;
-window.__pixelPreviewActors={player,npc,creature,predator};
+window.__pixelPreviewActors={player,npc,creature,predator,occludeProbe};
 </script>
 </body>
 </html>
