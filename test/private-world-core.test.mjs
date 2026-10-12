@@ -28,8 +28,9 @@ test('personal world begins undeveloped and wildlife faces its movement axis',as
   const client=(await readFile(new URL('../private-world.js',import.meta.url),'utf8'));
   assert.doesNotMatch(client,/buildHomestead\(\)/);
   assert.doesNotMatch(client,/new THREE\.BoxGeometry\(terrain\.farmland\.width/);
-  assert.match(client,/body\.scale\.set\(\.72,\.78,1\.45\)/);
-  assert.match(client,/for\(const x of\[-\.22,\.22\]\)for\(const z of\[-\.4,\.4\]\)/);
+  assert.match(client,/createPixelCreature\(THREE/);
+  assert.match(client,/animal\.rotation\.y=Math\.atan2\(offset\.x,offset\.z\)/);
+  assert.match(client,/group\.rotation\.y=-Number\(object\.heading\|\|0\)/);
 });
 
 test('personal-world land animals avoid the lake and world edges',async()=>{

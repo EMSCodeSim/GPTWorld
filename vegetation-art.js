@@ -107,3 +107,46 @@ export function createHerbArt(THREE, scale = 1, variant = 0) {
   addSpritePlane(THREE, group, material, .95 * scale, .78 * scale, .4 * scale, Math.PI / 2);
   return group;
 }
+
+function paintRock(ctx, variant = 0) {
+  const base = variant % 2 ? '#6f7268' : '#7a7d73';
+  const mid = variant % 2 ? '#8a8d83' : '#94978d';
+  const dark = variant % 2 ? '#555850' : '#5c5f57';
+  const lite = '#b0b3a8';
+  ctx.clearRect(0, 0, 32, 28);
+  ctx.fillStyle = base;
+  ctx.fillRect(6, 10, 20, 14);
+  ctx.fillRect(10, 6, 14, 6);
+  ctx.fillRect(4, 16, 6, 8);
+  ctx.fillRect(22, 14, 6, 8);
+  ctx.fillStyle = mid;
+  ctx.fillRect(8, 8, 8, 5);
+  ctx.fillRect(16, 12, 7, 4);
+  ctx.fillStyle = dark;
+  ctx.fillRect(6, 20, 18, 2);
+  ctx.fillRect(22, 18, 4, 4);
+  ctx.fillRect(10, 14, 3, 2);
+  ctx.fillStyle = lite;
+  ctx.fillRect(11, 7, 3, 1);
+  ctx.fillRect(17, 11, 2, 1);
+}
+
+export function createRockArt(THREE, scale = 1, variant = 0) {
+  const group = new THREE.Group();
+  const texture = pixelTexture(THREE, 32, 28, ctx => paintRock(ctx, variant));
+  const material = pixelMaterial(THREE, texture);
+  const width = 1.7 * scale;
+  const height = 1.35 * scale;
+  addSpritePlane(THREE, group, material, width, height, height * 0.48);
+  addSpritePlane(THREE, group, material, width, height, height * 0.48, Math.PI / 2);
+  // Keep a low solid collider body for shadow contact without changing gather radius.
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9 * scale, 0.35 * scale, 0.9 * scale),
+    new THREE.MeshStandardMaterial({ color: 0x6f7268, roughness: 1, flatShading: true })
+  );
+  base.position.y = 0.18 * scale;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+  return group;
+}
