@@ -24,6 +24,32 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   const sprite=document.createElement('canvas');sprite.width=256;sprite.height=70;const ctx=sprite.getContext('2d');
   ctx.fillStyle='rgba(18,28,22,.88)';ctx.fillRect(0,0,256,70);ctx.fillStyle='#f7e2b7';ctx.font='bold 24px system-ui';ctx.textAlign='center';ctx.fillText(markerNames[key],128,45);
   const texture=new THREE.CanvasTexture(sprite);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true}));label.position.set(0,2.05,0);label.scale.set(3, .82,1);group.add(label);
+  if(key==='wagon'){
+    const wagon=new THREE.Group();wagon.position.set(.7,0,-.4);wagon.rotation.y=.4;
+    const timber=new THREE.MeshStandardMaterial({color:0x855936,roughness:.88});
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(2,.25,1.25),timber);frame.position.y=.54;wagon.add(frame);
+    for(const x of [-.85,.85])for(const z of [-.7,.7]){
+      const wheel=new THREE.Mesh(new THREE.TorusGeometry(.38,.09,7,14),new THREE.MeshStandardMaterial({color:0x49392c}));wheel.rotation.y=Math.PI/2;wheel.position.set(x,.35,z);wagon.add(wheel);
+    }
+    for(const z of [-.49,.49]){const side=new THREE.Mesh(new THREE.BoxGeometry(2,.39,.12),timber);side.position.set(0,.8,z);wagon.add(side);}
+    group.add(wagon);
+  }
+  if(key==='wolf'){
+    const fur=new THREE.MeshStandardMaterial({color:0x7c7062,roughness:.95}),dark=new THREE.MeshStandardMaterial({color:0x504c45});
+    const wolf=new THREE.Group();wolf.position.set(0,.12,-.5);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.33,.73,6,10),fur);body.rotation.z=Math.PI/2;body.position.y=.57;wolf.add(body);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.29,10,8),fur);head.position.set(.7,.69,0);wolf.add(head);
+    for(const z of [-.17,.17]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.13,.26,7),dark);ear.position.set(.75,.99,z);wolf.add(ear);}
+    for(const x of [-.4,.45])for(const z of [-.22,.22]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.085,.07,.48,7),fur);leg.position.set(x,.29,z);wolf.add(leg);}
+    const tail=new THREE.Mesh(new THREE.ConeGeometry(.12,.5,8),fur);tail.rotation.z=-1.2;tail.position.set(-.78,.72,0);wolf.add(tail);
+    group.add(wolf);
+  }
+  if(key==='tracks'){
+    for(let i=0;i<4;i++){const footprint=new THREE.Mesh(new THREE.BoxGeometry(.26,.035,.42),new THREE.MeshStandardMaterial({color:0x48372b}));footprint.position.set((i%2)*.48-.4,.05,-.5+Math.floor(i/2)*.47);footprint.rotation.y=.24;group.add(footprint);}
+  }
+  if(key==='cache'){
+    const crate=new THREE.Mesh(new THREE.BoxGeometry(.85,.62,.72),new THREE.MeshStandardMaterial({color:0x795337,roughness:.9}));crate.position.set(.5,.31,-.35);crate.rotation.y=.25;group.add(crate);
+  }
   scene.add(group);visuals[key]=group;
   interactables.push({type:'shipment',shipmentKey:key,label:markerNames[key],object:group,radius:3.0});
  }
