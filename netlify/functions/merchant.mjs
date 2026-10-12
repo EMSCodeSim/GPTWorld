@@ -298,9 +298,14 @@ async function buyPortableForge(sql,actor,key){
   const prior=await sql`SELECT response FROM merchant_trade_receipts WHERE player_id=${actor.id} AND idempotency_key=${key} LIMIT 1`;
   if(prior.length)return prior[0].response?.error==='pending'?{ok:false,error:'action_in_progress'}:prior[0].response;
   const rows=await sql`
-    WITH debit AS (
+    WITH claim AS (
+      INSERT INTO merchant_trade_receipts(player_id,idempotency_key,merchant_key,response)
+      SELECT ${actor.id},${key},'blacksmith','{"ok":false,"error":"pending"}'::jsonb
+      FROM player_inventory WHERE player_id=${actor.id} AND coins>=${price}
+      ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING player_id
+    ), debit AS (
       UPDATE player_inventory SET coins=coins-${price},updated_at=now()
-      WHERE player_id=${actor.id} AND coins>=${price}
+      WHERE player_id=${actor.id} AND coins>=${price} AND EXISTS(SELECT 1 FROM claim)
       RETURNING coins
     ), item AS (
       INSERT INTO player_crafted_items(player_id,world_id,item_key,display_name,profession,quality,durability,max_durability,maker_name,quantity,metadata)
@@ -308,9 +313,8 @@ async function buyPortableForge(sql,actor,key){
       FROM player_worlds w,debit WHERE w.owner_player_id=${actor.id}
       RETURNING id
     ), receipt AS (
-      INSERT INTO merchant_trade_receipts(player_id,idempotency_key,merchant_key,response)
-      SELECT ${actor.id},${key},'blacksmith',jsonb_build_object('ok',true,'action','buy_portable_forge','itemId',item.id::text,'coins',debit.coins,'price',${price}::int)
-      FROM item,debit ON CONFLICT(player_id,idempotency_key) DO NOTHING RETURNING response
+      UPDATE merchant_trade_receipts SET response=jsonb_build_object('ok',true,'action','buy_portable_forge','itemId',item.id::text,'coins',debit.coins,'price',${price}::int)
+      FROM item,debit WHERE player_id=${actor.id} AND idempotency_key=${key} RETURNING response
     ) SELECT response FROM receipt
   `;
   if(rows.length)return rows[0].response;
