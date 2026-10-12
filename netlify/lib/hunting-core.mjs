@@ -4,6 +4,7 @@
  */
 
 import {animalProfile,loudPlayerFleeBonus,timeOfDayEffects,animalBehaviorState} from './progression-core.mjs';
+import {huntingRangeFor,huntingChanceBonus,huntingDamageFor} from './equipment-core.mjs';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
@@ -47,10 +48,11 @@ export function animalDetectionRange({species='wildlife',kind='herbivore',skill=
 }
 
 export function huntingRange(equipment='basic-bow'){
-  if(equipment==='composite-bow')return 7.5;
-  if(equipment==='reinforced-bow')return 6.2;
-  if(equipment==='hunting-trap')return 3.2;
-  return 5;
+  return huntingRangeFor(equipment);
+}
+
+export function huntingDamage(equipment='basic-bow'){
+  return huntingDamageFor(equipment);
 }
 
 export function buildTrackSign({animal,player,now=Date.now(),lastSeenAt=null,skill=0,hour=12,weather='clear',tracksWashed=false}={}){
@@ -114,7 +116,8 @@ export function resolveHuntAttempt({
 }={}){
   const maxRange=huntingRange(equipment);
   if(distance>maxRange)return{ok:false,error:'animal_out_of_range',maxRange,distance};
-  const equipmentBonus=equipment==='composite-bow'?0.26:equipment==='reinforced-bow'?0.18:equipment==='hunting-trap'?0.12:0;
+  const equipmentBonus=huntingChanceBonus(equipment);
+  const weaponDamage=huntingDamage(equipment);
   const trackBonus=tracked?0.08:0;
   const stalkBonus=stalked?0.1:0;
   const woundBonus=wounded?0.14:0;
@@ -146,6 +149,7 @@ export function resolveHuntAttempt({
     chance:Number(chance.toFixed(3)),
     roll:Number(roll.toFixed(4)),
     maxRange,
+    weaponDamage,
     xp:Number((success?(predator?2.8:1.8)*value+(tracked?0.3:0)+(stalked?0.3:0):(woundOnly?0.7:0.25)).toFixed(2)),
     rewards,
     species,

@@ -41,6 +41,11 @@ async function payload(sql,actor){
     sql`SELECT item_key,COALESCE(quantity,1) AS quantity FROM player_crafted_items WHERE player_id=${actor.id} AND placed_at IS NULL`,
     sql`SELECT animal_id,status,respawn_after,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND player_id=${actor.id}`
   ]);
+  let equippedRows=[];
+  try{
+    equippedRows=await sql`SELECT e.slot,i.item_key FROM player_equipped_items e JOIN player_crafted_items i ON i.id=e.item_id
+      WHERE e.player_id=${actor.id} AND i.placed_at IS NULL AND i.quantity>0`;
+  }catch{equippedRows=[];}
   const advancedPlots=[];
   for(const row of plots){
     const view=plotView(row,ecology,event,season);
@@ -53,6 +58,8 @@ async function payload(sql,actor){
   const woundedMap=Object.fromEntries(hunted.filter(row=>row.status==='active'&&row.metadata?.wounded).map(row=>[row.animal_id,row.metadata]));
   const skillMap=Object.fromEntries(skills.map(row=>[row.skill_key,Number(row.skill_value)]));
   const equipment=[...new Set(items.filter(row=>['basic-bow','reinforced-bow','composite-bow','hunting-trap'].includes(row.item_key)&&Number(row.quantity)>0).map(row=>row.item_key))];
+  const equippedMainHand=(equippedRows||[]).find(row=>row.slot==='mainHand')?.item_key||null;
+  const activeWeapon=equipment.includes(equippedMainHand)?equippedMainHand:null;
   const bag={};
   for(const row of items)bag[row.item_key]=(bag[row.item_key]||0)+Number(row.quantity||0);
   const huntSkill=skillMap.hunting||0;
@@ -69,11 +76,11 @@ async function payload(sql,actor){
         id:String(animal.id),species:String(animal.speciesName||animal.species||'wildlife'),kind:String(animal.kind||'herbivore'),
         x:Number(animal.x),z:Number(animal.z),behavior:animal.behavior||'roaming',injury:Number(animal.injury||0),distance,
         wounded:Boolean(meta.wounded),health:Math.max(0,Math.min(100,Number(meta.health??(meta.wounded?30:100)))),tracked:Boolean(meta.tracked),stalked:Boolean(meta.stalked),
-        huntRange:huntingRange(equipment[0]||'basic-bow'),
+        huntRange:huntingRange(activeWeapon||'basic-bow'),
         detectionRange:animalDetectionRange({kind:animal.kind,skill:huntSkill,wary:Boolean(event?.effects?.wildlifeWary)})
       };
     }),
-    equipment,bag,
+    equipment,equippedMainHand:activeWeapon,bag,
     ecology:{weather:ecology.weather,temperature:ecology.temperatureC??ecology.temperature,season},
     event:event?{key:event.key,name:event.name,summary:event.summary}:null
   };
@@ -191,10 +198,20 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
   const {animals,event}=await livingAnimals(sql,actor,snapshotTime);
   const animal=animals.find(row=>String(row.id)===animalId);
   if(!animal)return{ok:false,error:'animal_not_found'};
+  // Prefer server-persisted main-hand equipment; fall back to owned client request only when no slot is set yet.
+  let equippedKey=null;
+  try{
+    const equipped=await sql`SELECT i.item_key FROM player_equipped_items e JOIN player_crafted_items i ON i.id=e.item_id
+      WHERE e.player_id=${actor.id} AND e.slot='mainHand' AND i.placed_at IS NULL AND i.quantity>0 LIMIT 1`;
+    equippedKey=equipped[0]?.item_key||null;
+  }catch{/* migration may not be applied yet */}
+  const weapon=equippedKey||equipment;
+  if(!['basic-bow','reinforced-bow','composite-bow','hunting-trap'].includes(weapon))return{ok:false,error:'equipment_required'};
+  if(equippedKey&&equipment&&equippedKey!==equipment)return{ok:false,error:'equipment_not_equipped'};
   const distance=Math.hypot(Number(actor.private_x)-Number(animal.x),Number(actor.private_z)-Number(animal.z));
-  const maxRange=huntingRange(equipment);
+  const maxRange=huntingRange(weapon);
   if(distance>maxRange)return{ok:false,error:'animal_out_of_range',maxRange,distance:Number(distance.toFixed(1))};
-  const gear=await sql`SELECT id FROM player_crafted_items WHERE player_id=${actor.id} AND item_key=${equipment} AND placed_at IS NULL AND quantity>0 LIMIT 1`;
+  const gear=await sql`SELECT id FROM player_crafted_items WHERE player_id=${actor.id} AND item_key=${weapon} AND placed_at IS NULL AND quantity>0 LIMIT 1`;
   if(!gear.length)return{ok:false,error:'equipment_required'};
   const old=await sql`SELECT status,respawn_after,updated_at,metadata FROM private_hunting_state WHERE world_id=${actor.world_id} AND animal_id=${animalId}`;
   if(old[0]?.status==='harvested'&&(!old[0].respawn_after||new Date(old[0].respawn_after)>new Date()))return{ok:false,error:'animal_already_harvested'};
@@ -205,21 +222,22 @@ async function hunt(sql,actor,key,animalId,equipment,snapshotAt,body={}){
   const archeryRows=await sql`SELECT skill_value FROM player_crafting_skills WHERE player_id=${actor.id} AND skill_key='archery'`;
   const outcome=resolveHunt({
     key:`${actor.id}:${animalId}:${key}`,species:animal.speciesName||animal.species,kind:animal.kind,
-    skill:Math.min(100,Number(skillRows[0]?.skill_value||0)*0.65+Number(archeryRows[0]?.skill_value||0)*0.35),equipment,distance,injury:animal.injury,noise,
+    skill:Math.min(100,Number(skillRows[0]?.skill_value||0)*0.65+Number(archeryRows[0]?.skill_value||0)*0.35),equipment:weapon,distance,injury:animal.injury,noise,
     tracked:Boolean(meta.tracked),stalked:Boolean(meta.stalked),wounded:Boolean(meta.wounded),
     eventPenalty:huntDifficultyBonus(event)
   });
   const previousHealth=Math.max(1,Math.min(100,Number(meta.health??100)));
-  const damage=outcome.success?previousHealth:outcome.woundOnly?Math.min(previousHealth,35):Math.min(previousHealth,Math.max(4,Math.round(outcome.chance*18)));
+  const shotPower=Math.max(4,Math.round((outcome.weaponDamage||12)*0.55+outcome.chance*10));
+  const damage=outcome.success?previousHealth:outcome.woundOnly?Math.min(previousHealth,Math.max(20,shotPower)):Math.min(previousHealth,shotPower);
   const remainingHealth=Math.max(0,previousHealth-damage);
   if(outcome.success){
-    const claimed=await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,harvested_at,respawn_after,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'harvested',now(),now()+interval '24 hours',${JSON.stringify({equipment,health:0,tracked:meta.tracked,stalked:meta.stalked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='harvested',harvested_at=now(),respawn_after=now()+interval '24 hours',metadata=EXCLUDED.metadata,updated_at=now() WHERE private_hunting_state.status='active' OR private_hunting_state.respawn_after<=now() RETURNING animal_id`;
+    const claimed=await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,harvested_at,respawn_after,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'harvested',now(),now()+interval '24 hours',${JSON.stringify({equipment:weapon,health:0,tracked:meta.tracked,stalked:meta.stalked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='harvested',harvested_at=now(),respawn_after=now()+interval '24 hours',metadata=EXCLUDED.metadata,updated_at=now() WHERE private_hunting_state.status='active' OR private_hunting_state.respawn_after<=now() RETURNING animal_id`;
     if(!claimed.length)return{ok:false,error:'animal_already_harvested'};
     for(const reward of outcome.rewards)await addStack(sql,actor,reward,reward.quantity,'hunting');
   }else if(outcome.woundOnly){
-    await upsertHuntMeta(sql,actor,animalId,outcome.species,{wounded:true,health:remainingHealth,tracked:true,lastSeenAt:new Date().toISOString(),equipment});
+    await upsertHuntMeta(sql,actor,animalId,outcome.species,{wounded:true,health:remainingHealth,tracked:true,lastSeenAt:new Date().toISOString(),equipment:weapon});
   }else{
-    await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'active',${JSON.stringify({equipment,health:remainingHealth,wounded:remainingHealth<=30,lastOutcome:'escaped',tracked:meta.tracked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='active',metadata=EXCLUDED.metadata,updated_at=now()`;
+    await sql`INSERT INTO private_hunting_state(world_id,animal_id,player_id,species,status,metadata) VALUES(${actor.world_id},${animalId},${actor.id},${outcome.species},'active',${JSON.stringify({equipment:weapon,health:remainingHealth,wounded:remainingHealth<=30,lastOutcome:'escaped',tracked:meta.tracked})}::jsonb) ON CONFLICT(world_id,animal_id) DO UPDATE SET status='active',metadata=EXCLUDED.metadata,updated_at=now()`;
   }
   const skill=await sql`UPDATE player_crafting_skills SET skill_value=LEAST(100,skill_value+${outcome.xp}),attempts=attempts+1,updated_at=now() WHERE player_id=${actor.id} AND skill_key='hunting' RETURNING skill_value`;
   const archeryXp=Math.max(0.2,Math.min(2.5,Number(outcome.xp||0)));

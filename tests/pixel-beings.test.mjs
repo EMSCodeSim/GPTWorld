@@ -122,6 +122,7 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
   const person = createPixelHumanoid(THREE, { outfit: 0x526f62, pack: true });
   assert.equal(person.userData.pixel.kind, 'humanoid');
   assert.equal(person.userData.pixel.feature, true);
+  assert.equal(person.userData.pixel.stylized, true);
   assert.ok(person.userData.rig.armL.isMesh);
   assert.ok(person.userData.rig.armR.isMesh);
   assert.ok(person.userData.rig.legL.isMesh);
@@ -131,12 +132,20 @@ test('feature humanoids expose mesh limbs, faces, and character layer', () => wi
   assert.ok(person.userData.rig.kneeL);
   assert.ok(person.userData.rig.elbowR);
   assert.ok(person.userData.pixel.eyeL);
+  assert.ok(person.userData.attachments.head);
+  assert.ok(person.userData.attachments.chest);
+  assert.ok(person.userData.attachments.back);
+  assert.ok(person.userData.attachments.mainHand);
+  assert.ok(person.userData.attachments.offHand);
   assert.equal(person.layers.value, CHARACTER_LAYER);
   assert.equal(person.userData.rig.armL.layers.value, CHARACTER_LAYER);
 
   animatePixelHumanoid(person, true, 1200, 1);
   assert.notEqual(person.userData.rig.legLPivot.rotation.x, 0);
   assert.notEqual(person.userData.rig.kneeR.rotation.x, 0);
+
+  animatePixelHumanoid(person, false, 1500, 1, { attack: 1 });
+  assert.ok(person.userData.rig.armRPivot.rotation.x < -0.5);
 
   person.userData.rig.armR.rotation.x = -1.2;
   animatePixelHumanoid(person, false, 2000, 1);

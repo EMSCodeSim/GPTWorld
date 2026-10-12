@@ -27,6 +27,7 @@ export const NON_STACKABLE_CRAFTED_KEYS=Object.freeze(new Set([
   'woven-basket','canvas-screen','decorated-rug',
   'scarecrow-kit','seed-chest','skinning-knife','hide-rack','hunter-blind',
   'basic-bow','reinforced-bow','hunting-trap','composite-bow',
+  'leather-boots','leather-tunic','traveler-backpack','wooden-shield','iron-chestplate',
   'basic-house','homestead'
 ]));
 
@@ -63,6 +64,7 @@ export const ITEM_BASE_VALUE=Object.freeze({
   'garden-stakes':6,'irrigation-kit':12,'scarecrow-kit':13,'raised-bed-kit':16,'seed-chest':22,
   'skinning-knife':9,'hide-rack':12,'hunter-blind':18,'composite-bow':30,
   'basic-bow':10,'reinforced-bow':20,'hunting-trap':16,
+  'leather-boots':7,'leather-tunic':11,'traveler-backpack':14,'wooden-shield':12,'iron-chestplate':28,
   'storage-shed':22,'improved-cabin':48,'hand-cart':36,'advanced-house':70,'orchard-kit':18
 });
 
@@ -92,7 +94,7 @@ export const MERCHANTS=Object.freeze([
     x:6.2,z:-6.5,
     outfit:0x7a5a40,
     lines:['“Bring me timber work. I’ll pay for clean joins.”'],
-    accepts:Object.freeze(['wooden-beam','wooden-door','wooden-crate','reed-mat','campfire-kit','rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest','woven-basket','canvas-screen','decorated-rug']),
+    accepts:Object.freeze(['wooden-beam','wooden-door','wooden-crate','reed-mat','campfire-kit','rough-stool','fence-panel','shelter-frame','workbench','cabin-frame','roof-truss','masterwork-chest','woven-basket','canvas-screen','decorated-rug','wooden-shield']),
     specialtyMod:0.88,
     defaultBudget:140,
     replenishAmount:140
@@ -105,7 +107,7 @@ export const MERCHANTS=Object.freeze([
     x:11,z:1.2,
     outfit:0x455c6b,
     lines:['“Metal and tools, if they’re sound.”'],
-    accepts:Object.freeze(['iron-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife']),
+    accepts:Object.freeze(['iron-fittings','stone-hammer','forged-knife','hand-axe','smith-tool-set','reinforced-fittings','iron-latch-set','masterwork-tools','skinning-knife','iron-chestplate']),
     specialtyMod:0.9,
     defaultBudget:120,
     replenishAmount:120
@@ -133,6 +135,7 @@ export const MERCHANTS=Object.freeze([
     lines:['“Bows, traps, hides, and trail gear. I’ll find a use for them.”'],
     accepts:Object.freeze([
       'basic-bow','reinforced-bow','composite-bow','hunting-trap','skinning-knife','hide-rack','hunter-blind',
+      'leather-boots','leather-tunic','traveler-backpack','wooden-shield','iron-chestplate',
       'hide','raw-meat','bedroll','padded-bedroll','rope-coil','canvas-screen',
       'trail-rations','field-meal','preserved-rations','hearth-feast'
     ]),
