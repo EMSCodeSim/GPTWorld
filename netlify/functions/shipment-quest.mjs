@@ -1,5 +1,5 @@
 import {neon} from '@neondatabase/serverless';
-import {SHIPMENT_QUEST_ID,SHIPMENT_POINTS,SHIPMENT_REWARD,shipmentNext,shipmentNarrative} from '../lib/shipment-quest-core.mjs';
+import {SHIPMENT_QUEST_ID,SHIPMENT_POINTS,SHIPMENT_REWARD,shipmentNext,shipmentNarrative} from '../../lib/shipment-quest-core.mjs';
 const respond=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const clean=(s,n=100)=>String(s||'').trim().slice(0,n);
 async function ensure(sql){
