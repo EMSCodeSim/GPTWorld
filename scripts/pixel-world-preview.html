@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPTWorld · Pixel World Preview</title>
+<style>
+  html,body{margin:0;height:100%;background:#142019;color:#f3efe5;font:14px/1.4 "IBM Plex Sans",system-ui,sans-serif}
+  #stage{position:fixed;inset:0}
+  #stage canvas{width:100%!important;height:100%!important;image-rendering:pixelated}
+  .hud{position:fixed;left:14px;bottom:14px;z-index:2;max-width:min(420px,calc(100vw - 28px));padding:12px 14px;border:1px solid #52634b;background:rgba(18,28,20,.88);border-radius:12px}
+  .hud h1{margin:0 0 4px;font:700 16px/1.2 "IBM Plex Sans",system-ui,sans-serif}
+  .hud p{margin:0;color:#c9d2c4}
+</style>
+</head>
+<body>
+<div id="stage" aria-label="Isolated pixel-art world preview"></div>
+<div class="hud">
+  <h1>Isolated pixel preview</h1>
+  <p>No traveler registration. Verifies terrain, water, shoreline, paths, roofs, walls, trees, herbs, rocks, characters, and creatures.</p>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
+import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from '../lib/retro-visuals.mjs';
+import {
+  createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,
+  createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial
+} from '../lib/pixel-terrain.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from '../lib/pixel-beings.mjs';
+import {createPineArt,createHerbArt,createRockArt} from '../vegetation-art.js';
+
+const stage=document.getElementById('stage');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(RETRO_SKY);
+scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
+const camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,200);
+camera.position.set(16,18,16);
+const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));
+stage.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));
+const sun=new THREE.DirectionalLight(0xfff0cf,2.35);
+sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
+
+const ground=new THREE.Mesh(new THREE.BoxGeometry(40,1,40),createPixelGroundMaterial(THREE,0x667d4e));
+ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
+const path=new THREE.Mesh(new THREE.BoxGeometry(3,.03,22),createPixelTrailMaterial(THREE,0x8e806d,3,22));
+path.position.set(0,.03,2);path.receiveShadow=true;scene.add(path);
+const water=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,.16,24),createPixelWaterMaterial(THREE));
+water.position.set(-8,.02,6);scene.add(water);
+const shore=new THREE.Mesh(new THREE.RingGeometry(4.05,5.1,28),createPixelShoreMaterial(THREE));
+shore.rotation.x=-Math.PI/2;shore.position.set(-8,.028,6);shore.receiveShadow=true;scene.add(shore);
+
+const building=new THREE.Group();building.position.set(4,0,-2);
+const wall=new THREE.Mesh(new THREE.BoxGeometry(5,3.1,4.5),createPixelWallMaterial(THREE,0x9b815c));
+wall.position.y=1.55;wall.castShadow=true;building.add(wall);
+const roof=new THREE.Mesh(new THREE.ConeGeometry(4.2,2.1,4),createPixelRoofMaterial(THREE,0x5b3b2d));
+roof.position.y=4;roof.rotation.y=Math.PI/4;roof.castShadow=true;building.add(roof);
+scene.add(building);
+
+const pine=createPineArt(THREE,1);pine.group.position.set(-3,0,8);scene.add(pine.group);
+const herbs=createHerbArt(THREE,1,1);herbs.position.set(1,0,7);scene.add(herbs);
+const rock=createRockArt(THREE,1,0);rock.position.set(7,0,5);scene.add(rock);
+
+const player=createPixelHumanoid(THREE,{outfit:0x8b7650,pack:true});
+player.position.set(0,0,4);scene.add(player);
+const npc=createPixelHumanoid(THREE,{outfit:0x455c6b,hair:0x3a2b23});
+npc.position.set(2.4,0,1.2);scene.add(npc);
+const creature=createPixelCreature(THREE,{color:0xb39a67,runner:true,bodyScale:.85,width:.75,height:.65,depth:1.15});
+creature.position.set(-2,0,2.5);scene.add(creature);
+
+camera.lookAt(0,.8,2);
+function resize(){resizeRetroViewport(renderer,camera,stage.clientWidth,stage.clientHeight)}
+window.addEventListener('resize',resize);resize();
+const clock=new THREE.Clock();
+function animate(t){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+  animatePixelHumanoid(player,true,t,1.1);
+  animatePixelHumanoid(npc,false,t);
+  creature.position.x=-2+Math.sin(t*.001)*.8;
+  creature.rotation.y=Math.atan2(Math.cos(t*.001),0);
+  const gait=Math.sin(t*.01)*.35;
+  creature.userData.rig.legs.forEach((leg,i)=>leg.rotation.x=i%2?gait:-gait);
+  water.position.y=.02+Math.sin(t*.0015)*.025;
+  if(water.material.map){water.material.map.offset.y=(t*.00004)%1;water.material.map.needsUpdate=true;}
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+window.__pixelPreviewReady=true;
+</script>
+</body>
+</html>

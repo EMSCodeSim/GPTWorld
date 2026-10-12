@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial} from '../lib/pixel-terrain.mjs';
+import {
+  createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,
+  createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,
+  createPixelBankMaterial,createPixelPatchMaterial
+} from '../lib/pixel-terrain.mjs';
 
 class Texture {
   constructor(canvas){this.canvas=canvas;this.repeat={set:(x,y)=>{this.repeatX=x;this.repeatY=y;}};}
@@ -44,6 +48,36 @@ test('terrain, trail, and roof materials use crisp repeating pixel textures',()=
     assert.equal(path.map.repeatY,4);
     assert.equal(roof.color,0x6b4a33);
     assert.ok(painted.length>20);
+  }finally{
+    if(oldDocument===undefined)delete globalThis.document;
+    else globalThis.document=oldDocument;
+  }
+});
+
+test('water, shore, wall, bank, and patch materials stay nearest-neighbor',()=>{
+  const oldDocument=globalThis.document;
+  globalThis.document={createElement(){
+    return {width:0,height:0,getContext(){return {
+      imageSmoothingEnabled:true,fillStyle:'#000',fillRect(){}
+    };}};
+  }};
+  try{
+    const THREE=threeMock();
+    const water=createPixelWaterMaterial(THREE,0x4d8090);
+    const shore=createPixelShoreMaterial(THREE,0x7a6d52);
+    const wall=createPixelWallMaterial(THREE,0x9b815c);
+    const bank=createPixelBankMaterial(THREE,0x667552);
+    const patch=createPixelPatchMaterial(THREE,0x718658);
+    for(const material of[water,shore,wall,bank,patch]){
+      assert.equal(material.map.magFilter,'nearest');
+      assert.equal(material.map.minFilter,'nearest');
+      assert.equal(material.map.generateMipmaps,false);
+      assert.equal(material.flatShading,true);
+    }
+    assert.equal(water.transparent,true);
+    assert.ok(water.opacity>0.8);
+    assert.equal(wall.color,0x9b815c);
+    assert.equal(shore.color,0x7a6d52);
   }finally{
     if(oldDocument===undefined)delete globalThis.document;
     else globalThis.document=oldDocument;

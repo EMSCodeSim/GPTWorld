@@ -1,8 +1,9 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
-import {resizeRetroViewport} from './lib/retro-visuals.mjs';
-import {createPixelGroundMaterial,createPixelRoofMaterial} from './lib/pixel-terrain.mjs';
+import {configureRetroRenderer,resizeRetroViewport,RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR} from './lib/retro-visuals.mjs';
+import {createPixelGroundMaterial,createPixelRoofMaterial,createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial,createPixelTrailMaterial} from './lib/pixel-terrain.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature} from './lib/pixel-beings.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
-import {createPineArt,createHerbArt} from './vegetation-art.js';
+import {createPineArt,createHerbArt,createRockArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
 import {PRIVATE_INTERIOR_SPAWN_KEY,interiorEntryUrl,rememberOutdoorPosition} from './lib/interior-core.mjs';
 import craftingArtSheet1 from './lib/crafting-art-sheet-1.mjs';
@@ -65,34 +66,16 @@ let craftTapStart=null;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const color=value=>new THREE.Color(value);
 function hash01(value){let hash=2166136261;for(const char of String(value)){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return (hash>>>0)/4294967295;}
-function material(value,extra={}){return new THREE.MeshStandardMaterial({color:value,roughness:.94,...extra});}
-function box(parent,value,size,pos){const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),material(value));mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
+function material(value,extra={}){return new THREE.MeshStandardMaterial({color:value,roughness:.94,flatShading:true,...extra});}
+function box(parent,value,size,pos,options={}){const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),options.pixelWall?createPixelWallMaterial(THREE,value):material(value));mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
 function setSyncState(state,label){syncStateEl.dataset.state=state;syncStateEl.textContent=label||({connecting:'Connecting',synced:'Synced',offline:'Offline',failed:'Sync failed'}[state]||state);}
 
 function makeHumanoid(){
-  const group=new THREE.Group(),skin=material(0xdca77d),shirt=material(0x526f62),trousers=material(0x3d4850),leather=material(0x564332),hair=material(0x553824);
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.34,.43,.86,10),shirt);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,14,10),skin);
-  const armGeometry=new THREE.CylinderGeometry(.085,.105,.7,7),legGeometry=new THREE.CylinderGeometry(.105,.13,.7,7);
-  const armL=new THREE.Mesh(armGeometry,shirt),armR=armL.clone(),legL=new THREE.Mesh(legGeometry,trousers),legR=legL.clone();
-  torso.position.y=1.28;head.position.y=1.96;armL.position.set(-.45,1.25,0);armR.position.set(.45,1.25,0);legL.position.set(-.19,.47,0);legR.position.set(.19,.47,0);
-  group.add(torso,head,armL,armR,legL,legR);
-  const hairCap=new THREE.Mesh(new THREE.SphereGeometry(.305,14,8,0,Math.PI*2,0,Math.PI*.5),hair);hairCap.position.y=2.05;group.add(hairCap);
-  for(const x of[-.105,.105]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.025,7,5),material(0x202727));eye.position.set(x,2.01,.275);group.add(eye);}
-  box(group,0x3a2a21,[.15,.055,.06],[0,1.87,.286]);
-  box(group,0x44362d,[.62,.09,.46],[0,1.11,0]);
-  box(group,0x5b4430,[.58,.72,.28],[0,1.3,-.34]);
-  box(group,0x3b2d24,[.26,.16,.5],[-.19,.08,.08]);box(group,0x3b2d24,[.26,.16,.5],[.19,.08,.08]);
-  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.48,18),new THREE.MeshBasicMaterial({color:0x152018,transparent:true,opacity:.26,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.012;group.add(shadow);
-  group.userData.rig={torso,head,armL,armR,legL,legR};
-  group.traverse(object=>{if(object.isMesh)object.castShadow=true;});
-  return group;
+  return createPixelHumanoid(THREE,{outfit:0x526f62,skin:0xdca77d,hair:0x553824,accent:0x3d4850,pack:true});
 }
 
 function animatePerson(group,moving,time){
-  const rig=group.userData.rig,swing=moving?Math.sin(time*.012)*.55:0;
-  rig.legL.rotation.x=swing;rig.legR.rotation.x=-swing;rig.armL.rotation.x=-swing*.75;rig.armR.rotation.x=swing*.75;
-  rig.torso.position.y=1.28+(moving?Math.abs(Math.sin(time*.012))*.018:0);
+  animatePixelHumanoid(group,moving,time);
 }
 
 function growthFor(object){return clamp((currentEcology.plantGrowth??.58)*(.82+hash01(`${worldSeed}:${object.id}`)*.35),.28,1);}
@@ -126,9 +109,9 @@ function addTree(object){
 }
 
 function addRock(object){
-  const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(.85*(object.scale||1),1),material(0x74786f));
-  mesh.position.set(object.x,.55,object.z);mesh.scale.y=.7;mesh.rotation.y=hash01(object.id)*Math.PI;mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
-  registerResource(object,mesh,'stone deposit');
+  const group=createRockArt(THREE,object.scale||1,String(object.id||'').length%2);
+  group.position.set(object.x,0,object.z);group.rotation.y=hash01(object.id)*Math.PI;scene.add(group);
+  registerResource(object,group,'stone deposit');
 }
 
 function addHerbs(object){
@@ -138,15 +121,13 @@ function addHerbs(object){
 }
 
 function addWildlife(object){
-  const predator=object.kind==='predator',species=String(object.species||'reed-runner'),baseColor=object.color?color(object.color):color(predator?0x6b4d38:species==='reed-runner'?0xb39a67:0x96784e),bodySize=clamp(Number(object.bodyScale||.8),.5,1.5);
-  const group=new THREE.Group(),fur=material(baseColor),dark=material(predator?0x3f3027:0x4a3828);group.position.set(object.x,0,object.z);group.rotation.y=-Number(object.heading||0);
-  const body=new THREE.Mesh(new THREE.SphereGeometry(.58,12,9),fur);body.scale.set(.72,.78,1.45);body.position.y=.92;body.castShadow=true;group.scale.setScalar(.78+bodySize*.28);group.add(body);
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.19,.25,.7,8),fur);neck.position.set(0,1.3,.58);neck.rotation.x=-.35;group.add(neck);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),fur);head.scale.set(.8,.8,1.15);head.position.set(0,1.62,.88);group.add(head);
-  const legs=[];for(const x of[-.22,.22])for(const z of[-.4,.4])legs.push(box(group,0x59422d,[.1,.72,.1],[x,.4,z]));
-  const tail=new THREE.Mesh(new THREE.ConeGeometry(.13,.5,7),dark);tail.position.set(0,1.05,-.9);tail.rotation.x=-1;group.add(tail);
-  for(const x of[-.11,.11]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.09,.32,6),fur);ear.position.set(x,1.91,.82);ear.rotation.z=x<0?.35:-.35;group.add(ear);}
-  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs,head,tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore'};
+  const predator=object.kind==='predator',species=String(object.species||'reed-runner'),runner=species==='reed-runner';
+  const baseColor=object.color?Number(new THREE.Color(object.color).getHex()):(predator?0x6b4d38:runner?0xb39a67:0x96784e);
+  const bodySize=clamp(Number(object.bodyScale||.8),.5,1.5);
+  const group=createPixelCreature(THREE,{color:baseColor,predator,runner,bodyScale:bodySize,width:.72+bodySize*.1,height:.7,depth:1.2});
+  group.position.set(object.x,0,object.z);group.rotation.y=-Number(object.heading||0);group.scale.setScalar(.9+bodySize*.12);
+  const rig=group.userData.rig||{};
+  group.userData={home:new THREE.Vector3(object.x,0,object.z),target:new THREE.Vector3(object.x,0,object.z),speed:object.serverDriven?1.35+hash01(object.id)*.45:.45+hash01(object.id)*.35,phase:hash01(`${object.id}:phase`)*Math.PI*2,nextTurn:0,behavior:object.behavior||'grazing',legs:rig.legs||[],head:rig.head,tail:rig.tail,serverDriven:Boolean(object.serverDriven),entityId:object.entityId||null,species,kind:object.kind||'herbivore',rig};
   scene.add(group);animals.push(group);
   interactables.push({type:'animal',label:species.replaceAll('-',' '),livingEntityId:object.entityId||null,message:()=>{const b=group.userData.behavior;return `This ${species.replaceAll('-',' ')} is ${b}. Track it or hunt with a bow.`;},object:group,radius:4.4});
   return group;
@@ -333,7 +314,7 @@ function addHomesteadBuilding(building){
   const roofColor=level>=3?0x5a3a28:0x6b4a33;
   const wallH=level>=3?3.5:level>=2?3.1:2.4;
   const group=new THREE.Group();group.position.set(x,0,z);
-  box(group,wallColor,[width,wallH,depth],[0,wallH/2,0]);
+  box(group,wallColor,[width,wallH,depth],[0,wallH/2,0],{pixelWall:true});
   box(group,0x5a3d2c,[width+.35,.28,depth+.35],[0,wallH+.1,0]);
   const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,level>=3?2.35:2.05,4),createPixelRoofMaterial(THREE,roofColor));
   roof.position.y=wallH+1.05;roof.rotation.y=Math.PI/4;roof.castShadow=true;roof.receiveShadow=true;group.add(roof);
@@ -404,12 +385,17 @@ function build(data){
   data=restorePrivateInteriorSpawn(data);
   loadedPayload=data;terrain=data.world.terrain;currentEcology=data.world.ecology;worldSeed=data.world.seed;
   resourceStates.clear();for(const node of data.world.resources||[])resourceStates.set(node.nodeId,node);
-  scene=new THREE.Scene();camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,210);
-  renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;worldEl.replaceChildren(renderer.domElement);
-  skyLight=new THREE.HemisphereLight(0xc7e7ff,0x38442d,2.1);scene.add(skyLight);
-  sun=new THREE.DirectionalLight(0xffedc6,2.45);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+  scene=new THREE.Scene();scene.background=new THREE.Color(RETRO_SKY);scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
+  camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,210);
+  renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));worldEl.replaceChildren(renderer.domElement);
+  skyLight=new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85);scene.add(skyLight);
+  sun=new THREE.DirectionalLight(0xffedc6,2.35);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
   ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),createPixelGroundMaterial(THREE,plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
-  water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,36),material(0x4c8190,{roughness:.28,transparent:true,opacity:.88}));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
+  water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,24),createPixelWaterMaterial(THREE,0x4c8190));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
+  const shore=new THREE.Mesh(new THREE.RingGeometry(Math.max(.2,terrain.water.radius-.15),terrain.water.radius+.85,28),createPixelShoreMaterial(THREE,0x7a6d52));
+  shore.rotation.x=-Math.PI/2;shore.position.set(terrain.water.x,.028,terrain.water.z);shore.receiveShadow=true;scene.add(shore);
+  const path=new THREE.Mesh(new THREE.BoxGeometry(2.4,.03,Math.max(8,terrain.size*.28)),createPixelTrailMaterial(THREE,0x8e806d,2.4,Math.max(8,terrain.size*.28)));
+  path.position.set(0,.03,6);path.receiveShadow=true;scene.add(path);
   // Personal worlds begin undeveloped. The homestead and fertile site are
   // persisted as future build locations, but nothing is constructed or tilled.
   const hasLivingAnimals=(data.world.livingEntities||[]).some(entity=>entity.part==='creature');
@@ -503,8 +489,8 @@ function showHomesteadIdentity(){
 function statusForWeather(){const weather=String(currentEcology.weather||'clear');return weather==='clear'?'clear':weather.replace('heavy rain','raining heavily').replace('rain','raining');}
 function applyLivingVisuals(){
   const weatherClass=classifyPrecipitation(currentEcology.weather||'clear'),snow=weatherClass.snow,wet=weatherClass.wet;
-  const sky=snow?0xaebbc1:wet?0x71858d:currentEcology.season==='Winter'?0x9eb5bb:0x8fb5be;
-  scene.background=color(sky);scene.fog=new THREE.Fog(sky,weatherClass.foggy?28:40,weatherClass.foggy?76:104);
+  const sky=snow?0xaebbc1:wet?0x6d8488:currentEcology.season==='Winter'?0x8ea3a8:RETRO_SKY;
+  scene.background=color(sky);scene.fog=new THREE.Fog(sky,weatherClass.foggy?22:RETRO_FOG_NEAR,weatherClass.foggy?62:RETRO_FOG_FAR);
   ground.material.color.copy(color(plantPalette().ground)).lerp(color(0xdde5df),Number(currentEcology.snowCover||0)*.78);
   water.material.color.set(wet?0x385f71:0x4c8190);
   precipitation.visible=wet||snow;precipitation.material.color.set(snow?0xf4f7f6:0xaecfe0);precipitation.material.size=snow?.13:.07;
