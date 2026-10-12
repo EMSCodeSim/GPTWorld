@@ -65,8 +65,8 @@ const player=createPixelHumanoid(THREE,{outfit:0x8b7650,pack:true});
 player.position.set(0,0,4);scene.add(player);
 const npc=createPixelHumanoid(THREE,{outfit:0x455c6b,hair:0x3a2b23});
 npc.position.set(2.4,0,1.2);scene.add(npc);
-const creature=createPixelCreature(THREE,{color:0xb39a67,runner:true,bodyScale:.85,width:.75,height:.65,depth:1.15});
-creature.position.set(-2,0,2.5);scene.add(creature);
+const creature=createPixelCreature(THREE,{color:0xb39a67,runner:true,bodyScale:1.05,width:.9,height:.75,depth:1.35});
+creature.position.set(-1.2,0,3.4);creature.rotation.y=Math.PI*.15;scene.add(creature);
 
 camera.lookAt(0,.8,2);
 function resize(){resizeRetroViewport(renderer,camera,stage.clientWidth,stage.clientHeight)}
