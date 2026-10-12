@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {resizeRetroViewport} from './lib/retro-visuals.mjs';
+import {createPixelGroundMaterial,createPixelRoofMaterial} from './lib/pixel-terrain.mjs';
 import {cachePrivateWorld,clearQueuedPrivatePosition,getCachedPrivateWorld,getQueuedPrivatePosition,queuePrivatePosition} from './private-world-cache.mjs?v=living-worlds-5';
 import {createPineArt,createHerbArt} from './vegetation-art.js';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
@@ -334,7 +335,7 @@ function addHomesteadBuilding(building){
   const group=new THREE.Group();group.position.set(x,0,z);
   box(group,wallColor,[width,wallH,depth],[0,wallH/2,0]);
   box(group,0x5a3d2c,[width+.35,.28,depth+.35],[0,wallH+.1,0]);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,level>=3?2.35:2.05,4),material(roofColor));
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(width,depth)*.78,level>=3?2.35:2.05,4),createPixelRoofMaterial(THREE,roofColor));
   roof.position.y=wallH+1.05;roof.rotation.y=Math.PI/4;roof.castShadow=true;roof.receiveShadow=true;group.add(roof);
   if(level>=2){
     box(group,0x3f2c22,[.18,1.35,width*.72],[-width/2+.12,wallH-.55,0]);
@@ -407,7 +408,7 @@ function build(data){
   renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;worldEl.replaceChildren(renderer.domElement);
   skyLight=new THREE.HemisphereLight(0xc7e7ff,0x38442d,2.1);scene.add(skyLight);
   sun=new THREE.DirectionalLight(0xffedc6,2.45);sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
-  ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),material(plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
+  ground=new THREE.Mesh(new THREE.BoxGeometry(terrain.size,1,terrain.size),createPixelGroundMaterial(THREE,plantPalette().ground));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
   water=new THREE.Mesh(new THREE.CylinderGeometry(terrain.water.radius,terrain.water.radius,.16,36),material(0x4c8190,{roughness:.28,transparent:true,opacity:.88}));water.position.set(terrain.water.x,.02,terrain.water.z);scene.add(water);
   // Personal worlds begin undeveloped. The homestead and fertile site are
   // persisted as future build locations, but nothing is constructed or tilled.
