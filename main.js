@@ -192,7 +192,7 @@ for(const merchant of MERCHANTS_CLIENT){
   addNPC(merchant.name,merchant.x,merchant.z,merchant.outfit,[...merchant.lines],{merchantKey:merchant.key,title:merchant.title});
 }
 
-const publicSpawn=(()=>{try{return JSON.parse(sessionStorage.getItem('gptworld-public-spawn')||'null')}catch{return null}})();if(publicSpawn){sessionStorage.removeItem('gptworld-public-spawn');state.x=Number(publicSpawn.x);state.z=Number(publicSpawn.z);}const player=createHumanoid({outfit:0x8b7650,skin:0xe0b586,hair:0x3a2b23,accent:0x49392c,pack:true});player.position.set(state.x??0,0,state.z??12);scene.add(player);
+const publicSpawn=(()=>{try{return JSON.parse(sessionStorage.getItem('gptworld-public-spawn')||'null')}catch{return null}})();if(publicSpawn){sessionStorage.removeItem('gptworld-public-spawn');state.x=Number(publicSpawn.x);state.z=Number(publicSpawn.z);}const player=createHumanoid({outfit:0x8b7650,skin:0xe0b586,hair:0x3a2b23,accent:0x49392c,pack:false});player.position.set(state.x??0,0,state.z??12);scene.add(player);
 async function refreshWalkingAvatar(){
   const clientId=localStorage.getItem(CLIENT_KEY);if(!clientId)return;
   try{
