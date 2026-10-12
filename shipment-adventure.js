@@ -112,6 +112,6 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   else{open();}
  }
  // Markers only appear during their corresponding quest stage.
- reload();window.addEventListener('focus',reload);
+ paint();reload();window.addEventListener('focus',reload);
  return{open,close,reload,interact,get stage(){return quest.stage;}};
 }
