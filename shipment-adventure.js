@@ -1,5 +1,5 @@
 // Single-player adventure UI for the existing Three.js public forest.
-import {SHIPMENT_POINTS,shipmentNarrative} from './netlify/lib/shipment-quest-core.mjs';
+import {SHIPMENT_POINTS,shipmentNarrative} from './lib/shipment-quest-core.mjs';
 const ENDPOINT='/.netlify/functions/shipment-quest';
 export function createShipmentAdventure({THREE,scene,interactables,player,syncPresence,openTrade,onReward}){
  let quest={stage:'not_started'},busy=false;
