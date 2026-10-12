@@ -837,8 +837,8 @@ function updateAnimals(dt,time){
       }
     }
     const offset=data.target.clone().sub(animal.position),moving=offset.length()>.6;if(moving){offset.normalize();const distance=dt*data.speed*(data.behavior==='fleeing'?2.3:1),candidate={x:animal.position.x+offset.x*distance,z:animal.position.z+offset.z*distance},land=animalLandPosition(animal.position,candidate);animal.position.x=land.x;animal.position.z=land.z;animal.rotation.y=Math.atan2(offset.x,offset.z);}
-    const gait=moving?Math.sin(time*.009+data.phase)*.4:0;data.legs.forEach((leg,index)=>leg.rotation.x=index%2?gait:-gait);if(data.head)data.head.rotation.x=data.behavior==='grazing'?.5+Math.sin(time*.003+data.phase)*.12:0;if(data.tail)data.tail.rotation.z=Math.sin(time*.006+data.phase)*.22;
-    animatePixelCreature(animal,moving,time,data.behavior||'roaming');
+    // The shared rig owns the full gait so public and private wildlife move alike.
+    animatePixelCreature(animal,moving,time,data.behavior||'roaming',data.speed);
   }
 }
 
