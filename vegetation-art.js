@@ -1,40 +1,109 @@
-// Visual-only vegetation upgrade for GPTWorld. No harvesting or ecology state lives here.
+// Pixel-scale vegetation art for GPTWorld. Visuals only; resource state stays in the world systems.
 // Pass the existing THREE import to avoid loading another Three.js instance.
-export function createPineArt(THREE, scale = 1) {
-  const group = new THREE.Group();
-  const material = color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.20*scale,.36*scale,2.3*scale,7),material(0x705034));
-  trunk.position.y = 1.15*scale; trunk.castShadow = true; group.add(trunk);
-  for (const [y,r,h,color] of [[2.15,1.22,1.65,0x244b32],[2.85,1.08,1.72,0x315f3a],[3.55,.78,1.55,0x427348]]) {
-    const b = new THREE.Mesh(new THREE.ConeGeometry(r*scale,h*scale,8),material(color));
-    b.position.y=y*scale; b.castShadow=true; b.receiveShadow=true; group.add(b);
-  }
-  for (const [x,z] of [[-.22,.19],[.19,-.18]]) {
-    const root = new THREE.Mesh(new THREE.BoxGeometry(.23*scale,.17*scale,.52*scale),material(0x62432b));
-    root.position.set(x*scale,.09*scale,z*scale); root.castShadow=true; group.add(root);
-  }
-  // Keep trunk and canopy references compatible with existing depletion visuals.
-  const crown = new THREE.Group();
-  for (const child of [...group.children]) if (child !== trunk && child.geometry?.type === 'ConeGeometry') {group.remove(child);crown.add(child);}
-  group.add(crown);
-  return {group,trunk,crown};
+
+function pixelTexture(THREE, width, height, paint) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  paint(ctx);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  return texture;
 }
 
-export function createHerbArt(THREE, scale=1, variant=0) {
-  const group=new THREE.Group();
-  const stemMat=new THREE.MeshStandardMaterial({color:0x426f39,roughness:1,flatShading:true});
-  const leafMats=[0x70a34f,0x91b65e,0x507f48].map(color=>new THREE.MeshStandardMaterial({color,roughness:1,side:THREE.DoubleSide,flatShading:true}));
-  const flowerMat=new THREE.MeshStandardMaterial({color:variant%2?0xe7d78b:0xb99ccf,roughness:1});
-  for(let i=0;i<7;i++) {
-    const angle=i*Math.PI*2/7, radius=.16+(i%3)*.12, height=(.42+(i%3)*.12)*scale;
-    const x=Math.cos(angle)*radius*scale,z=Math.sin(angle)*radius*scale;
-    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.018*scale,.035*scale,height,5),stemMat);
-    stem.position.set(x,height/2,z);stem.rotation.z=Math.sin(angle)*.2;group.add(stem);
-    for(const side of [-1,1]) {
-      const leaf=new THREE.Mesh(new THREE.SphereGeometry(.18*scale,6,4),leafMats[(i+side+3)%leafMats.length]);
-      leaf.scale.set(1,.17,.48);leaf.position.set(x+side*.12*scale,height*.65,z+side*.05*scale);leaf.rotation.y=angle;group.add(leaf);
-    }
-    if(i%3===0){const bloom=new THREE.Mesh(new THREE.IcosahedronGeometry(.075*scale,0),flowerMat);bloom.position.set(x,height+.03*scale,z);group.add(bloom);}
+function pixelMaterial(THREE, texture) {
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    color: 0xffffff,
+    roughness: 1,
+    transparent: true,
+    alphaTest: 0.08,
+    side: THREE.DoubleSide,
+    flatShading: true
+  });
+}
+
+function addSpritePlane(THREE, parent, material, width, height, y, rotation = 0) {
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  plane.position.y = y;
+  plane.rotation.y = rotation;
+  plane.castShadow = true;
+  plane.receiveShadow = true;
+  parent.add(plane);
+  return plane;
+}
+
+function paintPine(ctx) {
+  const blocks = (color, rows) => {
+    ctx.fillStyle = color;
+    for (const [x,y,w,h] of rows) ctx.fillRect(x,y,w,h);
+  };
+  // Broad stepped boughs and a broken pixel edge give the canopy a hand-placed silhouette.
+  blocks('#183c2c', [[15,1,3,4],[12,5,9,4],[9,9,15,4],[6,13,21,4],[3,17,27,4],[1,21,31,4],[4,25,25,4],[7,29,19,4],[10,33,13,4]]);
+  blocks('#285b38', [[15,3,3,3],[12,7,7,3],[9,11,12,3],[6,15,16,3],[4,19,18,3],[3,23,18,3],[6,27,15,3],[10,31,10,3]]);
+  blocks('#3f7844', [[14,6,3,2],[10,10,4,2],[7,14,5,2],[5,18,5,2],[4,22,5,2],[7,26,5,2],[11,30,4,2]]);
+  blocks('#6d9b50', [[14,5,2,1],[9,9,3,1],[6,13,4,1],[4,17,4,1],[3,21,4,1],[6,25,4,1]]);
+  blocks('#24432f', [[22,12,3,3],[24,18,4,3],[21,25,4,3],[17,31,4,2]]);
+}
+
+export function createPineArt(THREE, scale = 1) {
+  const group = new THREE.Group();
+  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x705034, roughness: 1, flatShading: true });
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(.20 * scale, .36 * scale, 2.3 * scale, 5),
+    trunkMaterial
+  );
+  trunk.position.y = 1.15 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const texture = pixelTexture(THREE, 32, 36, paintPine);
+  const material = pixelMaterial(THREE, texture);
+  const crown = new THREE.Group();
+  // Two crossed, camera-facing planes retain a readable tree silhouette from every walking direction.
+  addSpritePlane(THREE, crown, material, 4.6 * scale, 4.5 * scale, 3.05 * scale);
+  addSpritePlane(THREE, crown, material, 4.6 * scale, 4.5 * scale, 3.05 * scale, Math.PI / 2);
+  group.add(crown);
+  return { group, trunk, crown };
+}
+
+function paintHerbs(ctx, variant) {
+  const leaves = variant % 2
+    ? ['#759b48','#a6b764','#527a3f']
+    : ['#668f49','#b1bc68','#527440'];
+  ctx.fillStyle = '#415d37';
+  ctx.fillRect(9,20,14,2);
+  const tufts = [[5,17,1],[10,14,0],[15,17,2],[20,13,1],[26,17,0],[12,10,2],[22,9,1]];
+  tufts.forEach(([x,y,palette], index) => {
+    const leaf = leaves[palette];
+    ctx.fillStyle = '#426b3e';
+    ctx.fillRect(x+3,y+4,1,5);
+    ctx.fillStyle = leaf;
+    ctx.fillRect(x,y+2,3,2);
+    ctx.fillRect(x+2,y,3,3);
+    ctx.fillRect(x+4,y+2,3,2);
+    if (index % 2 === 0) ctx.fillRect(x+3,y+5,3,1);
+  });
+  ctx.fillStyle = variant % 2 ? '#e7d78b' : '#c49bd1';
+  for (const [x,y] of [[11,8],[20,7],[15,15]]) {
+    ctx.fillRect(x,y,2,2);
+    ctx.fillStyle = '#f5e7b6';
+    ctx.fillRect(x,y,1,1);
+    ctx.fillStyle = variant % 2 ? '#e7d78b' : '#c49bd1';
   }
+}
+
+export function createHerbArt(THREE, scale = 1, variant = 0) {
+  const group = new THREE.Group();
+  const texture = pixelTexture(THREE, 32, 24, ctx => paintHerbs(ctx, variant));
+  const material = pixelMaterial(THREE, texture);
+  addSpritePlane(THREE, group, material, .95 * scale, .78 * scale, .4 * scale);
+  addSpritePlane(THREE, group, material, .95 * scale, .78 * scale, .4 * scale, Math.PI / 2);
   return group;
 }
