@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#17231a" />
   <title>GPTWorld — My World</title>
   <link rel="stylesheet" href="./styles.css?v=living-worlds-5" />
-  <link rel="stylesheet" href="./private-world.css?v=progression-1" />
+  <link rel="stylesheet" href="./private-world.css?v=hunting-simplify-1" />
 </head>
 <body>
   <main id="app">
@@ -16,6 +16,15 @@
       <div class="status-strip"><span id="privateClock">08:00</span><span id="season">Spring</span><span id="weather">Clear</span><span id="temperature">13°C</span><span id="syncState" class="sync-state" data-state="connecting" role="status" aria-live="polite">Connecting</span></div>
     </section>
     <div class="world-actions"><button id="skillsButton" class="craft-button" type="button">Farm</button><button id="huntButton" class="craft-button hunt-button" type="button">Hunt</button><button id="craftButton" class="craft-button" type="button">Craft</button><button id="returnTown" class="return-town" type="button">Return to Town</button></div>
+    <aside id="huntHud" class="hunt-hud" hidden aria-label="Hunting controls">
+      <div id="huntTargetCard" class="hunt-hud-card">
+        <strong id="huntTargetName">No target</strong>
+        <div id="huntTargetMeta" class="hunt-hud-meta">Tap an animal to target it</div>
+        <div class="hunt-hud-health" aria-hidden="true"><span id="huntHealthFill"></span></div>
+      </div>
+      <button id="huntPrimaryButton" class="hunt-primary-action" type="button">Attack</button>
+      <button id="huntClearButton" class="hunt-clear-action" type="button">Clear</button>
+    </aside>
     <section class="panel inventory" aria-label="Inventory"><h2>Pack</h2><div class="inventory-row"><div class="resource"><span>🪵</span><strong id="woodCount">0</strong><small>Wood</small></div><div class="resource"><span>🪨</span><strong id="stoneCount">0</strong><small>Stone</small></div><div class="resource"><span>🌿</span><strong id="herbCount">0</strong><small>Herbs</small></div><div class="resource"><span>🪙</span><strong id="coinCount">0</strong><small>Coins</small></div></div></section>
     <div id="prompt" class="prompt" hidden></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
     <section id="craftingPanel" class="crafting-panel" hidden aria-modal="true" role="dialog" aria-labelledby="craftingTitle">
@@ -56,6 +65,6 @@
   </main>
   <script src="./private-world-shell.js?v=living-worlds-10"></script>
   <script defer src="./progression-ui.js?v=progression-1"></script>
-  <script type="module" src="./private-world.js?v=ultima-online-visual-6"></script>
+  <script type="module" src="./private-world.js?v=hunting-simplify-1"></script>
 </body>
 </html>

@@ -220,13 +220,14 @@ test('town board and living-town client normalize contribution affordability',as
   assert.match(main,/constructionStage/);
 });
 
-test('private hunting UI exposes track stalk hunt harvest and homestead identity',async()=>{
+test('private hunting UI exposes target attack loot and homestead identity',async()=>{
   const ui=await readFile(new URL('../private-world.js',import.meta.url),'utf8');
-  assert.match(ui,/Read tracks/);
-  assert.match(ui,/Stalk quietly/);
-  assert.match(ui,/Harvest wounded animal/);
+  assert.match(ui,/selectHuntTarget/);
+  assert.match(ui,/resolveHuntPrimary/);
+  assert.match(ui,/startHuntApproach/);
+  assert.match(ui,/harvest_animal/);
   assert.match(ui,/Fertilize plot/);
-  assert.match(ui,/huntContextChip/);
+  assert.match(ui,/huntHud/);
   assert.match(ui,/showHomesteadIdentity/);
   assert.match(ui,/Hunting increased|skillName/);
 });

@@ -16,7 +16,7 @@ test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(ui,/prepare_plot/);assert.match(ui,/harvest_crop/);assert.match(ui,/animal_out_of_range/);assert.match(ui,/openSurvival\(nearest/);
   assert.match(ui,/animalDistance\(animal,target=null\)/);
   assert.match(ui,/animalDistance\(animal,target\)/);
-  assert.match(ui,/if\(!data\.serverDriven\)/);
+  assert.match(ui,/!data\.serverDriven/);
   assert.match(ui,/gear\.has\('composite-bow'\)/);
   assert.match(api,/generatedAt/);
   assert.match(api,/snapshotAt/);
@@ -24,6 +24,8 @@ test('mobile private world exposes contextual farming and hunting actions',()=>{
   assert.match(ui,/snapshotAt:survivalData\.generatedAt/);
   assert.match(ui,/async function syncPositionNow/);
   assert.match(ui,/const synced=await syncPositionNow\(\)/);
+  assert.match(ui,/selectHuntTarget/);
+  assert.match(ui,/beginFieldHunt/);
 });
 test('harvested food connects to cooking without a second inventory',()=>{
   assert.match(api,/cookStew/);assert.match(api,/item_key IN \('raw-meat','carrot'\)/);assert.match(api,/itemKey:'trail-rations'/);

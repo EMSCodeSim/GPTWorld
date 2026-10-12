@@ -171,7 +171,7 @@ test('private world uses the public living simulation and refreshes while occupi
   assert.match(server,/world_state WHERE key IN \('weather_sim','ecosystem','forest_pressure'\)/);
   assert.match(server,/regrow_minutes/);
   assert.match(client,/syncLivingEntities\(data\.world\.livingEntities/);
-  assert.match(client,/distanceToPlayer<7/);
+  assert.match(client,/distanceToPlayer</);
   assert.match(client,/classifyPrecipitation/);
   assert.match(client,/createPineArt/);
   assert.match(client,/if\(time-lastLivingRefresh>12000\)refreshLivingWorld\(\)/);

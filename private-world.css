@@ -74,6 +74,25 @@
 .hunt-target-card strong{font-size:18px;text-transform:capitalize}.hunt-target-card span{color:#e6cf8f;font-weight:800}.hunt-target-card small{color:#bdc9bd}
 .survival-actions button.hunt-primary{min-height:58px;font-size:17px;background:#e0b15c;box-shadow:0 6px 18px rgba(0,0,0,.24)}
 .survival-actions button.hunt-secondary{background:#294331;color:#f3ead5;border:1px solid #607660}
-@media(max-width:800px),(pointer:coarse){.world-actions{flex-wrap:wrap;max-width:78vw;justify-content:flex-end}.hunt-button{font-size:13px}.survival-actions button.hunt-primary{min-height:62px;font-size:18px}}
+.hunt-hud{position:absolute;z-index:32;right:max(14px,env(safe-area-inset-right));bottom:max(118px,calc(env(safe-area-inset-bottom) + 108px));display:grid;gap:8px;width:min(220px,42vw);pointer-events:auto;touch-action:manipulation}
+.hunt-hud[hidden]{display:none!important}
+.hunt-hud-card{display:grid;gap:5px;padding:12px 13px;border-radius:14px;border:1px solid rgba(224,177,92,.55);background:rgba(18,28,20,.94);color:#f3ead5;box-shadow:0 8px 22px rgba(0,0,0,.28);backdrop-filter:blur(10px)}
+.hunt-hud-card strong{font-size:16px;text-transform:capitalize;letter-spacing:.01em}
+.hunt-hud-meta{font-size:12px;color:#d7c792;line-height:1.35}
+.hunt-hud-health{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+.hunt-hud-health span{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#c9783a,#e0b15c);transform-origin:left center;transform:scaleX(1);transition:transform .18s ease}
+.hunt-primary-action,.hunt-clear-action{min-height:56px;border:0;border-radius:14px;font-weight:900;font-size:17px;padding:12px 14px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.hunt-primary-action{background:#e0b15c;color:#17130b;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.hunt-primary-action[data-mode="loot"]{background:#8fca8c;color:#132016}
+.hunt-primary-action:disabled{opacity:.48}
+.hunt-primary-action.is-pressed,.hunt-clear-action.is-pressed{transform:scale(.97);filter:brightness(1.08)}
+.hunt-clear-action{min-height:44px;background:#294331;color:#f3ead5;border:1px solid #607660;font-size:14px}
+@media(max-width:800px),(pointer:coarse){
+  .world-actions{flex-wrap:wrap;max-width:78vw;justify-content:flex-end}
+  .hunt-button{font-size:13px}
+  .survival-actions button.hunt-primary{min-height:62px;font-size:18px}
+  .hunt-hud{right:max(12px,env(safe-area-inset-right));bottom:max(132px,calc(env(safe-area-inset-bottom) + 124px));width:min(200px,46vw)}
+  .hunt-primary-action{min-height:64px;font-size:18px}
+}
 
-#homesteadIdentity{max-width:min(250px,calc(100vw - 24px))}@media(max-width:800px),(pointer:coarse){#homesteadIdentity{right:10px;left:auto;top:max(58px,calc(env(safe-area-inset-top)+48px));width:min(220px,calc(100vw - 130px));font-size:12px;padding:10px 12px}#huntContextChip{bottom:max(176px,calc(env(safe-area-inset-bottom)+168px))}.world-actions{flex-wrap:wrap;gap:6px}.craft-button,.hunt-button,.return-town{min-height:44px;font-size:13px}}
+#homesteadIdentity{max-width:min(250px,calc(100vw - 24px))}@media(max-width:800px),(pointer:coarse){#homesteadIdentity{right:10px;left:auto;top:max(58px,calc(env(safe-area-inset-top)+48px));width:min(220px,calc(100vw - 130px));font-size:12px;padding:10px 12px}.world-actions{flex-wrap:wrap;gap:6px}.craft-button,.hunt-button,.return-town{min-height:44px;font-size:13px}}
