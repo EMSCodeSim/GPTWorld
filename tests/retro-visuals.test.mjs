@@ -39,12 +39,13 @@ test('retro viewport keeps orthographic bounds and full-resolution canvas', () =
   assert.equal(camera.updated, true);
 });
 
-test('retro renderer enables shadows without forcing CSS pixelation', () => {
+test('retro renderer enables transparent character overlay presentation', () => {
   const THREE = { BasicShadowMap: 0, SRGBColorSpace: 'srgb' };
   const renderer = {
     shadowMap: {},
     domElement: { style: {} },
-    setPixelRatio(value) { this.pixelRatio = value; }
+    setPixelRatio(value) { this.pixelRatio = value; },
+    setClearColor(color, alpha) { this.clearColor = [color, alpha]; }
   };
   configureRetroRenderer(THREE, renderer);
   assert.equal(renderer.pixelRatio, 1);
@@ -52,49 +53,57 @@ test('retro renderer enables shadows without forcing CSS pixelation', () => {
   assert.equal(renderer.shadowMap.type, 0);
   assert.equal(renderer.outputColorSpace, 'srgb');
   assert.equal(renderer.domElement.style.imageRendering, 'auto');
+  assert.equal(renderer.domElement.style.zIndex, '1');
+  assert.deepEqual(renderer.clearColor, [0x000000, 0]);
 });
 
-test('hybrid presenter resizes the environment target with the pixel scale', () => {
-  class RT {
-    constructor() { this.texture = { generateMipmaps: true, colorSpace: null }; }
-    setSize(w, h) { this.w = w; this.h = h; }
+test('hybrid presenter mounts a pixel environment canvas under characters', () => {
+  const created = [];
+  class FakeEnvRenderer {
+    constructor() {
+      this.shadowMap = {};
+      this.domElement = { style: {}, setAttribute() {}, parentElement: null };
+      this.sizes = [];
+      created.push(this);
+    }
+    setPixelRatio() {}
+    setSize(w, h, updateStyle) { this.sizes.push([w, h, updateStyle]); }
     dispose() { this.disposed = true; }
   }
-  const THREE = {
-    WebGLRenderTarget: RT,
-    NearestFilter: 'nearest',
-    SRGBColorSpace: 'srgb',
-    OrthographicCamera: class {
-      constructor() {}
+  const host = {
+    children: [],
+    style: { position: 'relative' },
+    insertBefore(node, ref) {
+      this.children.unshift(node);
+      node.parentElement = this;
+      this.ref = ref;
     },
-    MeshBasicMaterial: class {
-      constructor(options = {}) { Object.assign(this, options); }
-      dispose() {}
-    },
-    Mesh: class {
-      constructor(geometry, material) {
-        this.geometry = geometry;
-        this.material = material;
-      }
-    },
-    PlaneGeometry: class {
-      dispose() {}
-    },
-    Scene: class {
-      constructor() { this.children = []; }
-      add(item) { this.children.push(item); }
+    removeChild(node) {
+      this.children = this.children.filter(child => child !== node);
+      node.parentElement = null;
     }
   };
-  const renderer = { domElement: { style: {} } };
-  const hybrid = createHybridPresenter(THREE, renderer);
-  hybrid.setSize(1000, 500);
-  assert.equal(hybrid.setSize && true, true);
-  // Internal target should be scaled by RETRO_RENDER_SCALE.
-  // Access via closure is private; re-validate contract by dispose + API presence.
+  const characterRenderer = {
+    domElement: { parentElement: host, style: {} },
+    setClearColor(color, alpha) { this.clear = [color, alpha]; },
+    setSize() {}
+  };
+  const THREE = {
+    WebGLRenderer: FakeEnvRenderer,
+    BasicShadowMap: 0,
+    SRGBColorSpace: 'srgb'
+  };
+  const hybrid = createHybridPresenter(THREE, characterRenderer);
+  assert.equal(created.length, 1);
+  assert.equal(host.children[0], created[0].domElement);
+  assert.equal(created[0].domElement.style.imageRendering, 'pixelated');
+  assert.equal(created[0].domElement.style.zIndex, '0');
+  assert.deepEqual(characterRenderer.clear, [0x000000, 0]);
+  hybrid.setSize(1000, 500, 1000, 500);
+  assert.deepEqual(created[0].sizes.at(-1), [Math.round(1000 * RETRO_RENDER_SCALE), Math.round(500 * RETRO_RENDER_SCALE), false]);
   assert.equal(typeof hybrid.render, 'function');
-  assert.equal(typeof hybrid.dispose, 'function');
   hybrid.dispose();
-  assert.equal(Math.round(1000 * RETRO_RENDER_SCALE), Math.round(1000 * 0.55));
+  assert.equal(created[0].disposed, true);
 });
 
 test('character lighting and layer helpers cover both world layers', () => {

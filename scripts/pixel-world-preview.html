@@ -6,7 +6,7 @@
 <title>GPTWorld · Pixel World Preview</title>
 <style>
   html,body{margin:0;height:100%;background:#142019;color:#f3efe5;font:14px/1.4 "IBM Plex Sans",system-ui,sans-serif}
-  #stage{position:fixed;inset:0}
+  #stage{position:fixed;inset:0;overflow:hidden}
   #stage canvas{width:100%!important;height:100%!important}
   .hud{position:fixed;left:14px;bottom:14px;z-index:2;max-width:min(420px,calc(100vw - 28px));padding:12px 14px;border:1px solid #52634b;background:rgba(18,28,20,.88);border-radius:12px}
   .hud h1{margin:0 0 4px;font:700 16px/1.2 "IBM Plex Sans",system-ui,sans-serif}
@@ -24,12 +24,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 import {
   configureRetroRenderer,resizeRetroViewport,createHybridPresenter,enableCharacterLighting,
   RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR
-} from '../lib/retro-visuals.mjs';
+} from '../lib/retro-visuals.mjs?v=feature7';
 import {
   createPixelGroundMaterial,createPixelTrailMaterial,createPixelRoofMaterial,
   createPixelWaterMaterial,createPixelShoreMaterial,createPixelWallMaterial
 } from '../lib/pixel-terrain.mjs';
-import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from '../lib/pixel-beings.mjs';
+import {createPixelHumanoid,animatePixelHumanoid,createPixelCreature,animatePixelCreature} from '../lib/pixel-beings.mjs?v=feature7';
 import {createPixelDoorMaterial,createPixelWindow,createPixelBarrel,createPixelLivingPlantPart,createPixelCloud} from '../lib/pixel-props.mjs';
 import {createPineArt,createHerbArt,createRockArt} from '../vegetation-art.js';
 
@@ -39,9 +39,9 @@ scene.background=new THREE.Color(RETRO_SKY);
 scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
 const camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,200);
 camera.position.set(13,15.5,13);
-const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));
-const hybrid=createHybridPresenter(THREE,renderer);
+const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'}));
 stage.appendChild(renderer.domElement);
+const hybrid=createHybridPresenter(THREE,renderer);
 scene.add(enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85)));
 const sun=enableCharacterLighting(new THREE.DirectionalLight(0xfff0cf,2.35));
 sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);
@@ -111,6 +111,7 @@ function animate(t){
   hybrid.render(scene,camera);
 }
 requestAnimationFrame(animate);
+
 window.__pixelPreviewReady=true;
 window.__pixelPreviewActors={player,npc,creature,predator,occludeProbe};
 </script>

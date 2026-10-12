@@ -388,7 +388,7 @@ function build(data){
   scene=new THREE.Scene();scene.background=new THREE.Color(RETRO_SKY);scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
   camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,210);
   if(hybridPresenter){hybridPresenter.dispose();hybridPresenter=null;}
-  renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));worldEl.replaceChildren(renderer.domElement);
+  renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'}));worldEl.replaceChildren(renderer.domElement);
   hybridPresenter=createHybridPresenter(THREE,renderer);
   skyLight=enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));scene.add(skyLight);
   sun=enableCharacterLighting(new THREE.DirectionalLight(0xffedc6,2.35));sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);scene.add(sun);

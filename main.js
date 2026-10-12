@@ -44,7 +44,7 @@ let deviceSession=null,deviceSessionReady=false,deviceRecoveryRequired=false,dev
 
 const scene=new THREE.Scene();scene.background=new THREE.Color(RETRO_SKY);scene.fog=new THREE.Fog(RETRO_SKY,RETRO_FOG_NEAR,RETRO_FOG_FAR);
 const camera=new THREE.OrthographicCamera(-14,14,14,-14,.1,200);camera.position.set(14,16.5,14);
-const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));worldEl.appendChild(renderer.domElement);
+const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'}));worldEl.appendChild(renderer.domElement);
 const hybridPresenter=createHybridPresenter(THREE,renderer);
 const skyLight=enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));scene.add(skyLight);
 const sun=enableCharacterLighting(new THREE.DirectionalLight(0xfff0cf,2.35));sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);sun.shadow.camera.left=-35;sun.shadow.camera.right=35;sun.shadow.camera.top=35;sun.shadow.camera.bottom=-35;scene.add(sun);
