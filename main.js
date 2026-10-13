@@ -62,9 +62,9 @@ const bankMat=createPixelBankMaterial(THREE,0x667552);
 const shoreMat=createPixelShoreMaterial(THREE,0x7a6d52);
 const patchData=[[-15,-17,5.5,3.2,.12],[-8,15,4.8,2.7,-.3],[14,15,5.8,3.4,.24],[20,-15,4.5,2.6,-.18],[-33,13,4.2,2.4,.4],[8,26,5.2,2.8,-.5]];
 for(let i=0;i<patchData.length;i++){const [x,z,rx,rz,r]=patchData[i],m=new THREE.Mesh(new THREE.CircleGeometry(1,12),i%3===0?dryMat:patchMat);m.scale.set(rx,rz,1);m.rotation.x=-Math.PI/2;m.rotation.z=r;m.position.set(x,.012,z);m.receiveShadow=true;terrainDetail.add(m)}
-for(const x of[-29.6,-18.4]){const bank=new THREE.Mesh(new THREE.BoxGeometry(1.3,.035,70),bankMat);bank.position.set(x,.018,0);bank.receiveShadow=true;terrainDetail.add(bank)}
-for(const x of[-28.8,-19.2]){const shore=new THREE.Mesh(new THREE.BoxGeometry(1.05,.04,70),shoreMat);shore.position.set(x,.03,0);shore.receiveShadow=true;terrainDetail.add(shore)}
-const river=new THREE.Mesh(new THREE.BoxGeometry(10,.18,70),createPixelWaterMaterial(THREE,0x4d8090));river.position.set(-24,.08,0);scene.add(river);
+for(const x of[-29.6,-18.4]){const bank=new THREE.Mesh(new THREE.BoxGeometry(1.3,.035,110),bankMat);bank.position.set(x,.018,0);bank.receiveShadow=true;terrainDetail.add(bank)}
+for(const x of[-28.8,-19.2]){const shore=new THREE.Mesh(new THREE.BoxGeometry(1.05,.04,110),shoreMat);shore.position.set(x,.03,0);shore.receiveShadow=true;terrainDetail.add(shore)}
+const river=new THREE.Mesh(new THREE.BoxGeometry(10,.18,110),createPixelWaterMaterial(THREE,0x4d8090));river.position.set(-24,.08,0);scene.add(river);
 const roads=new THREE.Group();scene.add(roads);
 // Weather visuals are client-side only; the Weather Sim remains authoritative.
 let currentWeather={precipitation:'clear',wind:.2,temperatureC:12,drought:.18,snowDepthCm:0,snowCover:0};
