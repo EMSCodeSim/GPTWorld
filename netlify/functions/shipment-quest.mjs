@@ -44,7 +44,7 @@ export default async req=>{
   if(!key)return respond({ok:false,error:'idempotency_key_required'},400);
   // Position is server-owned and refreshed by normal world movement saves.
   // Tovan is near the town smithy; discovery sites are in the eastern forest.
-  const position=SHIPMENT_POINTS[({accept:'tovan',turn_in:'tovan',inspect_tracks:'tracks',recover:'cache',fight_wolf:'wolf',avoid_wolf:'wolf'})[action]];
+  const position=SHIPMENT_POINTS[({turn_in:'tovan',inspect_tracks:'tracks',recover:'cache',fight_wolf:'wolf',avoid_wolf:'wolf'})[action]];
   // All requests are restricted to the public world.
   const session=await sql`SELECT current_world_type FROM player_world_sessions WHERE player_id=${actor.id} LIMIT 1`;
   if(session[0]?.current_world_type==='private')return respond({ok:false,error:'return_to_public_world'},409);
@@ -58,7 +58,7 @@ export default async req=>{
   const hasBow=Boolean(equipped?.length);
   const next=shipmentNext(stage,action,{hasBow});
   if(!next)return respond({ok:false,error:action==='fight_wolf'&&!hasBow?'equip_bow_first':'quest_action_unavailable',quest:record.quest},409);
-  // Accept actions use NPC proximity validated against a server-stored player coordinate.
+  // Starting from the quest journal is allowed anywhere; turn-in still requires Tovan.
   // Forest actions also require visiting their physical discovery point.
   if(position&&!atPoint(actor,position))return respond({ok:false,error:'approach_quest_location',target:position},409);
   let combat=null;
