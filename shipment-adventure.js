@@ -58,7 +58,11 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   for(const [key,group] of Object.entries(visuals))group.visible=visibleMarker(key,quest.stage);
   questHud.textContent=quest.stage==='completed'?'✓ Shipment completed':'📜 '+(quest.stage==='not_started'?'New adventure':'Shipment quest');
   questHud.title=shipmentNarrative(quest.stage);
-  message.textContent=shipmentNarrative(quest.stage);
+  const waypoint=quest.stage==='tracking'?SHIPMENT_POINTS.tracks:quest.stage==='wagon_found'?SHIPMENT_POINTS.wolf:quest.stage==='wolf_resolved'?SHIPMENT_POINTS.cache:quest.stage==='shipment_recovered'?SHIPMENT_POINTS.tovan:null;
+  const dx=waypoint?waypoint.x-player.position.x:0,dz=waypoint?waypoint.z-player.position.z:0;
+  const direction=waypoint?(Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north')):'';
+  message.textContent=shipmentNarrative(quest.stage)+(waypoint?'\\n\\nNext stop: '+Math.round(Math.hypot(dx,dz))+' meters '+direction+' (follow the labeled marker).':'');
+  message.style.whiteSpace='pre-line';
   buttons.replaceChildren();
   const actions=[];
   if(quest.stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
