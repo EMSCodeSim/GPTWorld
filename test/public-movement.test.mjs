@@ -17,7 +17,7 @@ test('river remains impassable except at completed bridge',()=>{
  assert.equal(blockedByWorld(-24,0,{bridgeBuilt:true}),false);
 });
 test('player slides along circular obstacles instead of stopping',()=>{
- const obstacle={x:2,z:2,r:1};
+ const obstacle={x:2,z:1,r:1};
  const blocked=(x,z)=>blockedByWorld(x,z,{obstacles:[obstacle]});
  const point=moveWithSlide(1,1,1,.2,blocked);
  assert.deepEqual(point,{x:1,z:1.2});
