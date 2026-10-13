@@ -73,8 +73,8 @@ export default async (req) => {
       if (!clientId) return json({ ok: false, error: 'client_id_required' }, 400);
 
       const name = cleanName(body.name);
-      const x = Math.max(-33, Math.min(33, finite(body.x, 0)));
-      const z = Math.max(-33, Math.min(33, finite(body.z, 12)));
+      const x = Math.max(-51, Math.min(51, finite(body.x, 0)));
+      const z = Math.max(-51, Math.min(51, finite(body.z, 12)));
       const players = await sql`
         UPDATE players SET display_name=${name},x=${x},z=${z},last_seen_at=now()
         WHERE client_id=${clientId} RETURNING id
