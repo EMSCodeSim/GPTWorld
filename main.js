@@ -50,7 +50,9 @@ const renderer=configureRetroRenderer(THREE,new THREE.WebGLRenderer({antialias:t
 const hybridPresenter=createHybridPresenter(THREE,renderer);
 const skyLight=enableCharacterLighting(new THREE.HemisphereLight(0xb5d6e8,0x3a442c,1.85));scene.add(skyLight);
 const sun=enableCharacterLighting(new THREE.DirectionalLight(0xfff0cf,2.35));sun.position.set(15,24,10);sun.castShadow=true;sun.shadow.mapSize.set(512,512);sun.shadow.camera.left=-35;sun.shadow.camera.right=35;sun.shadow.camera.top=35;sun.shadow.camera.bottom=-35;scene.add(sun);
-const ground=new THREE.Mesh(new THREE.BoxGeometry(70,1,70),createPixelGroundMaterial(THREE,0x667d4e));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
+// Extended scenic terrain prevents floating paths/trees at the playable map edge.
+// Movement remains bounded by isBlocked; this is visual terrain only.
+const ground=new THREE.Mesh(new THREE.BoxGeometry(110,1,110),createPixelGroundMaterial(THREE,0x667d4e));ground.position.y=-.5;ground.receiveShadow=true;scene.add(ground);
 // Lightweight ground variation: visual-only patches keep the existing flat collision/world layout intact.
 const terrainDetail=new THREE.Group();scene.add(terrainDetail);
 const patchMat=createPixelPatchMaterial(THREE,0x718658);
@@ -156,7 +158,30 @@ function renderBuildingEntity(e){
   scene.add(g);
   return g;
 }
-function renderTrailEntity(e){const g=new THREE.Group();const pts=Array.isArray(e.points)?e.points:[];const width=Math.max(.2,Number(e.width||1.2));for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];if(!Array.isArray(a)||!Array.isArray(b))continue;const ax=Number(a[0]),az=Number(a[1]),bx=Number(b[0]),bz=Number(b[1]);const len=Math.hypot(bx-ax,bz-az);if(!Number.isFinite(len)||len<=0)continue;const mesh=new THREE.Mesh(new THREE.BoxGeometry(width,.035,len),createPixelTrailMaterial(THREE,colorValue(e.color,0x8e806d),width,len));mesh.position.set((ax+bx)/2,.035,(az+bz)/2);mesh.rotation.y=Math.atan2(bx-ax,bz-az);mesh.castShadow=false;g.add(mesh);}scene.add(g);return g}
+function renderTrailEntity(e){
+ const g=new THREE.Group(),pts=Array.isArray(e.points)?e.points:[],width=Math.min(3.5,Math.max(.2,Number(e.width||1.2)));
+ // Clip each server trail segment to the actual playable boundary.
+ // Previously roads could extend outside the terrain and appear to lead into the void.
+ function clip(ax,az,bx,bz){
+  let t0=0,t1=1;const dx=bx-ax,dz=bz-az;
+  for(const [p,q] of [[-dx,ax+32],[dx,32-ax],[-dz,az+32],[dz,32-az]]){
+   if(p===0){if(q<0)return null;continue;}
+   const t=q/p;if(p<0){if(t>t1)return null;t0=Math.max(t0,t);}else{if(t<t0)return null;t1=Math.min(t1,t);}
+  }
+  return t1>t0?[ax+dx*t0,az+dz*t0,ax+dx*t1,az+dz*t1]:null;
+ }
+ for(let i=1;i<pts.length;i++){
+  const a=pts[i-1],b=pts[i];
+  if(!Array.isArray(a)||!Array.isArray(b))continue;
+  const ax=Number(a[0]),az=Number(a[1]),bx=Number(b[0]),bz=Number(b[1]);
+  if(![ax,az,bx,bz].every(Number.isFinite))continue;
+  const cut=clip(ax,az,bx,bz);if(!cut)continue;
+  const [x0,z0,x1,z1]=cut,len=Math.hypot(x1-x0,z1-z0);if(len<.03)continue;
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(width,.035,len),createPixelTrailMaterial(THREE,colorValue(e.color,0x8e806d),width,len));
+  mesh.position.set((x0+x1)/2,.035,(z0+z1)/2);mesh.rotation.y=Math.atan2(x1-x0,z1-z0);mesh.castShadow=false;g.add(mesh);
+ }
+ scene.add(g);return g;
+}
 function renderEcologyPart(e){const part=String(e.part||''),w=Math.max(.08,Number(e.width||.4)),h=Math.max(.08,Number(e.height||.4)),d=Math.max(.08,Number(e.depth||.4)),c=colorValue(e.color,0x8a704d);if(part==='creature'&&e.animalId){const species=String(e.species||''),predator=String(e.kind||'')==='predator',runner=species==='reed-runner',g=createPixelCreature(THREE,{color:c,predator,runner,bodyScale:Math.max(.45,Number(e.bodyScale||.8)),width:w,height:h,depth:d});g.position.set(Number(e.x||0),0,Number(e.z||0));g.rotation.y=-Number(e.heading||0);g.userData.creature=true;g.userData.animalId=String(e.animalId);g.userData.species=species;g.userData.kind=String(e.kind||'herbivore');g.userData.behavior=String(e.behavior||'roaming');g.userData.target=new THREE.Vector3(Number(e.x||0),0,Number(e.z||0));g.userData.headingTarget=-Number(e.heading||0);scene.add(g);return g;}if(['blade','stem','crown','flower','plant-patch'].includes(part)){const g=createPixelLivingPlantPart(THREE,{...e,color:c,width:w,height:h,depth:d,part});g.position.set(Number(e.x||0),0,Number(e.z||0));scene.add(g);return g;}const g=new THREE.Group();g.position.set(Number(e.x||0),0,Number(e.z||0));let m;if(e.animalId){m=new THREE.Mesh(new THREE.BoxGeometry(.4,.35,.55),new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));m.position.y=.6;m.castShadow=true;g.add(m);}else{m=addBox(g,c,[w,h,d],[0,h/2,0]);}scene.add(g);return g}function renderObjectEntity(e){if(e.animalId)return renderEcologyPart(e);if(['blade','stem','crown','flower','plant-patch'].includes(String(e.part||'')))return renderEcologyPart(e);const g=new THREE.Group();g.position.set(Number(e.x||0),0,Number(e.z||0));const w=Math.max(.15,Number(e.width||1)),h=Math.max(.15,Number(e.height||1)),d=Math.max(.15,Number(e.depth||1));addBox(g,colorValue(e.color,0x77654d),[w,h,d],[0,h/2,0]);scene.add(g);return g}
 function renderTerrainEntity(e){const w=Math.max(.5,Number(e.width||3)),d=Math.max(.5,Number(e.depth||3)),h=Math.max(.02,Number(e.height||.08));const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),createPixelGroundMaterial(THREE,colorValue(e.color,0x667d4e)));m.position.set(Number(e.x||0),h/2,Number(e.z||0));m.receiveShadow=true;scene.add(m);return m}
 function renderVegetationEntity(e){const id=`dynamic-${e.id}`;const kind=String(e.kind||'tree');if(kind==='herbs')return addHerbs(id,Number(e.x||0),Number(e.z||0));if(kind==='rock')return addRock(id,Number(e.x||0),Number(e.z||0),Number(e.scale||.8));return addTree(id,Number(e.x||0),Number(e.z||0),Number(e.scale||.9))}
