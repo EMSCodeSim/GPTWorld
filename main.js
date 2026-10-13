@@ -9,6 +9,7 @@ import {WORLD_GATEWAY,isInsideWorldGateway} from './world-gateway.mjs';
 import {canEnterBuilding,interiorEntryUrl,INTERIOR_SPAWN_KEY,rememberOutdoorPosition,shouldAutoResumePublicWorld} from './lib/interior-core.mjs';
 import {classifyPrecipitation} from './lib/weather-visuals.mjs';
 import {MERCHANTS_CLIENT} from './lib/merchants-client.mjs';
+import {WALK_LIMIT,walkInputFromScreen,blockedByWorld,moveWithSlide} from './lib/public-movement.mjs';
 import {createShipmentAdventure} from './shipment-adventure.js';
 
 const WORLD_API='/.netlify/functions/world-v2';
@@ -516,8 +517,32 @@ function interact(){if(!gameStarted||!nearest)return;if(merchantPanel&&!merchant
 const doorRaycaster=new THREE.Raycaster(),doorPointer=new THREE.Vector2();let doorTapStart=null;
 renderer.domElement.addEventListener('pointerdown',e=>{doorTapStart={x:e.clientX,y:e.clientY}});
 renderer.domElement.addEventListener('pointerup',e=>{if(!gameStarted||!doorTapStart)return;const moved=Math.hypot(e.clientX-doorTapStart.x,e.clientY-doorTapStart.y);doorTapStart=null;if(moved>14)return;const rect=renderer.domElement.getBoundingClientRect();doorPointer.set((e.clientX-rect.left)/rect.width*2-1,-((e.clientY-rect.top)/rect.height)*2+1);doorRaycaster.setFromCamera(doorPointer,camera);const hit=doorRaycaster.intersectObjects(buildingDoors,false)[0];if(hit?.object?.userData?.worldGateway){enterPrivateWorld();return}if(hit?.object?.userData?.buildingId)enterBuilding(hit.object.userData.buildingId,hit.object.userData.buildingLabel)});
-function isBlocked(x,z){if(x< -33||x>33||z< -33||z>33)return true;if(x>-29&&x<-19&&!(bridgeBuilt&&Math.abs(z)<1.55))return true;for(const b of blockers){const dx=x-b.x,dz=z-b.z;if(dx*dx+dz*dz<b.r*b.r)return true}return false}
-function updatePlayer(dt,t){desired.set(joystickX,0,joystickY);if(keys.has('w')||keys.has('arrowup'))desired.z-=1;if(keys.has('s')||keys.has('arrowdown'))desired.z+=1;if(keys.has('a')||keys.has('arrowleft'))desired.x-=1;if(keys.has('d')||keys.has('arrowright'))desired.x+=1;const strength=Math.min(1,desired.length());if(strength>0){desired.normalize().multiplyScalar(5.2*strength);velocity.lerp(desired,Math.min(1,dt*10));player.rotation.y=Math.atan2(velocity.x,velocity.z)}else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*9));const nx=player.position.x+velocity.x*dt,nz=player.position.z+velocity.z*dt;if(!isBlocked(nx,player.position.z))player.position.x=nx;if(!isBlocked(player.position.x,nz))player.position.z=nz;const insideGateway=bridgeBuilt&&isInsideWorldGateway(player.position.x,player.position.z);if(insideGateway&&gatewayWalkArmed){gatewayWalkArmed=false;enterPrivateWorld()}else if(!insideGateway&&Math.hypot(player.position.x-WORLD_GATEWAY.x,player.position.z-WORLD_GATEWAY.z)>2.2)gatewayWalkArmed=true;animateHumanoid(player,strength>.05,t,1.12);cameraTarget.copy(player.position).add(new THREE.Vector3(13,15.5,13));camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));camera.lookAt(player.position.x,.7,player.position.z)}
+function isBlocked(x,z){return blockedByWorld(x,z,{bridgeBuilt,obstacles:blockers});}
+function updatePlayer(dt,t){
+ const rawX=joystickX+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
+ const rawY=joystickY+(keys.has('s')||keys.has('arrowdown')?1:0)-(keys.has('w')||keys.has('arrowup')?1:0);
+ const input=walkInputFromScreen(rawX,rawY,13,13);
+ const strength=input.strength;
+ if(strength>.02){
+  desired.set(input.x*5.2,0,input.z*5.2);
+  velocity.lerp(desired,Math.min(1,dt*12));
+ }else velocity.lerp(new THREE.Vector3(),Math.min(1,dt*14));
+ if(velocity.length()<.04)velocity.set(0,0,0);
+ const oldX=player.position.x,oldZ=player.position.z;
+ const next=moveWithSlide(oldX,oldZ,velocity.x*dt,velocity.z*dt,isBlocked);
+ player.position.set(next.x,0,next.z);
+ const moved=Math.hypot(next.x-oldX,next.z-oldZ);
+ if(moved>.001)player.rotation.y=Math.atan2(next.x-oldX,next.z-oldZ);
+ // Sliding into a map edge should not continuously accelerate the character.
+ if(moved<.001&&strength>.05)velocity.multiplyScalar(.45);
+ const insideGateway=bridgeBuilt&&isInsideWorldGateway(player.position.x,player.position.z);
+ if(insideGateway&&gatewayWalkArmed){gatewayWalkArmed=false;enterPrivateWorld();}
+ else if(!insideGateway&&Math.hypot(player.position.x-WORLD_GATEWAY.x,player.position.z-WORLD_GATEWAY.z)>2.2)gatewayWalkArmed=true;
+ animateHumanoid(player,moved>.001,t,1.12);
+ cameraTarget.copy(player.position).add(new THREE.Vector3(13,15.5,13));
+ camera.position.lerp(cameraTarget,Math.min(1,dt*3.5));
+ camera.lookAt(player.position.x,.7,player.position.z);
+}
 function updateNPCs(t,dt){for(const n of npcs){const dx=n.target.x-n.object.position.x,dz=n.target.z-n.object.position.z,dist=Math.hypot(dx,dz),moving=dist>.14;if(moving){const step=Math.min(dist,Math.max(.01,dt)*1.35);n.object.position.x+=dx/dist*step;n.object.position.z+=dz/dist*step;n.object.rotation.y=Math.atan2(dx,dz);}else{n.object.position.x=n.target.x+Math.cos(t*.00035+n.phase)*.12;n.object.position.z=n.target.z+Math.sin(t*.0003+n.phase)*.12;}animateHumanoid(n.object,moving,t,.82);if(!moving&&n.object.userData.rig&&/forge|working metal|herb|sorting|serving|supplies|tending/i.test(n.activity||'')){const r=n.object.userData.rig,a=Math.sin(t*.01+n.phase);r.armR.rotation.x=-.45-a*.72;r.armL.rotation.x=.18+a*.25;}}}
 function updateNearest(){let best=null,dist=Infinity;for(const i of interactables){if(!i.object.visible)continue;const d=player.position.distanceTo(i.object.position);if(d<i.radius&&d<dist){best=i;dist=d}}nearest=best;promptEl.hidden=!nearest;if(nearest)promptEl.textContent=nearest.type==='gateway'?'Walk through or interact · Enter My World':nearest.type==='resource'?(nearest.plantInfo?`Inspect ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} harvestable`:''}`:`Gather ${nearest.label}${Number.isFinite(nearest.remaining)?` · ${nearest.remaining} left`:''}`):nearest.type==='shipment'?`Inspect ${nearest.label} · Shipment quest`:nearest.merchantKey==='blacksmith'?`Talk to ${nearest.label} · Quest / Trade`:nearest.type==='merchant'||nearest.merchantKey?`Trade with ${nearest.label}`:nearest.type==='npc'?`Talk to ${nearest.label}`:nearest.type==='building'?(Number(nearest.level||1)>=2?`Enter ${nearest.label} · Level ${Number(nearest.level||1)}`:`Upgrade ${nearest.label} to Level 2 to enter`):`Inspect ${nearest.label}`}
 function resize(){resizeRetroViewport(renderer,camera,worldEl.clientWidth,worldEl.clientHeight,hybridPresenter)}window.addEventListener('resize',resize);resize();const clock=new THREE.Clock();function animate(t){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if(gameStarted){updatePlayer(dt,t);updateNPCs(t,dt);updateRemotePlayers(dt,t);updateCreatures(t,dt);updateWeatherVisuals(dt,t);updateNearest();elapsedWorldMinutes+=dt*2;clockEl.textContent=formatTime(elapsedWorldMinutes);if(t-lastSave>4000){saveState();lastSave=t}}hybridPresenter.render(scene,camera)}requestAnimationFrame(animate);deviceSessionPromise=resolveDeviceSession();deviceSessionPromise.then(refreshWalkingAvatar).catch(()=>{});const resumeFrom=new URLSearchParams(location.search).get('from');if(shouldAutoResumePublicWorld(resumeFrom)&&state.playerName)deviceSessionPromise.then(()=>startGame());
