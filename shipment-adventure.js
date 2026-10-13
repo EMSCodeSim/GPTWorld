@@ -62,7 +62,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   buttons.replaceChildren();
   const actions=[];
   if(quest.stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
-  if(quest.stage==='tracking')actions.push(['Track the wagon (forest)','none']);
+  if(quest.stage==='tracking')actions.push(['Follow the glowing track marker in the eastern forest','none']);
   if(quest.stage==='wagon_found')actions.push(['Shoot wolf with equipped bow','fight_wolf'],['Sneak around wolf','avoid_wolf']);
   if(quest.stage==='wolf_resolved')actions.push(['Recover scattered shipment','recover']);
   if(quest.stage==='shipment_recovered')actions.push(['Return supplies to Tovan','turn_in']);
@@ -87,8 +87,8 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  }
  async function act(action){
   if(busy)return;
-  const target=action==='accept'||action==='turn_in'?SHIPMENT_POINTS.tovan:action==='inspect_tracks'?SHIPMENT_POINTS.tracks:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
-  if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Approach the quest location before interacting.';return;}
+  const target=action==='turn_in'?SHIPMENT_POINTS.tovan:action==='inspect_tracks'?SHIPMENT_POINTS.tracks:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
+  if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Walk toward the highlighted quest marker; distance '+Math.round(Math.hypot(player.position.x-target.x,player.position.z-target.z))+' meters.';return;}
   busy=true;notice.textContent='Saving quest progress…';paint();
   try{
    await syncPresence();
