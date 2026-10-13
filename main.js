@@ -231,7 +231,13 @@ window.addEventListener('gptworld:avatar-equipment',event=>{
 });
 window.addEventListener('focus',refreshWalkingAvatar);
 const shipmentAdventure=createShipmentAdventure({THREE,scene,interactables,player,
- syncPresence:syncPresenceFast,
+ syncPresence:async()=>{
+  const clientId=localStorage.getItem(CLIENT_KEY);
+  if(!clientId)throw Error('Your traveler is not registered.');
+  const response=await fetch(WORLD_API,{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({clientId,name:playerName,x:Number(player.position.x.toFixed(3)),z:Number(player.position.z.toFixed(3))})});
+  const data=await response.json();if(!response.ok||!data.ok)throw Error('Unable to save your position. Try again.');
+ },
  openTrade:()=>openMerchantTrade('blacksmith'),
  onReward:data=>{if(data?.player)mergeInventory(data.player);showToast('Tovan rewarded you! Trail Repair Fittings unlocked.');}
 });
