@@ -64,6 +64,34 @@
     <section class="mobile-controls" aria-label="Movement controls"><div id="joystick" class="joystick" role="application" aria-label="Movement joystick"><div class="joystick-ring"></div><div id="joystickKnob" class="joystick-knob"></div></div><button id="actionButton" class="action" type="button"><span>✦</span><strong>Interact</strong></button></section>
     <section id="loading" class="welcome" aria-modal="true" role="dialog"><div class="welcome-card"><div class="eyebrow">PRIVATE LIVING WORLD</div><h2 id="loadingTitle">Opening your world…</h2><p id="loadingMessage">Loading its persistent landscape and catching up bounded offline ecology.</p><button id="retry" type="button" hidden>Try again</button><a class="loading-return" href="./index.html">Return to Public Town</a></div></section>
   </main>
+  <button id="privateMobileMenuButton" type="button" aria-controls="privateMobileMenu" aria-expanded="false">☰ Menu</button>
+  <nav id="privateMobileMenu" aria-label="Private world actions" hidden>
+    <button type="button" data-action="skillsButton">🌱 Farm</button>
+    <button type="button" data-action="huntButton">🏹 Hunt</button>
+    <button type="button" data-action="craftButton">⚒ Craft & Build</button>
+    <button type="button" data-action="avatar">🎒 Avatar & Pack</button>
+    <button type="button" data-action="returnTown">🏘 Return to Town</button>
+  </nav>
+  <style>
+    #privateMobileMenuButton,#privateMobileMenu{display:none}
+    @media(max-width:800px),(pointer:coarse){
+      #privateMobileMenuButton{display:block;position:fixed;top:max(68px,calc(env(safe-area-inset-top) + 14px));right:12px;z-index:105;background:#18291e;color:#f3e6c7;border:1px solid #c3a66c;border-radius:14px;padding:11px 15px;font:800 16px system-ui;min-height:48px}
+      #privateMobileMenu:not([hidden]){display:grid;position:fixed;z-index:105;right:12px;top:max(124px,calc(env(safe-area-inset-top) + 70px));width:min(235px,calc(100vw - 24px));gap:7px;padding:12px;background:#15271c;border:1px solid #a58d5b;border-radius:16px;box-shadow:0 12px 35px #0009}
+      #privateMobileMenu button{padding:13px 12px;text-align:left;background:#29402f;color:#f5ead2;border:1px solid #52644b;border-radius:10px;font:700 15px system-ui}
+      #privateMobileMenu[hidden]{display:none!important}
+      .world-actions{display:none!important}
+      .topbar .status-strip{display:none!important}
+      .topbar .world-title{max-width:calc(100vw - 135px)}
+      .topbar h1{font-size:19px}
+      .inventory{display:none!important}
+      #avatarOpen,.avatar-open-button{display:none!important}
+      .mobile-controls{left:12px;right:12px;justify-content:space-between}
+      .mobile-controls .joystick{width:112px;height:112px}
+    }
+  </style>
+  <script>
+    (()=>{const init=()=>{const menu=document.getElementById('privateMobileMenu'),toggle=document.getElementById('privateMobileMenuButton');const close=()=>{menu.hidden=true;toggle.setAttribute('aria-expanded','false')};toggle.addEventListener('click',()=>{menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden))});menu.addEventListener('click',event=>{const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;close();if(action==='avatar'){const avatar=document.getElementById('avatarOpen')||document.querySelector('.avatar-open-button');avatar?.click();return;}document.getElementById(action)?.click()});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();
+  </script>
   <script src="./private-world-shell.js?v=living-worlds-10"></script>
   <script defer src="./progression-ui.js?v=progression-1"></script>
   <script type="module" src="./private-world.js?v=pixar-cartoon-3"></script>
