@@ -490,7 +490,7 @@ function makePlacedWorldModel(item){
     mesh.position.set(...at);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;
   };
   const key=item.key;
-  if(key==='wooden-crate'||key==='storage-chest'||key==='wooden-chest'){
+  if(key==='wooden-crate'||key==='storage-chest'||key==='wooden-chest'||key==='masterwork-chest'||key==='seed-chest'){
     part(0x70502f,[1.65,1.05,1.2],[0,.58,0]);part(0xa07a47,[1.72,.18,1.26],[0,1.17,0]);
     for(const x of[-.68,.68])part(0x3f3022,[.12,1.16,1.3],[x,.61,0]);
     part(0xc1a05e,[.25,.24,.08],[0,.72,.64]);
@@ -515,6 +515,24 @@ function makePlacedWorldModel(item){
   }else if(key==='reed-mat'){
     part(0xb49a60,[2.1,.08,1.45],[0,.06,0]);
     for(let i=-4;i<=4;i++)part(0x7d7048,[.04,.08,1.4],[i*.23,.12,0]);
+  }else if(key==='storage-shed'){
+    // An actual walk-up shed rather than a flat crafting-card billboard.
+    part(0x6e5036,[3.4,2.2,2.8],[0,1.12,0]);
+    part(0x493629,[3.9,.24,3.25],[0,2.35,0]);
+    for(const x of[-1.4,1.4])part(0x94704b,[.17,2.3,.17],[x,1.15,1.46]);
+    for(const z of[-1.2,1.2])part(0x8b6742,[3.8,.13,.16],[0,2.55,z]);
+    part(0x4a3325,[1.15,1.8,.09],[0,.94,1.45]);
+    part(0xc4a66b,[.13,.14,.12],[.4,.98,1.54]);
+  }else if(key==='hide-rack'){
+    for(const x of[-.95,.95])part(0x775638,[.16,2.15,.16],[x,1.08,0]);
+    part(0x775638,[2.15,.16,.16],[0,2.08,0]);
+    part(0x775638,[2.15,.16,.16],[0,.4,0]);
+    part(0xa98c67,[1.65,1.15,.1],[0,1.23,0]);
+    for(const x of[-.75,.75])part(0x53402c,[.07,1.05,.14],[x,1.23,0]);
+  }else if(key==='bedroll'||key==='padded-bedroll'){
+    part(0x4c5e43,[2.1,.16,1.05],[0,.12,0]);
+    part(0xb5a27a,[.42,.25,.9],[-.8,.25,0]);
+    part(0x84734f,[1.3,.2,1.05],[.25,.23,0]);
   }else if(key==='hunting-trap'){
     part(0x64513c,[1.6,.16,1.6],[0,.12,0]);
     for(const x of[-.62,.62])for(const z of[-.62,.62])part(0x99958c,[.2,.4,.2],[x,.38,z]);
