@@ -87,12 +87,13 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  wrap.querySelector('#shipmentClose').addEventListener('click',close);
  wrap.addEventListener('click',event=>{if(event.target===wrap)close();});
  questHud.addEventListener('click',open);
+ window.addEventListener('gptworld:open-adventure',open);
  window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!wrap.hidden){close();event.stopImmediatePropagation();}});
  async function reload(){
   const clientId=localStorage.getItem('gptworld-client-id');if(!clientId)return;
   try{const response=await fetch(ENDPOINT+'?clientId='+encodeURIComponent(clientId),{cache:'no-store'}),data=await response.json();
-    if(data.ok){quest=data.quest;paint();}}
-  catch(error){console.warn('Shipment quest not available',error);}
+    if(data.ok){quest=data.quest;paint();}else{notice.textContent='Quest unavailable: '+String(data.error||'server did not return quest progress');}}
+  catch(error){console.warn('Shipment quest not available',error);notice.textContent='Unable to load Quest 1. Check your connection and try reopening Adventure.';}
  }
  async function act(action){
   if(busy)return;
