@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run check
       - run: node --check netlify/functions/day21-release.mjs
