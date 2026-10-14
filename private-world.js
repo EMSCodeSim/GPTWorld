@@ -537,10 +537,30 @@ function makePlacedWorldModel(item){
     part(0x64513c,[1.6,.16,1.6],[0,.12,0]);
     for(const x of[-.62,.62])for(const z of[-.62,.62])part(0x99958c,[.2,.4,.2],[x,.38,z]);
   }else{
-    // Unknown craft items retain their recognizable icon until a dedicated model exists.
-    const texture=new THREE.TextureLoader().load(craftingIcon(key));texture.colorSpace=THREE.SRGBColorSpace;
-    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
-    sprite.center.set(.5,0);sprite.scale.set(2.2,2.2,1);sprite.position.y=.1;group.add(sprite);
+    // Grounded geometry fallback: never render an inventory card in the playable world.
+    if(/wall|fence|screen/.test(key)){
+      for(const x of[-1,1])part(0x76563b,[.2,1.8,.2],[x,.9,0]);
+      for(const y of[.5,1.1,1.6])part(0x94714d,[2.2,.2,.17],[0,y,0]);
+    }else if(/hearth|kiln|stone/.test(key)){
+      part(0x78746b,[2,1.05,1.6],[0,.55,0]);part(0x3d3a35,[1.2,.65,.1],[0,.6,.84]);
+      part(0x969084,[2.15,.17,1.75],[0,1.16,0]);
+    }else if(/stool|bench|workbench|counter/.test(key)){
+      part(0x906a42,[2,.22,1],[0,1,0]);
+      for(const x of[-.75,.75])for(const z of[-.35,.35])part(0x61442b,[.17,1,.17],[x,.5,z]);
+    }else if(/basket/.test(key)){
+      part(0x9b7947,[1.1,.7,.9],[0,.4,0]);part(0x624d2c,[.9,.12,.7],[0,.78,0]);
+    }else if(/rug|mat/.test(key)){
+      part(0x886d4b,[2,.07,1.5],[0,.06,0]);part(0xb49b6a,[1.7,.08,1.2],[0,.11,0]);
+    }else if(/blind/.test(key)){
+      for(const x of[-1,1])part(0x6c5233,[.18,1.8,.18],[x,.9,0]);
+      part(0x5b7242,[2.4,.2,1.6],[0,1.85,0]);
+    }else if(/orchard/.test(key)){
+      part(0x755139,[.35,1.9,.35],[0,.95,0]);
+      const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,0),new THREE.MeshStandardMaterial({color:0x477344,flatShading:true}));
+      canopy.position.y=2.2;canopy.castShadow=true;group.add(canopy);
+    }else{
+      part(0x775b3c,[1.4,.65,1.1],[0,.36,0]);part(0x9a7950,[1.5,.14,1.2],[0,.76,0]);
+    }
   }
   group.userData.item=item;
   return group;
