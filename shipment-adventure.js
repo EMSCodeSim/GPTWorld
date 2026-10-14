@@ -58,15 +58,15 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   for(const [key,group] of Object.entries(visuals))group.visible=visibleMarker(key,quest.stage);
   questHud.textContent=quest.stage==='completed'?'✓ Shipment completed':'📜 '+(quest.stage==='not_started'?'New adventure':'Shipment quest');
   questHud.title=shipmentNarrative(quest.stage);
-  const waypoint=quest.stage==='tracking'?SHIPMENT_POINTS.tracks:quest.stage==='wagon_found'?SHIPMENT_POINTS.wolf:quest.stage==='wolf_resolved'?SHIPMENT_POINTS.cache:quest.stage==='shipment_recovered'?SHIPMENT_POINTS.tovan:null;
+  const waypoint=quest.stage==='not_started'?SHIPMENT_POINTS.tovan:quest.stage==='tracking'?SHIPMENT_POINTS.tracks:quest.stage==='wagon_found'?SHIPMENT_POINTS.wolf:quest.stage==='wolf_resolved'?SHIPMENT_POINTS.cache:quest.stage==='shipment_recovered'?SHIPMENT_POINTS.tovan:null;
   const dx=waypoint?waypoint.x-player.position.x:0,dz=waypoint?waypoint.z-player.position.z:0;
   const direction=waypoint?(Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north')):'';
-  message.textContent=shipmentNarrative(quest.stage)+(waypoint?'\\n\\nNext stop: '+Math.round(Math.hypot(dx,dz))+' meters '+direction+' (follow the labeled marker).':'');
+  message.textContent=(quest.stage==='not_started'?'Start this adventure from your quest journal anywhere in the public world. You do not need to reach Tovan first.\\n\\n':'')+shipmentNarrative(quest.stage)+(waypoint?'\\n\\n'+(quest.stage==='not_started'?'Tovan is ':'Next stop: ')+Math.round(Math.hypot(dx,dz))+' meters '+direction+(quest.stage==='not_started'?' from your position.':' (follow the labeled marker).'):'');
   message.style.whiteSpace='pre-line';
   buttons.replaceChildren();
   const actions=[];
   if(quest.stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
-  if(quest.stage==='tracking')actions.push(['Follow the glowing track marker in the eastern forest','none']);
+  if(quest.stage==='tracking')actions.push(['Close journal and walk toward the wagon tracks','close']);
   if(quest.stage==='wagon_found')actions.push(['Shoot wolf with equipped bow','fight_wolf'],['Sneak around wolf','avoid_wolf']);
   if(quest.stage==='wolf_resolved')actions.push(['Recover scattered shipment','recover']);
   if(quest.stage==='shipment_recovered')actions.push(['Return supplies to Tovan','turn_in']);
@@ -74,7 +74,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   actions.push(['Trade with Tovan','trade']);
   for(const [label,action] of actions){
    const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=busy||action==='none';
-   button.addEventListener('click',()=>action==='trade'?(close(),openTrade()):act(action));buttons.append(button);
+   button.addEventListener('click',()=>action==='trade'?(close(),openTrade()):action==='close'?close():act(action));buttons.append(button);
   }
  }
  function close(){wrap.hidden=true;}
