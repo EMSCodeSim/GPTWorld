@@ -939,6 +939,16 @@ async function craftRecipe(recipe){
   }catch(error){showCraftingError(error.message==='insufficient_materials'?'You no longer have enough materials.':error.message==='recipe_locked'?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}.`:error.message==='private_world_required'?'Craft inside your personal world.':error.message==='portable_forge_required'?'Place a Portable Forge in your private world for this advanced Blacksmithing recipe.':`Craft failed (${error.message}). No skill XP was awarded.`);}
   finally{craftBusy=false;renderCrafting();}
 }
+window.addEventListener('gptworld:place-backpack-item',async event=>{
+  const id=String(event.detail?.itemId||'');
+  if(!id||event.detail?.key!=='portable-forge')return;
+  if(!activeClientId){showToast('Enter your private world before placing your forge.');return;}
+  if(!craftingData||!craftingData.items?.some(item=>String(item.id)===id))await loadCrafting();
+  const item=craftingData?.items?.find(item=>String(item.id)===id&&item.key==='portable-forge'&&!item.placed);
+  if(!item){showToast('Portable Forge was not found in your current private-world inventory.');return;}
+  craftingPanel.hidden=false;
+  await placeCraftedItem(item);
+});
 async function placeCraftedItem(item){
   if(itemBusy||item.placed||!isPlaceableItem(item))return;itemBusy=true;renderCrafting();const synced=await syncPositionNow();if(!synced){itemBusy=false;renderCrafting();showCraftingError('Unable to sync your position. Reconnect and try again.');return;}
   const position={x:clamp(player.position.x+Math.sin(player.rotation.y)*2.6,-32,32),z:clamp(player.position.z+Math.cos(player.rotation.y)*2.6,-32,32),rotation:player.rotation.y};
