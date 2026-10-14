@@ -481,12 +481,44 @@ function refreshCrateStorageLabel(sprite,item){
   context.fillStyle='#f4e3b9';context.font='700 30px system-ui,sans-serif';context.textAlign='center';context.textBaseline='middle';context.fillText(`Stored ${used} / ${Number(storage.capacity||60)}`,160,42);label.userData.texture.needsUpdate=true;
 }
 
+function makePlacedWorldModel(item){
+  const group=new THREE.Group();group.position.set(Number(item.x)||0,0,Number(item.z)||0);
+  group.rotation.y=Number(item.rotation)||0;
+  const part=(color,size,at,kind='box')=>{
+    const geometry=kind==='cylinder'?new THREE.CylinderGeometry(size[0],size[0],size[1],8):new THREE.BoxGeometry(...size);
+    const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:1,flatShading:true}));
+    mesh.position.set(...at);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;
+  };
+  const key=item.key;
+  if(key==='wooden-crate'||key==='storage-chest'||key==='wooden-chest'){
+    part(0x70502f,[1.65,1.05,1.2],[0,.58,0]);part(0xa07a47,[1.72,.18,1.26],[0,1.17,0]);
+    for(const x of[-.68,.68])part(0x3f3022,[.12,1.16,1.3],[x,.61,0]);
+    part(0xc1a05e,[.25,.24,.08],[0,.72,.64]);
+  }else if(key==='campfire-kit'){
+    for(let i=0;i<9;i++){const a=i*Math.PI*2/9;part(i%2?0x77726a:0x999184,[.29,.28,.26],[Math.cos(a)*.74,.16,Math.sin(a)*.74]);}
+    for(const a of[-.55,.55]){const log=part(0x664024,[1.65,.27,.31],[0,.3,0]);log.rotation.y=a;}
+    part(0x28251f,[.8,.09,.8],[0,.1,0],'cylinder');
+  }else if(key==='portable-forge'){
+    part(0x675f54,[1.9,.55,1.45],[0,.3,0]);part(0x383b3c,[1.5,.65,1.2],[0,.85,0]);
+    part(0x9b5831,[1.05,.08,.85],[0,1.2,0]);
+    part(0x4b4b47,[.4,1.7,.4],[.58,1.65,-.35]);
+    part(0x272e2d,[.8,.3,.6],[-.5,.95,.15]);
+  }else if(key==='hunting-trap'){
+    part(0x64513c,[1.6,.16,1.6],[0,.12,0]);
+    for(const x of[-.62,.62])for(const z of[-.62,.62])part(0x99958c,[.2,.4,.2],[x,.38,z]);
+  }else{
+    // Unknown craft items retain their recognizable icon until a dedicated model exists.
+    const texture=new THREE.TextureLoader().load(craftingIcon(key));texture.colorSpace=THREE.SRGBColorSpace;
+    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
+    sprite.center.set(.5,0);sprite.scale.set(2.2,2.2,1);sprite.position.y=.1;group.add(sprite);
+  }
+  group.userData.item=item;
+  return group;
+}
 function addPlacedCraft(item){
   if(item?.metadata?.interior===true)return;
   if(placedCrafts.has(String(item.id)))return;
-  const texture=new THREE.TextureLoader().load(craftingIcon(item.key));texture.colorSpace=THREE.SRGBColorSpace;
-  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.08,depthWrite:false}));
-  sprite.center.set(.5,0);sprite.scale.set(2.8,2.8,1);sprite.position.set(item.x,.04,item.z);sprite.userData.item=item;
+  const sprite=makePlacedWorldModel(item);
   if(item.key==='campfire-kit'){const fireGroup=makeCampfireFlame(item);sprite.userData.fireGroup=fireGroup;sprite.userData.fireLight=fireGroup.userData.light;}
   scene.add(sprite);placedCrafts.set(String(item.id),sprite);refreshPlacedCraft(item);refreshCrateStorageLabel(sprite,item);
   interactables.push({label:item.name,placedItemId:String(item.id),object:sprite,radius:2.6});
@@ -560,7 +592,7 @@ function restorePrivateInteriorSpawn(data){
   return data;
 }
 function removePlacedCraft(itemId){
-  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.material.map?.dispose();sprite.material.dispose();if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}if(sprite.userData.storageLabel){scene.remove(sprite.userData.storageLabel);sprite.userData.storageLabel.material.map?.dispose();sprite.userData.storageLabel.material.dispose();}placedCrafts.delete(id);
+  const id=String(itemId),sprite=placedCrafts.get(id);if(!sprite)return;scene.remove(sprite);sprite.traverse(child=>{child.geometry?.dispose();if(child.material){child.material.map?.dispose();child.material.dispose();}});if(sprite.userData.fireGroup){scene.remove(sprite.userData.fireGroup);sprite.userData.fireGroup.traverse(child=>{child.geometry?.dispose();child.material?.dispose();});}if(sprite.userData.storageLabel){scene.remove(sprite.userData.storageLabel);sprite.userData.storageLabel.material.map?.dispose();sprite.userData.storageLabel.material.dispose();}placedCrafts.delete(id);
   const index=interactables.findIndex(item=>item.placedItemId===id);if(index>=0)interactables.splice(index,1);
 }
 
@@ -732,7 +764,7 @@ function craftingIcon(key){
   const symbol=ITEM_SYMBOLS[key]||'🛠️',svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><radialGradient id="g"><stop stop-color="#49634b"/><stop offset="1" stop-color="#1a2d20"/></radialGradient></defs><rect width="160" height="160" rx="24" fill="url(#g)"/><text x="80" y="103" text-anchor="middle" font-size="72">${symbol}</text></svg>`;return`data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 function campfireBurning(item){return item?.key==='campfire-kit'&&Date.parse(item.metadata?.campfire?.litUntil||0)>Date.now()&&!classifyPrecipitation(currentEcology?.weather).wet;}
-function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;sprite.material.color.set(burning?0xffd59a:0xffffff);}refreshCrateStorageLabel(sprite,item);}
+function refreshPlacedCraft(item){const sprite=placedCrafts.get(String(item.id));if(!sprite)return;sprite.userData.item=item;if(sprite.userData.fireLight){const burning=campfireBurning(item);sprite.userData.fireGroup.visible=burning;sprite.userData.fireLight.intensity=burning?4.2:0;if(sprite.isSprite)sprite.material.color.set(burning?0xffd59a:0xffffff);}refreshCrateStorageLabel(sprite,item);}
 function updatePlacedItemState(itemId,changes){
   const sprite=placedCrafts.get(String(itemId));if(!sprite)return null;const item=Object.assign(sprite.userData.item,changes);refreshPlacedCraft(item);
   if(loadedPayload?.world){const saved=(loadedPayload.world.placedItems||[]).find(entry=>String(entry.id)===String(itemId));if(saved)Object.assign(saved,changes);cachePrivateWorld(loadedPayload,activeClientId).catch(()=>{});}return item;
