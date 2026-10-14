@@ -296,6 +296,17 @@ function paint() {
       equip.addEventListener('click', () => mutate({action: 'equip', slot, itemId: item.id}));
       row.append(equip);
     }
+    if (item.key === 'portable-forge' && !item.placed) {
+      const place = document.createElement('button');
+      place.type = 'button';
+      place.textContent = 'Place in World';
+      place.disabled = busy;
+      place.addEventListener('click', () => {
+        close();
+        window.dispatchEvent(new CustomEvent('gptworld:place-backpack-item', {detail: {itemId: item.id, key: item.key}}));
+      });
+      row.append(place);
+    }
     items.append(row);
   }
 
