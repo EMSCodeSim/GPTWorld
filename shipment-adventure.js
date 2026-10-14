@@ -12,6 +12,11 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  document.body.append(wrap);
  const message=wrap.querySelector('#shipmentMessage'),buttons=wrap.querySelector('#shipmentChoices'),notice=wrap.querySelector('#shipmentNotice');
  const questHud=document.createElement('button');questHud.id='shipmentHud';questHud.type='button';questHud.textContent='📜 Quest';document.body.append(questHud);
+ const guide=document.createElement('div');guide.id='shipmentWaypoint';guide.setAttribute('role','status');guide.style.cssText='position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:55;max-width:calc(100vw - 32px);padding:8px 12px;border-radius:12px;background:rgba(17,31,22,.9);color:#f5dfb0;border:1px solid #b49a65;font:700 13px system-ui;text-align:center;pointer-events:none';guide.hidden=true;document.body.append(guide);
+ const currentWaypoint=()=>quest.stage==='tracking'?['Wagon tracks',SHIPMENT_POINTS.tracks]:quest.stage==='wagon_found'?['Forest wolf',SHIPMENT_POINTS.wolf]:quest.stage==='wolf_resolved'?['Supply crate',SHIPMENT_POINTS.cache]:quest.stage==='shipment_recovered'?['Tovan',SHIPMENT_POINTS.tovan]:null;
+ const updateGuide=()=>{const next=currentWaypoint();if(!next){guide.hidden=true;return;}const [name,p]=next,dx=p.x-player.position.x,dz=p.z-player.position.z,distance=Math.round(Math.hypot(dx,dz));const direction=Math.abs(dx)>Math.abs(dz)?(dx>0?'East →':'← West'):(dz>0?'South ↓':'↑ North');guide.textContent='📍 '+name+' · '+distance+'m · '+direction;guide.hidden=false;};
+ const guideTimer=setInterval(updateGuide,700);
+ window.addEventListener('pagehide',()=>clearInterval(guideTimer),{once:true});
  const markerPositions={tracks:SHIPMENT_POINTS.tracks,wagon:SHIPMENT_POINTS.wagon,wolf:SHIPMENT_POINTS.wolf,cache:SHIPMENT_POINTS.cache};
  const markerNames={tracks:'Wagon tracks',wagon:'Damaged wagon',wolf:'Forest wolf',cache:'Supply crate'};
  const visuals={};
@@ -57,7 +62,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  function paint(){
   for(const [key,group] of Object.entries(visuals))group.visible=visibleMarker(key,quest.stage);
   questHud.textContent=quest.stage==='completed'?'✓ Shipment completed':'📜 '+(quest.stage==='not_started'?'New adventure':'Shipment quest');
-  questHud.title=shipmentNarrative(quest.stage);
+  questHud.title=shipmentNarrative(quest.stage);updateGuide();
   const waypoint=quest.stage==='not_started'?SHIPMENT_POINTS.tovan:quest.stage==='tracking'?SHIPMENT_POINTS.tracks:quest.stage==='wagon_found'?SHIPMENT_POINTS.wolf:quest.stage==='wolf_resolved'?SHIPMENT_POINTS.cache:quest.stage==='shipment_recovered'?SHIPMENT_POINTS.tovan:null;
   const dx=waypoint?waypoint.x-player.position.x:0,dz=waypoint?waypoint.z-player.position.z:0;
   const direction=waypoint?(Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north')):'';
