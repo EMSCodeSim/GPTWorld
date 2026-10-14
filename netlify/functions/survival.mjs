@@ -117,6 +117,14 @@ async function plant(sql,actor,plotId,cropKey){
     ) SELECT * FROM planted`;
   return rows.length?{ok:true,action:'plant',plot:plotView(rows[0],actor.ecology_state)}:{ok:false,error:'plant_failed'};
 }
+async function clearDeadCrop(sql,actor,plotId){
+  const {ecology,event,season}=await livingAnimals(sql,actor);
+  const rows=await sql`SELECT * FROM private_farm_plots WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND sqrt(power(x-${actor.private_x},2)+power(z-${actor.private_z},2))<=4 FOR UPDATE`;
+  if(!rows.length)return{ok:false,error:'plot_not_found'};
+  if(plotView(rows[0],ecology,event,season).stage!=='dead')return{ok:false,error:'crop_not_dead'};
+  const updated=await sql`UPDATE private_farm_plots SET crop_key=NULL,stage='prepared',health=100,moisture=40,planted_at=NULL,watered_at=NULL,updated_at=now() WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} RETURNING *`;
+  return{ok:true,action:'clear_dead_crop',plot:plotView(updated[0],ecology,event,season)};
+}
 async function water(sql,actor,plotId){
   const rows=await sql`UPDATE private_farm_plots SET moisture=100,watered_at=now(),updated_at=now() WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND crop_key IS NOT NULL AND sqrt(power(x-${actor.private_x},2)+power(z-${actor.private_z},2))<=4 RETURNING *`;
   return rows.length?{ok:true,action:'water',plot:plotView(rows[0],actor.ecology_state)}:{ok:false,error:'water_failed'};
@@ -292,6 +300,7 @@ export default async req=>{
     if(action==='prepare_plot')result=await preparePlot(sql,actor,key,body.position);
     else if(action==='plant')result=await plant(sql,actor,clean(body.plotId,30),clean(body.cropKey,30));
     else if(action==='water')result=await water(sql,actor,clean(body.plotId,30));
+    else if(action==='clear_dead_crop')result=await clearDeadCrop(sql,actor,clean(body.plotId,30));
     else if(action==='fertilize')result=await fertilize(sql,actor,clean(body.plotId,30));
     else if(action==='harvest_crop'){const {ecology,event,season}=await livingAnimals(sql,actor);result=await harvestCrop(sql,actor,clean(body.plotId,30),ecology,event,season);}
     else if(action==='track')result=await trackAnimal(sql,actor,clean(body.animalId,100),body.snapshotAt);
