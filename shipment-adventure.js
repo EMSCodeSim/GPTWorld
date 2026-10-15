@@ -34,6 +34,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  dock.innerHTML=`<div class="shipment-dock-label">OBJECTIVE</div>
   <div id="shipmentDockText" class="shipment-dock-text"></div>
   <div id="shipmentDockActions" class="shipment-dock-actions"></div>`;
+ dock.hidden=true;
  document.body.append(dock);
  const dockText=dock.querySelector('#shipmentDockText');
  const dockActions=dock.querySelector('#shipmentDockActions');
@@ -52,16 +53,18 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  })[error]||error||'Quest could not advance';
 
  const currentWaypoint=()=>shipmentWaypoint(quest.stage);
+ const gameReady=()=>{
+  const welcome=document.getElementById('welcome');
+  return Boolean(welcome?.hidden);
+ };
  const updateGuide=()=>{
   const next=currentWaypoint();
-  if(!next||quest.stage==='completed'||quest.stage==='not_started'){guide.hidden=true;return;}
+  if(!gameReady()||!next||quest.stage==='completed'||quest.stage==='not_started'){guide.hidden=true;return;}
   const [name,p]=next,dx=p.x-player.position.x,dz=p.z-player.position.z,distance=Math.round(Math.hypot(dx,dz));
   const direction=Math.abs(dx)>Math.abs(dz)?(dx>0?'East →':'← West'):(dz>0?'South ↓':'↑ North');
   guide.textContent=`📍 ${name} · ${distance}m · ${direction}`;
   guide.hidden=false;
  };
- const guideTimer=setInterval(()=>{updateGuide();paintDock();},700);
- window.addEventListener('pagehide',()=>clearInterval(guideTimer),{once:true});
 
  const markerPositions={
   tracks:SHIPMENT_POINTS.tracks,
@@ -175,6 +178,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  }
 
  function paintDock(){
+  if(!gameReady()){dock.hidden=true;guide.hidden=true;return;}
   const objective=quest.objective||shipmentObjective(quest.stage,quest.meta);
   dockText.textContent=objective;
   dock.hidden=false;
@@ -214,7 +218,6 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   if(waypoint&&quest.stage!=='completed'){
    body+='\n\nNext stop: '+dist+'m '+direction+(quest.stage==='not_started'?' (Tovan at the smithy).':' (follow the waypoint).');
   }
-  if(cluesFound().length)body+='\nClues: '+cluesFound().join(', ')+'.';
   message.textContent=body;
 
   buttons.replaceChildren();
@@ -245,7 +248,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   try{
    const response=await fetch(ENDPOINT+'?clientId='+encodeURIComponent(clientId),{cache:'no-store'});
    const data=await response.json();
-   if(data.ok){quest=data.quest;paint();window.dispatchEvent(new CustomEvent('gptworld:shipment-quest',{detail:quest}));}
+   if(data.ok){quest=data.quest;if(wrap.hidden)notice.textContent='';paint();window.dispatchEvent(new CustomEvent('gptworld:shipment-quest',{detail:quest}));}
    else notice.textContent='Quest unavailable: '+String(data.error||'server did not return quest progress');
   }catch(error){
    console.warn('Shipment quest not available',error);
@@ -313,6 +316,12 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   else open();
  }
 
+ const guideTimer=setInterval(()=>{updateGuide();paintDock();},700);
+ window.addEventListener('pagehide',()=>clearInterval(guideTimer),{once:true});
  paint();reload();window.addEventListener('focus',reload);
- return{open,close,reload,interact,get stage(){return quest.stage;},get quest(){return quest;}};
+ const api={open,close,reload,interact,get stage(){return quest.stage;},get quest(){return quest;},
+  // Playtest/debug helper: move the closed-over player and refresh contextual actions.
+  debugMove(x,z){player.position.x=Number(x);player.position.z=Number(z);paintDock();updateGuide();}};
+ window.__gptworldShipment=api;
+ return api;
 }
