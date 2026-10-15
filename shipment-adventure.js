@@ -109,11 +109,11 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
    if(!response.ok||!data.ok)throw Error(({equip_bow_first:'Equip a bow in your main hand first.',approach_quest_location:'Move closer to the forest marker or Tovan.',quest_action_unavailable:'That step is not available yet.',return_to_public_world:'Return to public town first.'})[data.error]||data.error||'Quest could not advance');
    quest=data.quest;
    notice.textContent=data.reward?'Quest complete! 35 coins, 8 stone, +2 Blacksmithing and Trail Repair Fittings unlocked.':data.combat&&!data.combat.success?(data.message||'The wolf remains. Try again or sneak around.'):'Quest progress saved.';
-   if(data.reward)onReward?.(data);
+   if(data.reward){onReward?.(data);guide.hidden=true;message.textContent=shipmentNarrative('completed');notice.textContent='Quest complete! 35 coins, 8 stone and +2 Blacksmithing earned.';}
   }catch(error){notice.textContent=error.message;}finally{busy=false;paint();}
  }
  function interact(key){
-  if(key==='tovan'){open();return;}
+  if(key==='tovan'){open();if(quest.stage==='shipment_recovered'){notice.textContent='Delivering recovered shipment to Tovan…';act('turn_in');}return;}
   const stage=quest.stage;
   const action=key==='tracks'?'inspect_tracks':key==='wagon'?'inspect_tracks':key==='wolf'?'avoid_wolf':key==='cache'?'recover':null;
   if(key==='tracks'&&stage==='tracking'){open();act('inspect_tracks');}
