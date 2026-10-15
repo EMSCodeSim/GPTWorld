@@ -71,10 +71,10 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   buttons.replaceChildren();
   const actions=[];
   if(quest.stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
-  if(quest.stage==='tracking')actions.push(['Close journal and follow the waypoint to wagon tracks','close']);
-  if(quest.stage==='wagon_found')actions.push(['Shoot wolf with equipped bow','fight_wolf'],['Sneak around wolf','avoid_wolf']);
+  if(quest.stage==='tracking')actions.push(['Inspect wagon tracks (within 6m)','inspect_tracks'],['Follow waypoint to wagon tracks','close']);
+  if(quest.stage==='wagon_found')actions.push(['Shoot wolf with equipped bow (near wolf)','fight_wolf'],['Sneak around wolf (near wolf)','avoid_wolf']);
   if(quest.stage==='wolf_resolved')actions.push(['Recover scattered shipment','recover']);
-  if(quest.stage==='shipment_recovered')actions.push(['Return supplies to Tovan','turn_in']);
+  if(quest.stage==='shipment_recovered')actions.push(['Deliver supplies to Tovan (within 6m)','turn_in']);
   if(quest.stage==='completed')actions.push(['Quest completed ✓','none']);
   actions.push(['Trade with Tovan','trade']);
   for(const [label,action] of actions){
@@ -98,7 +98,7 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  async function act(action){
   if(busy)return;
   const target=action==='accept'||action==='close'?null:action==='turn_in'?SHIPMENT_POINTS.tovan:action==='inspect_tracks'?SHIPMENT_POINTS.tracks:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
-  if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Walk toward the highlighted quest marker; distance '+Math.round(Math.hypot(player.position.x-target.x,player.position.z-target.z))+' meters.';return;}
+  if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Move '+Math.round(Math.hypot(player.position.x-target.x,player.position.z-target.z))+'m toward the '+(action==='turn_in'?'town blacksmith':action==='inspect_tracks'?'wagon tracks':action==='recover'?'supply crate':'wolf')+' using the waypoint, then reopen Adventure.';return;}
   busy=true;notice.textContent='Saving quest progress…';paint();
   try{
    await syncPresence();
@@ -116,9 +116,9 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
   if(key==='tovan'){open();return;}
   const stage=quest.stage;
   const action=key==='tracks'?'inspect_tracks':key==='wagon'?'inspect_tracks':key==='wolf'?'avoid_wolf':key==='cache'?'recover':null;
-  if(key==='tracks'&&stage==='tracking')act('inspect_tracks');
+  if(key==='tracks'&&stage==='tracking'){open();act('inspect_tracks');}
   else if(key==='wolf'&&stage==='wagon_found')open();
-  else if(key==='cache'&&stage==='wolf_resolved')act('recover');
+  else if(key==='cache'&&stage==='wolf_resolved'){open();act('recover');}
   else{open();}
  }
  // Markers only appear during their corresponding quest stage.
