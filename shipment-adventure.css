@@ -1,5 +1,6 @@
-/* GPTWorld first adventure: unobtrusive quest diary and mobile choice modal */
+/* GPTWorld first adventure: compact objective dock + mobile-friendly journal */
 #shipmentHud{position:fixed;left:12px;bottom:87px;z-index:95;padding:11px 14px;background:#29362a;color:#f9eaca;border:1px solid #c5a568;border-radius:11px;font-weight:800;font-size:12px;box-shadow:0 4px 18px #0009;cursor:pointer}
+#shipmentHud[data-active="1"]{background:#3a4f36;border-color:#d2b36a}
 #shipmentPanel[hidden]{display:none!important}
 #shipmentPanel{position:fixed;inset:0;z-index:12000;background:#090f0bcc;display:flex;align-items:center;justify-content:center;padding:15px;backdrop-filter:blur(4px)}
 .shipment-card{background:#202f25;color:#fff0d2;border:1px solid #b49863;box-shadow:0 20px 65px #000c;border-radius:17px;padding:20px;width:min(550px,100%);max-height:85dvh;overflow-y:auto;font-family:system-ui,sans-serif}
@@ -7,9 +8,33 @@
 .shipment-card h2{font-size:21px;line-height:1.2;margin:5px 0 12px}
 .shipment-card small{font-size:10px;font-weight:800;letter-spacing:1.8px;color:#d7af78}
 .shipment-card header button{background:#34483b;border:1px solid #82967d;color:#fff;padding:9px 12px;border-radius:8px}
+.shipment-objective-line{margin:0 0 10px;padding:10px 12px;border-radius:10px;background:#2a3d30;border:1px solid #6f8668;color:#f3e4c0;font-size:14px;font-weight:700;line-height:1.35}
 #shipmentMessage{font-size:15px;line-height:1.6;color:#e4e1d4;margin:10px 0 17px}
 #shipmentChoices{display:grid;gap:9px}
 #shipmentChoices button{cursor:pointer;min-height:48px;border-radius:10px;background:#455d42;color:#fff4d4;border:1px solid #c5ad77;padding:12px;font-size:14px;font-weight:700;text-align:left}
 #shipmentChoices button:disabled{opacity:.55;cursor:default}
 #shipmentNotice{font-size:13px;color:#e3bd8a;line-height:1.4;padding-top:10px;min-height:16px}
-@media(max-width:750px){#shipmentHud{bottom:130px;left:8px;padding:9px 12px}#shipmentPanel{padding:8px}.shipment-card{padding:15px}}
+
+#shipmentWaypoint{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:55;max-width:calc(100vw - 32px);padding:8px 12px;border-radius:12px;background:rgba(17,31,22,.9);color:#f5dfb0;border:1px solid #b49a65;font:700 13px system-ui;text-align:center;pointer-events:none}
+#shipmentWaypoint[hidden]{display:none!important}
+
+#shipmentDock{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;width:min(420px,calc(100vw - 28px));padding:10px 12px;border-radius:14px;background:rgba(16,26,19,.94);color:#f4ead4;border:1px solid rgba(197,165,104,.7);box-shadow:0 10px 28px #000a;backdrop-filter:blur(8px);pointer-events:auto}
+#shipmentDock[hidden]{display:none!important}
+.shipment-dock-label{font:800 10px/1 system-ui;letter-spacing:.14em;color:#d2b36a;margin-bottom:4px}
+.shipment-dock-text{font:700 13px/1.35 system-ui;color:#f6ecd6;margin-bottom:8px}
+.shipment-dock-actions{display:flex;flex-wrap:wrap;gap:6px}
+.shipment-dock-actions button{min-height:40px;border-radius:10px;border:1px solid #b59b63;background:#3a5238;color:#fff4d4;font:700 12px system-ui;padding:8px 10px;cursor:pointer;touch-action:manipulation}
+.shipment-dock-actions button:disabled{opacity:.55;cursor:default}
+
+@media(max-width:750px){
+  #shipmentHud{display:none!important}
+  #shipmentPanel{padding:8px}
+  .shipment-card{padding:15px;max-height:88dvh}
+  #shipmentWaypoint{top:max(58px,calc(env(safe-area-inset-top) + 48px));font-size:12px;padding:7px 10px}
+  #shipmentDock{bottom:max(132px,calc(env(safe-area-inset-bottom) + 118px));width:min(100vw - 20px,380px);padding:9px 10px}
+  .shipment-dock-text{font-size:12px}
+  .shipment-dock-actions button{min-height:44px;flex:1 1 auto}
+}
+@media(min-width:751px){
+  #shipmentDock{left:12px;right:auto;transform:none;bottom:140px;width:min(300px,32vw)}
+}

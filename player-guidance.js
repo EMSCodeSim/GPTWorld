@@ -3,6 +3,7 @@
   const KEY='gptworld-guidance-v1';
   const steps=[
     {id:'gather',text:'Gather wood, stone, or herbs nearby — look for glowing resource nodes.',signal:'gather'},
+    {id:'shipment',text:'Tovan’s metal shipment went missing east of town — open Adventure or ask Mara for the rumor.',signal:'shipment'},
     {id:'shelter',text:'Visit your private land from the World Gateway to establish shelter and crafts.',signal:'gateway'},
     {id:'food',text:'On your land: Farm a plot or Hunt with a bow, then cook trail rations.',signal:'private'},
     {id:'craft',text:'Open Craft on your land and make a useful tool or storage.',signal:'craft'},
@@ -46,6 +47,10 @@
     state.lastAt=now;save(state);toast(tip.text);
   }
   window.addEventListener('gptworld:inventory-state',()=>showIfNew('gather'));
+  window.addEventListener('gptworld:shipment-quest',e=>{
+    const stage=e.detail?.stage;
+    if(stage&&stage!=='completed')showIfNew('shipment');
+  });
   window.addEventListener('gptworld:living-town',e=>{
     if(e.detail?.activeProject)showIfNew('project');
   });

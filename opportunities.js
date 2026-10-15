@@ -66,6 +66,7 @@
   function tip(icon,title,detail,priority){
     return{icon,title,detail,priority};
   }
+  let shipmentQuest=null;
   function buildSuggestions(){
     const tips=[];
     const game=readGame();
@@ -74,6 +75,22 @@
     const nearCouncil=Math.hypot(x+6,z-5)<8;
     const nearGateway=Math.hypot(x-(-24),z-0)<10;
     const project=town?.activeProject;
+    const stage=shipmentQuest?.stage||'not_started';
+
+    // Adventure 01 — Missing Blacksmith Shipment (real quest state only)
+    if(stage==='not_started'){
+      tips.push(tip('📜','Missing shipment','Tovan needs help at the smithy — open Adventure to accept.',1));
+    }else if(stage==='tracking'){
+      tips.push(tip('👣','Follow wagon tracks','Search east of town. Optional scraps and Mara’s rumor pay off.',1));
+    }else if(stage==='wagon_found'){
+      tips.push(tip('🐺','Wolf at the wagon','Fight with a bow or sneak past — rewards differ.',1));
+    }else if(stage==='wolf_resolved'){
+      tips.push(tip('📦','Recover the crate','Grab the scattered shipment near the damaged wagon.',1));
+    }else if(stage==='shipment_recovered'){
+      tips.push(tip('🔨','Deliver to Tovan','Return to the smithy for coin, stone, and a smithing recipe.',1));
+    }else if(stage==='completed'){
+      tips.push(tip('♻','Replay the trail','Open Adventure to run the shipment again with new clues.',3));
+    }
 
     // 1) Immediate nearby interaction
     if(nearCouncil&&project){
@@ -148,6 +165,7 @@
   window.addEventListener('gptworld:living-town',e=>ingestTown(e.detail));
   window.addEventListener('gptworld:living-event',e=>ingestLiving({event:e.detail}));
   window.addEventListener('gptworld:inventory-state',()=>render());
+  window.addEventListener('gptworld:shipment-quest',e=>{shipmentQuest=e.detail||shipmentQuest;render();});
   window.addEventListener('gptworld:npc-life',e=>{
     if(e.detail?.event)ingestLiving({event:e.detail.event});
   });
