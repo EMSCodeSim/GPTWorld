@@ -150,3 +150,9 @@ Player activity remained quiet, with one traveler active but no meaningful playe
 The Empty Meadow is now visibly changing. Tall ungrazed grasses and young saplings persist around the Day 19 site, deepening the same ecological story instead of creating an unrelated settlement project.
 
 The vegetation does not change the autonomous ecology simulation. Weather, disasters, ecology, resource recovery, settlement needs, NPC routines and memories, and world aging continue independently of the numbered Chronicle day.
+
+## Day 21 — The Blacksmith Salvage Spur
+
+After repeated stone gathering and contributions to the unfinished community blacksmith, a modest salvage spur appeared beside the existing material yard. A persistent stone deposit and survey marker now show where travelers can gather a limited additional supply for construction. The deposit recovers on its own timer; it does not automatically complete the blacksmith or bypass contribution requirements.
+
+The release advanced production from Day 20 to Day 21 through a guarded, atomic database operation. Weather, ecology, settlement needs, NPC routines, resource recovery, and world aging remain independent of the numbered Chronicle day.
