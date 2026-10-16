@@ -38,7 +38,8 @@ async function ensureSkills(sql,playerId){
 
 async function shipmentRewardUnlocked(sql,playerId){
  try{
-  const rows=await sql`SELECT 1 FROM player_story_quests WHERE player_id=${playerId} AND quest_key='missing-blacksmith-shipment' AND stage='completed' LIMIT 1`;
+  // completed_at survives replay resets so Trail Repair Fittings stay unlocked.
+  const rows=await sql`SELECT 1 FROM player_story_quests WHERE player_id=${playerId} AND quest_key='missing-blacksmith-shipment' AND (stage='completed' OR completed_at IS NOT NULL) LIMIT 1`;
   return rows.length>0;
  }catch(error){if(/does not exist/.test(String(error.message)))return false;throw error;}
 }

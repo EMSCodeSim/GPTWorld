@@ -1,40 +1,112 @@
 // Single-player adventure UI for the existing Three.js public forest.
-import {SHIPMENT_POINTS,shipmentNarrative} from './lib/shipment-quest-core.mjs';
+import {
+  SHIPMENT_POINTS,shipmentNarrative,shipmentObjective,shipmentWaypoint,shipmentFeedback
+} from './lib/shipment-quest-core.mjs';
+
 const ENDPOINT='/.netlify/functions/shipment-quest';
+
 export function createShipmentAdventure({THREE,scene,interactables,player,syncPresence,openTrade,onReward}){
- let quest={stage:'not_started'},busy=false;
+ let quest={stage:'not_started',meta:{},objective:'',description:''},busy=false;
  const wrap=document.createElement('section');wrap.id='shipmentPanel';wrap.hidden=true;
  wrap.setAttribute('aria-label','The Missing Blacksmith Shipment');
  wrap.innerHTML=`<div class="shipment-card" role="dialog" aria-modal="true" aria-labelledby="shipmentTitle">
  <header><div><small>GPTWORLD · ADVENTURE 01</small><h2 id="shipmentTitle">The Missing Blacksmith Shipment</h2></div><button id="shipmentClose" type="button" aria-label="Close quest">✕</button></header>
- <p id="shipmentMessage" aria-live="polite"></p><div id="shipmentChoices"></div><div id="shipmentNotice" role="status" aria-live="polite"></div>
+ <p id="shipmentObjectiveLine" class="shipment-objective-line"></p>
+ <p id="shipmentMessage" aria-live="polite"></p>
+ <div id="shipmentChoices"></div>
+ <div id="shipmentNotice" role="status" aria-live="polite"></div>
  </div>`;
  document.body.append(wrap);
- const message=wrap.querySelector('#shipmentMessage'),buttons=wrap.querySelector('#shipmentChoices'),notice=wrap.querySelector('#shipmentNotice');
- const questHud=document.createElement('button');questHud.id='shipmentHud';questHud.type='button';questHud.textContent='📜 Quest';document.body.append(questHud);
- const guide=document.createElement('div');guide.id='shipmentWaypoint';guide.setAttribute('role','status');guide.style.cssText='position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:55;max-width:calc(100vw - 32px);padding:8px 12px;border-radius:12px;background:rgba(17,31,22,.9);color:#f5dfb0;border:1px solid #b49a65;font:700 13px system-ui;text-align:center;pointer-events:none';guide.hidden=true;document.body.append(guide);
- const currentWaypoint=()=>quest.stage==='tracking'?['Wagon tracks',SHIPMENT_POINTS.tracks]:quest.stage==='wagon_found'?['Forest wolf',SHIPMENT_POINTS.wolf]:quest.stage==='wolf_resolved'?['Supply crate',SHIPMENT_POINTS.cache]:quest.stage==='shipment_recovered'?['Tovan',SHIPMENT_POINTS.tovan]:null;
- const updateGuide=()=>{const next=currentWaypoint();if(!next){guide.hidden=true;return;}const [name,p]=next,dx=p.x-player.position.x,dz=p.z-player.position.z,distance=Math.round(Math.hypot(dx,dz));const direction=Math.abs(dx)>Math.abs(dz)?(dx>0?'East →':'← West'):(dz>0?'South ↓':'↑ North');guide.textContent='📍 '+name+' · '+distance+'m · '+direction;guide.hidden=false;};
- const guideTimer=setInterval(updateGuide,700);
- window.addEventListener('pagehide',()=>clearInterval(guideTimer),{once:true});
- const markerPositions={tracks:SHIPMENT_POINTS.tracks,wagon:SHIPMENT_POINTS.wagon,wolf:SHIPMENT_POINTS.wolf,cache:SHIPMENT_POINTS.cache};
- const markerNames={tracks:'Wagon tracks',wagon:'Damaged wagon',wolf:'Forest wolf',cache:'Supply crate'};
+
+ const message=wrap.querySelector('#shipmentMessage');
+ const objectiveLine=wrap.querySelector('#shipmentObjectiveLine');
+ const buttons=wrap.querySelector('#shipmentChoices');
+ const notice=wrap.querySelector('#shipmentNotice');
+
+ const questHud=document.createElement('button');
+ questHud.id='shipmentHud';questHud.type='button';questHud.textContent='📜 Quest';
+ document.body.append(questHud);
+
+ // Compact always-on objective dock — readable on phone without opening the modal.
+ const dock=document.createElement('aside');
+ dock.id='shipmentDock';
+ dock.setAttribute('role','status');
+ dock.innerHTML=`<div class="shipment-dock-label">OBJECTIVE</div>
+  <div id="shipmentDockText" class="shipment-dock-text"></div>
+  <div id="shipmentDockActions" class="shipment-dock-actions"></div>`;
+ dock.hidden=true;
+ document.body.append(dock);
+ const dockText=dock.querySelector('#shipmentDockText');
+ const dockActions=dock.querySelector('#shipmentDockActions');
+
+ const guide=document.createElement('div');
+ guide.id='shipmentWaypoint';guide.setAttribute('role','status');guide.hidden=true;
+ document.body.append(guide);
+
+ const errorText=error=>({
+  equip_bow_first:'Equip a bow in your main hand first (Avatar → Pack).',
+  approach_quest_location:'Move closer to the marked spot, then try again.',
+  quest_action_unavailable:'That step is not available yet.',
+  return_to_public_world:'Return to the public town first.',
+  quest_state_changed:'Quest already updated — reopening your journal.',
+  reward_unavailable_retry:'Reward already claimed or quest moved on.'
+ })[error]||error||'Quest could not advance';
+
+ const currentWaypoint=()=>shipmentWaypoint(quest.stage);
+ const gameReady=()=>{
+  const welcome=document.getElementById('welcome');
+  return Boolean(welcome?.hidden);
+ };
+ const updateGuide=()=>{
+  const next=currentWaypoint();
+  if(!gameReady()||!next||quest.stage==='completed'||quest.stage==='not_started'){guide.hidden=true;return;}
+  const [name,p]=next,dx=p.x-player.position.x,dz=p.z-player.position.z,distance=Math.round(Math.hypot(dx,dz));
+  const direction=Math.abs(dx)>Math.abs(dz)?(dx>0?'East →':'← West'):(dz>0?'South ↓':'↑ North');
+  guide.textContent=`📍 ${name} · ${distance}m · ${direction}`;
+  guide.hidden=false;
+ };
+
+ const markerPositions={
+  tracks:SHIPMENT_POINTS.tracks,
+  wagon:SHIPMENT_POINTS.wagon,
+  wolf:SHIPMENT_POINTS.wolf,
+  cache:SHIPMENT_POINTS.cache,
+  axle:SHIPMENT_POINTS.axle,
+  scrap:SHIPMENT_POINTS.scrap
+ };
+ const markerNames={
+  tracks:'Wagon tracks',wagon:'Damaged wagon',wolf:'Forest wolf',cache:'Supply crate',
+  axle:'Broken axle',scrap:'Torn crate lid'
+ };
  const visuals={};
  for(const [key,pos] of Object.entries(markerPositions)){
   const group=new THREE.Group();group.position.set(pos.x,0,pos.z);
-  const ground=new THREE.Mesh(new THREE.CylinderGeometry(.6,.65,.12,12),new THREE.MeshStandardMaterial({color:key==='wolf'?0x815a43:0x675a41,roughness:.91}));
-  ground.position.y=.09;ground.castShadow=true;group.add(ground);
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.055,.08,1.45,8),new THREE.MeshStandardMaterial({color:0x826143}));pole.position.set(0,.75,0);pole.castShadow=true;group.add(pole);
-  const flag=new THREE.Mesh(new THREE.BoxGeometry(.75,.36,.055),new THREE.MeshStandardMaterial({color:key==='wolf'?0x9f5944:0xd9b16b}));flag.position.set(.34,1.32,0);group.add(flag);
-  const sprite=document.createElement('canvas');sprite.width=256;sprite.height=70;const ctx=sprite.getContext('2d');
-  ctx.fillStyle='rgba(18,28,22,.88)';ctx.fillRect(0,0,256,70);ctx.fillStyle='#f7e2b7';ctx.font='bold 24px system-ui';ctx.textAlign='center';ctx.fillText(markerNames[key],128,45);
-  const texture=new THREE.CanvasTexture(sprite);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true}));label.position.set(0,2.05,0);label.scale.set(3, .82,1);group.add(label);
+  const ground=new THREE.Mesh(new THREE.CylinderGeometry(.55,.6,.1,12),new THREE.MeshStandardMaterial({
+   color:key==='wolf'?0x815a43:(key==='axle'||key==='scrap'?0x5a4e3a:0x675a41),roughness:.91
+  }));
+  ground.position.y=.08;ground.castShadow=true;group.add(ground);
+  if(key!=='axle'&&key!=='scrap'){
+   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.055,.08,1.45,8),new THREE.MeshStandardMaterial({color:0x826143}));
+   pole.position.set(0,.75,0);pole.castShadow=true;group.add(pole);
+   const flag=new THREE.Mesh(new THREE.BoxGeometry(.75,.36,.055),new THREE.MeshStandardMaterial({color:key==='wolf'?0x9f5944:0xd9b16b}));
+   flag.position.set(.34,1.32,0);group.add(flag);
+   const sprite=document.createElement('canvas');sprite.width=256;sprite.height=70;const ctx=sprite.getContext('2d');
+   ctx.fillStyle='rgba(18,28,22,.88)';ctx.fillRect(0,0,256,70);ctx.fillStyle='#f7e2b7';ctx.font='bold 24px system-ui';ctx.textAlign='center';ctx.fillText(markerNames[key],128,45);
+   const texture=new THREE.CanvasTexture(sprite);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true}));
+   label.position.set(0,2.05,0);label.scale.set(3,.82,1);group.add(label);
+  }else{
+   const sprite=document.createElement('canvas');sprite.width=220;sprite.height=56;const ctx=sprite.getContext('2d');
+   ctx.fillStyle='rgba(18,28,22,.75)';ctx.fillRect(0,0,220,56);ctx.fillStyle='#d8c49a';ctx.font='bold 18px system-ui';ctx.textAlign='center';ctx.fillText(markerNames[key],110,34);
+   const texture=new THREE.CanvasTexture(sprite);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true}));
+   label.position.set(0,1.35,0);label.scale.set(2.4,.62,1);group.add(label);
+  }
   if(key==='wagon'){
     const wagon=new THREE.Group();wagon.position.set(.7,0,-.4);wagon.rotation.y=.4;
     const timber=new THREE.MeshStandardMaterial({color:0x855936,roughness:.88});
     const frame=new THREE.Mesh(new THREE.BoxGeometry(2,.25,1.25),timber);frame.position.y=.54;wagon.add(frame);
     for(const x of [-.85,.85])for(const z of [-.7,.7]){
-      const wheel=new THREE.Mesh(new THREE.TorusGeometry(.38,.09,7,14),new THREE.MeshStandardMaterial({color:0x49392c}));wheel.rotation.y=Math.PI/2;wheel.position.set(x,.35,z);wagon.add(wheel);
+      const wheel=new THREE.Mesh(new THREE.TorusGeometry(.38,.09,7,14),new THREE.MeshStandardMaterial({color:0x49392c}));
+      wheel.rotation.y=Math.PI/2;wheel.position.set(x,.35,z);wagon.add(wheel);
     }
     for(const z of [-.49,.49]){const side=new THREE.Mesh(new THREE.BoxGeometry(2,.39,.12),timber);side.position.set(0,.8,z);wagon.add(side);}
     group.add(wagon);
@@ -50,38 +122,119 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
     group.add(wolf);
   }
   if(key==='tracks'){
-    for(let i=0;i<4;i++){const footprint=new THREE.Mesh(new THREE.BoxGeometry(.26,.035,.42),new THREE.MeshStandardMaterial({color:0x48372b}));footprint.position.set((i%2)*.48-.4,.05,-.5+Math.floor(i/2)*.47);footprint.rotation.y=.24;group.add(footprint);}
+    for(let i=0;i<4;i++){
+      const footprint=new THREE.Mesh(new THREE.BoxGeometry(.26,.035,.42),new THREE.MeshStandardMaterial({color:0x48372b}));
+      footprint.position.set((i%2)*.48-.4,.05,-.5+Math.floor(i/2)*.47);footprint.rotation.y=.24;group.add(footprint);
+    }
   }
   if(key==='cache'){
-    const crate=new THREE.Mesh(new THREE.BoxGeometry(.85,.62,.72),new THREE.MeshStandardMaterial({color:0x795337,roughness:.9}));crate.position.set(.5,.31,-.35);crate.rotation.y=.25;group.add(crate);
+    const crate=new THREE.Mesh(new THREE.BoxGeometry(.85,.62,.72),new THREE.MeshStandardMaterial({color:0x795337,roughness:.9}));
+    crate.position.set(.5,.31,-.35);crate.rotation.y=.25;group.add(crate);
+  }
+  if(key==='axle'){
+    const bar=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,1.1,8),new THREE.MeshStandardMaterial({color:0x6d6a66,metalness:.35,roughness:.55}));
+    bar.rotation.z=Math.PI/2;bar.position.set(0,.18,0);group.add(bar);
+  }
+  if(key==='scrap'){
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.55),new THREE.MeshStandardMaterial({color:0x8a6842,roughness:.92}));
+    lid.position.set(0,.12,0);lid.rotation.y=.35;group.add(lid);
   }
   scene.add(group);visuals[key]=group;
-  interactables.push({type:'shipment',shipmentKey:key,label:markerNames[key],object:group,radius:3.0});
+  interactables.push({type:'shipment',shipmentKey:key,label:markerNames[key],object:group,radius:key==='axle'||key==='scrap'?2.6:3.0});
  }
- function visibleMarker(key,stage){return ({tracks:stage==='tracking',wagon:stage==='wagon_found',wolf:stage==='wagon_found',cache:stage==='wolf_resolved'})[key]||false;}
- function paint(){
-  for(const [key,group] of Object.entries(visuals))group.visible=visibleMarker(key,quest.stage);
-  questHud.textContent=quest.stage==='completed'?'✓ Shipment completed':'📜 '+(quest.stage==='not_started'?'New adventure':'Shipment quest');
-  questHud.title=shipmentNarrative(quest.stage);updateGuide();
-  const waypoint=quest.stage==='not_started'?SHIPMENT_POINTS.tovan:quest.stage==='tracking'?SHIPMENT_POINTS.tracks:quest.stage==='wagon_found'?SHIPMENT_POINTS.wolf:quest.stage==='wolf_resolved'?SHIPMENT_POINTS.cache:quest.stage==='shipment_recovered'?SHIPMENT_POINTS.tovan:null;
-  const dx=waypoint?waypoint.x-player.position.x:0,dz=waypoint?waypoint.z-player.position.z:0;
-  const direction=waypoint?(Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north')):'';
-  message.textContent=(quest.stage==='not_started'?'Start this adventure from your quest journal anywhere in the public world. You do not need to reach Tovan first.\\n\\n':'')+shipmentNarrative(quest.stage)+(waypoint?'\\n\\n'+(quest.stage==='not_started'?'Tovan is ':'Next stop: ')+Math.round(Math.hypot(dx,dz))+' meters '+direction+(quest.stage==='not_started'?' from your position.':' (follow the labeled marker).'):'');
-  message.style.whiteSpace='pre-line';
-  buttons.replaceChildren();
-  const actions=[];
-  if(quest.stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
-  if(quest.stage==='tracking')actions.push(['Inspect wagon tracks (within 6m)','inspect_tracks'],['Follow waypoint to wagon tracks','close']);
-  if(quest.stage==='wagon_found')actions.push(['Shoot wolf with equipped bow (near wolf)','fight_wolf'],['Sneak around wolf (near wolf)','avoid_wolf']);
-  if(quest.stage==='wolf_resolved')actions.push(['Recover scattered shipment','recover']);
-  if(quest.stage==='shipment_recovered')actions.push(['Deliver supplies to Tovan (within 6m)','turn_in']);
-  if(quest.stage==='completed')actions.push(['Quest completed ✓','none']);
-  actions.push(['Trade with Tovan','trade']);
-  for(const [label,action] of actions){
-   const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=busy||action==='none';
-   button.addEventListener('click',()=>action==='trade'?(close(),openTrade()):action==='close'?close():act(action));buttons.append(button);
+
+ function cluesFound(){return quest.meta?.clues||[];}
+ function visibleMarker(key,stage){
+  const clues=cluesFound();
+  if(key==='axle')return (stage==='tracking'||stage==='wagon_found')&&!clues.includes('axle');
+  if(key==='scrap')return (stage==='tracking'||stage==='wagon_found')&&!clues.includes('scrap');
+  return({tracks:stage==='tracking',wagon:stage==='wagon_found'||stage==='wolf_resolved',wolf:stage==='wagon_found',cache:stage==='wolf_resolved'})[key]||false;
+ }
+
+ function near(point,radius=6.2){return Math.hypot(player.position.x-point.x,player.position.z-point.z)<=radius;}
+
+ function primaryActions(){
+  const stage=quest.stage,actions=[];
+  if(stage==='not_started')actions.push(['Accept Tovan’s quest','accept']);
+  if(stage==='tracking'){
+   if(near(SHIPMENT_POINTS.tracks))actions.push(['Inspect wagon tracks','inspect_tracks']);
+   if(near(SHIPMENT_POINTS.axle)&&!cluesFound().includes('axle'))actions.push(['Examine broken axle','find_clue_axle']);
+   if(near(SHIPMENT_POINTS.scrap)&&!cluesFound().includes('scrap'))actions.push(['Inspect torn crate lid','find_clue_scrap']);
+   if(near(SHIPMENT_POINTS.mara)&&!cluesFound().includes('rumor'))actions.push(['Ask Mara about the wagon','hear_rumor']);
+  }
+  if(stage==='wagon_found'){
+   if(near(SHIPMENT_POINTS.wolf)){
+    actions.push(['Shoot wolf (bow equipped)','fight_wolf']);
+    actions.push(['Sneak past the wolf','avoid_wolf']);
+   }
+   if(near(SHIPMENT_POINTS.axle)&&!cluesFound().includes('axle'))actions.push(['Examine broken axle','find_clue_axle']);
+   if(near(SHIPMENT_POINTS.scrap)&&!cluesFound().includes('scrap'))actions.push(['Inspect torn crate lid','find_clue_scrap']);
+   if(near(SHIPMENT_POINTS.mara)&&!cluesFound().includes('rumor'))actions.push(['Ask Mara about the wagon','hear_rumor']);
+  }
+  if(stage==='wolf_resolved'&&near(SHIPMENT_POINTS.cache))actions.push(['Recover scattered shipment','recover']);
+  if(stage==='shipment_recovered'&&near(SHIPMENT_POINTS.tovan))actions.push(['Deliver supplies to Tovan','turn_in']);
+  if(stage==='completed')actions.push(['Replay the trail (new clues & bonuses)','replay']);
+  return actions;
+ }
+
+ function paintDock(){
+  if(!gameReady()){dock.hidden=true;guide.hidden=true;return;}
+  const objective=quest.objective||shipmentObjective(quest.stage,quest.meta);
+  dockText.textContent=objective;
+  dock.hidden=false;
+  dock.dataset.stage=quest.stage;
+  dockActions.replaceChildren();
+  const nearby=primaryActions().slice(0,2);
+  for(const [label,action] of nearby){
+   const button=document.createElement('button');
+   button.type='button';button.textContent=label;button.disabled=busy;
+   button.addEventListener('click',()=>act(action));
+   dockActions.append(button);
+  }
+  if(!nearby.length){
+   const tip=document.createElement('button');
+   tip.type='button';tip.textContent='Open journal';
+   tip.addEventListener('click',open);
+   dockActions.append(tip);
   }
  }
+
+ function paint(){
+  for(const [key,group] of Object.entries(visuals))group.visible=visibleMarker(key,quest.stage);
+  const active=quest.stage!=='not_started'&&quest.stage!=='completed';
+  questHud.textContent=quest.stage==='completed'?'✓ Shipment done':quest.stage==='not_started'?'📜 New adventure':'📜 Shipment quest';
+  questHud.title=shipmentObjective(quest.stage,quest.meta);
+  questHud.dataset.active=active?'1':'0';
+  updateGuide();
+  paintDock();
+
+  const waypoint=currentWaypoint();
+  const dx=waypoint?waypoint[1].x-player.position.x:0,dz=waypoint?waypoint[1].z-player.position.z:0;
+  const direction=waypoint?(Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north')):'';
+  const dist=waypoint?Math.round(Math.hypot(dx,dz)):0;
+  objectiveLine.textContent=quest.objective||shipmentObjective(quest.stage,quest.meta);
+  message.style.whiteSpace='pre-line';
+  let body=quest.description||shipmentNarrative(quest.stage,quest.meta);
+  if(waypoint&&quest.stage!=='completed'){
+   body+='\n\nNext stop: '+dist+'m '+direction+(quest.stage==='not_started'?' (Tovan at the smithy).':' (follow the waypoint).');
+  }
+  message.textContent=body;
+
+  buttons.replaceChildren();
+  const actions=[...primaryActions()];
+  if(quest.stage==='tracking'||quest.stage==='wagon_found'){
+   if(!actions.some(([,a])=>a==='find_clue_axle')&&!cluesFound().includes('axle'))actions.push(['Seek broken axle (explore east trail)','close']);
+   if(!actions.some(([,a])=>a==='hear_rumor')&&!cluesFound().includes('rumor'))actions.push(['Visit Mara at the inn yard','close']);
+  }
+  if(quest.stage!=='not_started')actions.push(['Trade with Tovan','trade']);
+  if(quest.stage==='completed')actions.push(['Close journal','close']);
+  for(const [label,action] of actions){
+   const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=busy;
+   button.addEventListener('click',()=>action==='trade'?(close(),openTrade()):action==='close'?close():act(action));
+   buttons.append(button);
+  }
+ }
+
  function close(){wrap.hidden=true;}
  function open(){wrap.hidden=false;notice.textContent='';paint();}
  wrap.querySelector('#shipmentClose').addEventListener('click',close);
@@ -89,16 +242,35 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
  questHud.addEventListener('click',open);
  window.addEventListener('gptworld:open-adventure',open);
  window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!wrap.hidden){close();event.stopImmediatePropagation();}});
+
  async function reload(){
   const clientId=localStorage.getItem('gptworld-client-id');if(!clientId)return;
-  try{const response=await fetch(ENDPOINT+'?clientId='+encodeURIComponent(clientId),{cache:'no-store'}),data=await response.json();
-    if(data.ok){quest=data.quest;paint();}else{notice.textContent='Quest unavailable: '+String(data.error||'server did not return quest progress');}}
-  catch(error){console.warn('Shipment quest not available',error);notice.textContent='Unable to load Quest 1. Check your connection and try reopening Adventure.';}
+  try{
+   const response=await fetch(ENDPOINT+'?clientId='+encodeURIComponent(clientId),{cache:'no-store'});
+   const data=await response.json();
+   if(data.ok){quest=data.quest;if(wrap.hidden)notice.textContent='';paint();window.dispatchEvent(new CustomEvent('gptworld:shipment-quest',{detail:quest}));}
+   else notice.textContent='Quest unavailable: '+String(data.error||'server did not return quest progress');
+  }catch(error){
+   console.warn('Shipment quest not available',error);
+   notice.textContent='Unable to load Adventure 01. Check your connection and try reopening.';
+  }
  }
+
  async function act(action){
-  if(busy)return;
-  const target=action==='accept'||action==='close'?null:action==='turn_in'?SHIPMENT_POINTS.tovan:action==='inspect_tracks'?SHIPMENT_POINTS.tracks:action==='recover'?SHIPMENT_POINTS.cache:SHIPMENT_POINTS.wolf;
-  if(target&&Math.hypot(player.position.x-target.x,player.position.z-target.z)>6.2){notice.textContent='Move '+Math.round(Math.hypot(player.position.x-target.x,player.position.z-target.z))+'m toward the '+(action==='turn_in'?'town blacksmith':action==='inspect_tracks'?'wagon tracks':action==='recover'?'supply crate':'wolf')+' using the waypoint, then reopen Adventure.';return;}
+  if(busy||action==='none')return;
+  const target=action==='accept'||action==='replay'?null
+   :action==='turn_in'?SHIPMENT_POINTS.tovan
+   :action==='inspect_tracks'?SHIPMENT_POINTS.tracks
+   :action==='recover'?SHIPMENT_POINTS.cache
+   :action==='find_clue_axle'?SHIPMENT_POINTS.axle
+   :action==='find_clue_scrap'?SHIPMENT_POINTS.scrap
+   :action==='hear_rumor'?SHIPMENT_POINTS.mara
+   :SHIPMENT_POINTS.wolf;
+  if(target&&!near(target)){
+   notice.textContent=`Move ${Math.round(Math.hypot(player.position.x-target.x,player.position.z-target.z))}m closer, then try again.`;
+   paintDock();
+   return;
+  }
   busy=true;notice.textContent='Saving quest progress…';paint();
   try{
    await syncPresence();
@@ -106,22 +278,50 @@ export function createShipmentAdventure({THREE,scene,interactables,player,syncPr
    const response=await fetch(ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({clientId,action,idempotencyKey:crypto.randomUUID()})});
    const data=await response.json();
-   if(!response.ok||!data.ok)throw Error(({equip_bow_first:'Equip a bow in your main hand first.',approach_quest_location:'Move closer to the forest marker or Tovan.',quest_action_unavailable:'That step is not available yet.',return_to_public_world:'Return to public town first.'})[data.error]||data.error||'Quest could not advance');
+   if(!response.ok||!data.ok)throw Error(errorText(data.error));
    quest=data.quest;
-   notice.textContent=data.reward?'Quest complete! 35 coins, 8 stone, +2 Blacksmithing and Trail Repair Fittings unlocked.':data.combat&&!data.combat.success?(data.message||'The wolf remains. Try again or sneak around.'):'Quest progress saved.';
-   if(data.reward){onReward?.(data);guide.hidden=true;message.textContent=shipmentNarrative('completed');notice.textContent='Quest complete! 35 coins, 8 stone and +2 Blacksmithing earned.';}
-  }catch(error){notice.textContent=error.message;}finally{busy=false;paint();}
+   const feedback=data.message||shipmentFeedback(action,quest);
+   notice.textContent=feedback;
+   if(data.reward){
+    onReward?.(data);
+    guide.hidden=true;
+   }else if(data.combat&&!data.combat.success){
+    notice.textContent=data.message||'The wolf remains. Try again or sneak around.';
+   }
+   window.dispatchEvent(new CustomEvent('gptworld:shipment-quest',{detail:quest}));
+   if(action==='accept'||action==='replay')window.dispatchEvent(new CustomEvent('gptworld:toast',{detail:feedback}));
+  }catch(error){notice.textContent=error.message;}
+  finally{busy=false;paint();}
  }
+
  function interact(key){
-  if(key==='tovan'){open();if(quest.stage==='shipment_recovered'){notice.textContent='Delivering recovered shipment to Tovan…';act('turn_in');}return;}
+  if(key==='tovan'){
+   open();
+   if(quest.stage==='shipment_recovered'){notice.textContent='Delivering recovered shipment to Tovan…';act('turn_in');}
+   else if(quest.stage==='not_started')notice.textContent='Tovan needs that east-trail shipment. Accept the quest when ready.';
+   else if(quest.stage==='completed')notice.textContent='Tovan nods at the forge. Replay the trail anytime for new clues.';
+   return;
+  }
+  if(key==='mara'||key==='rumor'){
+   if((quest.stage==='tracking'||quest.stage==='wagon_found')&&!cluesFound().includes('rumor')){open();act('hear_rumor');}
+   else open();
+   return;
+  }
   const stage=quest.stage;
-  const action=key==='tracks'?'inspect_tracks':key==='wagon'?'inspect_tracks':key==='wolf'?'avoid_wolf':key==='cache'?'recover':null;
   if(key==='tracks'&&stage==='tracking'){open();act('inspect_tracks');}
   else if(key==='wolf'&&stage==='wagon_found')open();
   else if(key==='cache'&&stage==='wolf_resolved'){open();act('recover');}
-  else{open();}
+  else if(key==='axle'&&(stage==='tracking'||stage==='wagon_found')){open();act('find_clue_axle');}
+  else if(key==='scrap'&&(stage==='tracking'||stage==='wagon_found')){open();act('find_clue_scrap');}
+  else open();
  }
- // Markers only appear during their corresponding quest stage.
+
+ const guideTimer=setInterval(()=>{updateGuide();paintDock();},700);
+ window.addEventListener('pagehide',()=>clearInterval(guideTimer),{once:true});
  paint();reload();window.addEventListener('focus',reload);
- return{open,close,reload,interact,get stage(){return quest.stage;}};
+ const api={open,close,reload,interact,get stage(){return quest.stage;},get quest(){return quest;},
+  // Playtest/debug helper: move the closed-over player and refresh contextual actions.
+  debugMove(x,z){player.position.x=Number(x);player.position.z=Number(z);paintDock();updateGuide();}};
+ window.__gptworldShipment=api;
+ return api;
 }

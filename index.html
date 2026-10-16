@@ -18,7 +18,8 @@
   </style>
   <script>document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});document.addEventListener('gesturechange',e=>e.preventDefault(),{passive:false});</script>
   <link rel="stylesheet" href="./avatar-ui.css?v=avatar-4" />
-  <link rel="stylesheet" href="./shipment-adventure.css?v=shipment-1" />
+  <link rel="stylesheet" href="./shipment-adventure.css?v=shipment-2" />
+  <link rel="stylesheet" href="./world-encounters.css?v=encounters-1" />
 </head>
 <body>
   <main id="app">
@@ -64,10 +65,10 @@
   <script>
   (()=>{const start=()=>{const toggle=document.getElementById('mobileMenuToggle'),menu=document.getElementById('mobileGameMenu');if(!toggle||!menu)return;const close=()=>{menu.hidden=true;toggle.setAttribute('aria-expanded','false')};toggle.addEventListener('click',()=>{menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden))});for(const button of menu.querySelectorAll('button[data-target]'))button.addEventListener('click',()=>{const id=button.dataset.target;close();if(id==='mobileNearbyToggle'){document.body.classList.toggle('mobile-nearby-open');return;}if(id==='shipmentHud'){window.dispatchEvent(new Event('gptworld:open-adventure'));return;}if(id==='infoCenterButton'){document.getElementById('infoCenterButton')?.click();return;}if(id==='avatarOpen'){const avatar=document.getElementById(id);if(avatar){const old=avatar.style.display;avatar.style.display='block';avatar.click();avatar.style.display=old;}return;}const target=document.getElementById(id);if(target){const old=target.style.display;target.style.display='block';target.click();target.style.display=old;}});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start()})();
   </script>
-  <script type="module" src="./main.js?v=movement-terrain-20261012"></script>
+  <script type="module" src="./main.js?v=living-encounters-1"></script>
   <script defer src="./day3.js?v=restore-storehouse-1"></script>
   <script defer src="./living-town.js?v=gameplay-loop-1"></script>
-  <script defer src="./opportunities.js?v=gameplay-loop-1"></script>
+  <script defer src="./opportunities.js?v=living-encounters-1"></script>
   <script defer src="./player-guidance.js?v=gameplay-loop-1"></script>
   <script defer src="./info-center.js?v=gameplay-loop-1"></script>
   <script defer src="./wildlife-journal.js?v=1"></script>
