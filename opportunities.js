@@ -66,7 +66,7 @@
   function tip(icon,title,detail,priority){
     return{icon,title,detail,priority};
   }
-  let shipmentQuest=null;
+  let shipmentQuest=null,livingEncounter=null;
   function buildSuggestions(){
     const tips=[];
     const game=readGame();
@@ -76,6 +76,10 @@
     const nearGateway=Math.hypot(x-(-24),z-0)<10;
     const project=town?.activeProject;
     const stage=shipmentQuest?.stage||'not_started';
+    const enc=livingEncounter?.encounter;
+    if(enc&&enc.status!=='resolved'){
+      tips.push(tip('✦',enc.name||'Living encounter',enc.clue&&!enc.clue.found?`Look for ${enc.clue.label} nearby — or approach the event.`:(enc.title||'Something unusual is nearby.'),1));
+    }
 
     // Adventure 01 — Missing Blacksmith Shipment (real quest state only)
     if(stage==='not_started'){
@@ -166,6 +170,7 @@
   window.addEventListener('gptworld:living-event',e=>ingestLiving({event:e.detail}));
   window.addEventListener('gptworld:inventory-state',()=>render());
   window.addEventListener('gptworld:shipment-quest',e=>{shipmentQuest=e.detail||shipmentQuest;render();});
+  window.addEventListener('gptworld:world-encounter',e=>{livingEncounter=e.detail||livingEncounter;render();});
   window.addEventListener('gptworld:npc-life',e=>{
     if(e.detail?.event)ingestLiving({event:e.detail.event});
   });

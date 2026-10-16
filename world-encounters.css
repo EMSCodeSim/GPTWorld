@@ -1,0 +1,35 @@
+/* Living World Encounters — compact prompt, mobile-friendly actions */
+#encounterPrompt[hidden],#encounterBeacon[hidden]{display:none!important}
+#encounterPrompt{
+  position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:110;width:min(440px,calc(100vw - 24px));padding:12px 14px;border-radius:14px;
+  background:rgba(18,28,20,.96);color:#f4ead4;border:1px solid rgba(197,165,104,.75);
+  box-shadow:0 12px 32px #000a;backdrop-filter:blur(8px);font:13px/1.4 system-ui,sans-serif;
+}
+#encounterPrompt .enc-kicker{font:800 10px/1 system-ui;letter-spacing:.14em;color:#d2b36a;margin-bottom:4px}
+#encounterPrompt h2{margin:0 0 6px;font:800 16px/1.25 system-ui;color:#fff4d8}
+#encounterPrompt p{margin:0 0 10px;color:#e5dfcf}
+#encounterActions{display:grid;gap:7px}
+#encounterActions button{
+  min-height:44px;border-radius:10px;border:1px solid #b59b63;background:#3a5238;color:#fff4d4;
+  font:700 13px system-ui;padding:10px 12px;text-align:left;cursor:pointer;touch-action:manipulation;
+}
+#encounterActions button.secondary{background:#2a3a2d}
+#encounterActions button:disabled{opacity:.5;cursor:default}
+#encounterNotice{min-height:16px;margin-top:8px;color:#e3bd8a;font-size:12px}
+#encounterBeacon{
+  position:fixed;left:50%;top:max(64px,calc(env(safe-area-inset-top) + 52px));transform:translateX(-50%);
+  z-index:56;max-width:calc(100vw - 28px);padding:7px 12px;border-radius:999px;
+  background:rgba(17,31,22,.9);color:#f5dfb0;border:1px solid #b49a65;font:700 12px system-ui;
+  pointer-events:none;text-align:center;
+}
+@media(max-width:750px){
+  /* Sit above joystick + shipment objective dock without a new menu layer */
+  #encounterPrompt{bottom:max(210px,calc(env(safe-area-inset-bottom) + 198px));width:min(100vw - 18px,400px);padding:10px 12px;max-height:42dvh;overflow-y:auto}
+  #encounterPrompt h2{font-size:15px}
+  #encounterActions button{min-height:46px}
+  #encounterBeacon{top:max(56px,calc(env(safe-area-inset-top) + 46px));font-size:11px}
+}
+@media(min-width:751px){
+  #encounterPrompt{left:12px;right:auto;transform:none;bottom:250px;width:min(320px,34vw)}
+}
