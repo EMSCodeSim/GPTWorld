@@ -59,6 +59,10 @@
       body:not(.mobile-nearby-open) #opportunitiesPanel{display:none!important}
       body.mobile-nearby-open #opportunitiesPanel{display:block!important;left:10px!important;top:max(72px,calc(env(safe-area-inset-top) + 56px))!important;width:min(300px,calc(100vw - 20px))!important;max-height:45dvh!important;overflow:auto!important}
       #encounterBeacon{display:none!important}
+      /* The real adventure overlays are #shipmentDock and #shipmentWaypoint. */
+      #shipmentDock,#shipmentWaypoint{display:none!important}
+      #shipmentPanel:not([hidden]){display:flex!important}
+
       .mobile-controls{z-index:40}
 
       #avatarOpen,#trailMarkerBtn,#townUpgradeLink,.inventory,.chronicle{display:none!important}
