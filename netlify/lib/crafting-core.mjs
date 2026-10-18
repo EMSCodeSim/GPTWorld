@@ -212,6 +212,30 @@ export function qualityDurability(base,quality){
   return Math.max(1,Math.round(Number(base||1)*multiplier));
 }
 
+// Every recipe advertises its intended in-world role. These are informational
+// until a matching server-authoritative interaction has been implemented.
+export function recipePurpose(recipe){
+  if(!recipe)return null;
+  if(recipe.equipSlot)return {kind:'equipment',label:'Equip',detail:recipe.description,implemented:true};
+  if(recipe.key==='wooden-crate')return {kind:'storage',label:'Store materials',detail:recipe.description,implemented:true};
+  if(recipe.key==='campfire-kit')return {kind:'camp',label:'Light or extinguish',detail:recipe.description,implemented:true};
+  if(recipe.placeable)return {kind:'placement',label:'Place in private world',detail:recipe.description,implemented:true};
+  if(recipe.component)return {kind:'construction',label:'Construction component',detail:recipe.description,implemented:HOUSE_BLUEPRINT.components.includes(recipe.key)};
+  const purposeBySkill={
+    herbalism:['Remedy','Prepared medicine for future survival interactions'],
+    cooking:['Food','Prepared provisions for future survival interactions'],
+    farming:['Farming equipment','Improve planting and field maintenance'],
+    hunting:['Hunting tool','Support tracking, hunting and processing'],
+    blacksmithing:['Workshop tool','Support metalwork and repairs'],
+    masonry:['Masonry tool','Support stonework and construction'],
+    carpentry:['Carpentry tool','Support gathering, repairs and construction'],
+    tailoring:['Camp equipment','Support travel, shelter and comfort'],
+    construction:['Construction equipment','Support settlement building']
+  };
+  const [label,detail]=purposeBySkill[recipe.skill]||['Crafted item','Future gameplay interaction'];
+  return {kind:'planned',label,detail,implemented:false};
+}
+
 export function recipesForSkillView(skills=[]){
   const skillMap=new Map(skills.map(skill=>[skill.key||skill.skill_key,Number(skill.value??skill.skill_value??0)]));
   return CRAFTING_RECIPES.map(recipe=>{
@@ -219,6 +243,7 @@ export function recipesForSkillView(skills=[]){
     const unlocked=recipeUnlocked(recipe,skillValue);
     return{
       ...recipe,
+      purpose:recipePurpose(recipe),
       unlocked,
       locked:!unlocked,
       requiredSkill:Number(recipe.minSkill||0),
