@@ -52,6 +52,15 @@
       #mobileGameMenu button,#mobileGameMenu a,#mobileGameMenu summary{display:block;width:100%;box-sizing:border-box;background:#273a2c;border:1px solid #52614a;color:#f6ead5;border-radius:10px;padding:11px;text-align:left;text-decoration:none;font:700 15px system-ui;cursor:pointer;min-height:44px}
       #mobileGameMenu details{display:grid}#mobileGameMenu details[open]{display:grid}#mobileGameMenu details button,#mobileGameMenu details a{margin-top:6px}
       #mobileGameMenu[hidden]{display:none!important}
+      /* Gameplay-first HUD: secondary information is available from Menu, not over the world. */
+      .topbar{background:transparent!important;pointer-events:none!important}
+      .topbar .world-title{display:none!important}
+      #opportunitiesPanel,#opportunitiesBanner,#encounterBeacon,#shipmentObjectiveDock,#shipmentObjective,#shipmentHud{display:none!important}
+      body:not(.mobile-nearby-open) #opportunitiesPanel{display:none!important}
+      body.mobile-nearby-open #opportunitiesPanel{display:block!important;left:10px!important;top:max(72px,calc(env(safe-area-inset-top) + 56px))!important;width:min(300px,calc(100vw - 20px))!important;max-height:45dvh!important;overflow:auto!important}
+      #encounterBeacon{display:none!important}
+      .mobile-controls{z-index:40}
+
       #avatarOpen,#trailMarkerBtn,#townUpgradeLink,.inventory,.chronicle{display:none!important}
       .topbar .world-title{max-width:175px}.topbar h1{font-size:17px}.topbar .status-strip{display:none}
       .mobile-controls{left:14px;right:14px;bottom:max(18px,env(safe-area-inset-bottom));justify-content:space-between}
