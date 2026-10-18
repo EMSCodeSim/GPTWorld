@@ -908,7 +908,7 @@ function renderCrafting(){
     image.className='recipe-icon';image.src=craftingIcon(recipe.key);image.alt='';image.loading='lazy';
     profession.className='recipe-profession';profession.textContent=`${skillLabel(recipe.skill)}${recipe.requiredSkill?` · skill ${recipe.requiredSkill}+`:''}`;
     title.textContent=recipe.name;
-    description.textContent=locked?`Locked · need ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`:recipe.description;
+    description.textContent=locked?`Locked · need ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`:`${recipe.description} · ${recipe.purpose?.implemented?'Available use':'Planned use'}: ${recipe.purpose?.label||'Crafted item'}`;
     meta.className='recipe-meta';
     cost.textContent=locked?`Requires ${skillLabel(recipe.skill)} ${recipe.requiredSkill||0}`:resourceText(recipe.inputs);
     chance.textContent=locked?'Locked':`${Math.round(Number(recipe.chance||0)*100)}% success`;
