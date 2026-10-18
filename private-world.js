@@ -106,7 +106,23 @@ function registerResource(object,visual,label){
   interactables.push({label,nodeId:object.id,resource:state?.resource||({tree:'wood',rock:'stone',herbs:'herbs'}[object.kind]),object:visual,radius:object.kind==='tree'?2.2:1.9});
 }
 
+// Keep procedural vegetation and deposits outside the footprint of all
+// persisted buildings, including buildings constructed after world creation.
+function resourceOverlapsBuilding(object){
+  const buildings=loadedPayload?.world?.buildings||[];
+  const px=Number(object.x),pz=Number(object.z);
+  if(!Number.isFinite(px)||!Number.isFinite(pz))return false;
+  return buildings.some(building=>{
+    const level=Math.max(1,Number(building.level||1));
+    const width=Number(building.width||(level>=3?8:level>=2?7:5));
+    const depth=Number(building.depth||(level>=3?7:level>=2?6:4));
+    const clearance=object.kind==='tree'?2.8:object.kind==='rock'?1.6:1.1;
+    return Math.abs(px-Number(building.x||0))<width/2+clearance
+      && Math.abs(pz-Number(building.z||0))<depth/2+clearance;
+  });
+}
 function addTree(object){
+  if(resourceOverlapsBuilding(object))return;
   const growth=growthFor(object),scale=(object.scale||1)*(.62+growth*.42);
   const art=createPineArt(THREE,scale),group=art.group;
   group.position.set(object.x,0,object.z);
@@ -116,12 +132,14 @@ function addTree(object){
 }
 
 function addRock(object){
+  if(resourceOverlapsBuilding(object))return;
   const group=createRockArt(THREE,object.scale||1,String(object.id||'').length%2);
   group.position.set(object.x,0,object.z);group.rotation.y=hash01(object.id)*Math.PI;scene.add(group);
   registerResource(object,group,'stone deposit');
 }
 
 function addHerbs(object){
+  if(resourceOverlapsBuilding(object))return;
   const growth=growthFor(object),group=createHerbArt(THREE,Math.max(.7,growth),String(object.id||'').length%2);
   group.position.set(object.x,0,object.z);group.userData={growth,phase:hash01(object.id)*Math.PI*2};scene.add(group);plants.push(group);
   registerResource(object,group,'wild herbs');
