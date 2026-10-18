@@ -129,6 +129,39 @@ async function water(sql,actor,plotId){
   const rows=await sql`UPDATE private_farm_plots SET moisture=100,watered_at=now(),updated_at=now() WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND crop_key IS NOT NULL AND sqrt(power(x-${actor.private_x},2)+power(z-${actor.private_z},2))<=4 RETURNING *`;
   return rows.length?{ok:true,action:'water',plot:plotView(rows[0],actor.ecology_state)}:{ok:false,error:'water_failed'};
 }
+// Server-authoritative irrigation: a crafted kit is consumed only if a nearby
+// owned crop actually receives water. The receipt prevents retry duplication.
+async function irrigate(sql,actor,plotId){
+  const rows=await sql`
+    WITH kit AS (
+      SELECT id,quantity FROM player_crafted_items
+      WHERE player_id=${actor.id} AND world_id=${actor.world_id}
+        AND item_key='irrigation-kit' AND placed_at IS NULL AND quantity>0
+      ORDER BY crafted_at LIMIT 1 FOR UPDATE
+    ), watered AS (
+      UPDATE private_farm_plots plot SET
+        moisture=LEAST(100,plot.moisture+45),
+        watered_at=now(),updated_at=now()
+      FROM kit
+      WHERE plot.id=${plotId} AND plot.world_id=${actor.world_id}
+        AND plot.player_id=${actor.id} AND plot.crop_key IS NOT NULL
+        AND plot.stage<>'dead' AND plot.moisture<85
+        AND sqrt(power(plot.x-${actor.private_x},2)+power(plot.z-${actor.private_z},2))<=4
+      RETURNING plot.*
+    ), reduced AS (
+      UPDATE player_crafted_items item SET quantity=item.quantity-1
+      FROM kit,watered WHERE item.id=kit.id AND kit.quantity>1
+      RETURNING item.id
+    ), removed AS (
+      DELETE FROM player_crafted_items item USING kit,watered
+      WHERE item.id=kit.id AND kit.quantity=1 RETURNING item.id
+    )
+    SELECT * FROM watered WHERE
+      EXISTS(SELECT 1 FROM reduced) OR EXISTS(SELECT 1 FROM removed)
+  `;
+  if(!rows.length)return {ok:false,error:'irrigation_requires_kit_and_dry_crop'};
+  return {ok:true,action:'irrigate',plot:plotView(rows[0],actor.ecology_state),message:'Irrigation kit watered the crop'};
+}
 async function fertilize(sql,actor,plotId){
   const rows=await sql`SELECT * FROM private_farm_plots WHERE id=${plotId} AND world_id=${actor.world_id} AND player_id=${actor.id} AND sqrt(power(x-${actor.private_x},2)+power(z-${actor.private_z},2))<=4 FOR UPDATE`;
   if(!rows.length)return{ok:false,error:'plot_not_found'};
@@ -302,6 +335,7 @@ export default async req=>{
     else if(action==='water')result=await water(sql,actor,clean(body.plotId,30));
     else if(action==='clear_dead_crop')result=await clearDeadCrop(sql,actor,clean(body.plotId,30));
     else if(action==='fertilize')result=await fertilize(sql,actor,clean(body.plotId,30));
+    else if(action==='irrigate')result=await irrigate(sql,actor,clean(body.plotId,30));
     else if(action==='harvest_crop'){const {ecology,event,season}=await livingAnimals(sql,actor);result=await harvestCrop(sql,actor,clean(body.plotId,30),ecology,event,season);}
     else if(action==='track')result=await trackAnimal(sql,actor,clean(body.animalId,100),body.snapshotAt);
     else if(action==='stalk')result=await stalkAnimal(sql,actor,clean(body.animalId,100),{...body,idempotencyKey:key});
