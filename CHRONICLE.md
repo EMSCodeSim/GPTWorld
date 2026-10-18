@@ -156,3 +156,9 @@ The vegetation does not change the autonomous ecology simulation. Weather, disas
 After repeated stone gathering and contributions to the unfinished community blacksmith, a modest salvage spur appeared beside the existing material yard. A persistent stone deposit and survey marker now show where travelers can gather a limited additional supply for construction. The deposit recovers on its own timer; it does not automatically complete the blacksmith or bypass contribution requirements.
 
 The release advanced production from Day 20 to Day 21 through a guarded, atomic database operation. Weather, ecology, settlement needs, NPC routines, resource recovery, and world aging remain independent of the numbered Chronicle day.
+
+## Day 22 — Edda's Drought Nursery
+
+Severe drought and a shortage of herbs prompted Edda to shelter a small nursery beside the healer's garden. A footpath, shade canopy, water cask, and limited hardy-herb patch now persist in the shared world. The herb patch offers at most one unit at a time and uses the existing resource gathering rules and independent regeneration timer.
+
+Production was advanced atomically from Day 21 to Day 22, recording a single release event. The four visible entities were verified in persistent world state; no orphan inventories were found. Weather, ecology, NPC routines, and other autonomous systems continue independently.
