@@ -219,6 +219,7 @@ export function recipePurpose(recipe){
   if(recipe.equipSlot)return {kind:'equipment',label:'Equip',detail:recipe.description,implemented:true};
   if(recipe.key==='wooden-crate')return {kind:'storage',label:'Store materials',detail:recipe.description,implemented:true};
   if(recipe.key==='campfire-kit')return {kind:'camp',label:'Light or extinguish',detail:recipe.description,implemented:true};
+  if(recipe.key==='irrigation-kit')return {kind:'farming',label:'Irrigate nearby crops',detail:'Use at a planted private-world farm plot to restore up to 45 moisture; consumes one kit.',implemented:true};
   if(recipe.placeable)return {kind:'placement',label:'Place in private world',detail:recipe.description,implemented:true};
   if(recipe.component)return {kind:'construction',label:'Construction component',detail:recipe.description,implemented:HOUSE_BLUEPRINT.components.includes(recipe.key)};
   const purposeBySkill={
