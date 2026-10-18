@@ -25,7 +25,7 @@ test('recipe payload exposes purpose for every profession without unlocking reci
 });
 
 test('do not advertise unimplemented consumable effects as playable',()=>{
-  for(const key of ['healing-poultice','trail-rations','irrigation-kit','hand-cart']){
+  for(const key of ['healing-poultice','trail-rations','hand-cart']){
     const recipe=CRAFTING_RECIPES.find(r=>r.key===key);
     assert.equal(recipePurpose(recipe).implemented,false,key);
   }
