@@ -325,13 +325,13 @@ function adoptDeviceSession(data){
 function showRecoveryNotice(code){if(!code)return;recoveryCodeEl.textContent=code;recoveryNotice.hidden=false;enterWorldBtn.textContent='I saved it · Enter GPTWorld';}
 async function resolveDeviceSession(){
   enterWorldBtn.disabled=true;deviceStatusEl.textContent='Checking this device for a returning traveler…';const legacyClientId=localStorage.getItem(CLIENT_KEY)||'',backupToken=localStorage.getItem(BACKUP_KEY)||'';
-  try{const params=new URLSearchParams({legacyClientId,backupToken}),response=await fetch(`${DEVICE_API}?${params}`,{cache:'no-store',credentials:'same-origin'}),data=await response.json();
+  try{const params=new URLSearchParams({legacyClientId,backupToken}),response=await fetch(`${DEVICE_API}?${params}`,{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(12000)}),data=await response.json();
     if(!response.ok&&response.status>=500)throw Error(data.error||'session_unavailable');
     if(data.ok){adoptDeviceSession(data);showRecoveryNotice(data.recoveryCode);}
     else if(data.recoveryRequired){deviceRecoveryRequired=true;deviceStatusEl.textContent='This traveler is already protected. Enter its recovery code instead of creating another account on this device.';recoveryForm.hidden=false;enterWorldBtn.textContent='Recovery required';enterWorldBtn.disabled=true;}
     else{deviceStatusEl.textContent='No traveler is linked to this device yet. Choose one name to create its permanent traveler and personal world.';enterWorldBtn.textContent='Create my traveler';enterWorldBtn.disabled=false;}
     deviceSessionReady=true;return data;
-  }catch{deviceStatusEl.textContent='Device sign-in could not connect. Check your connection and reload before entering.';enterWorldBtn.textContent='Connection required';enterWorldBtn.disabled=true;return null;}
+  }catch{deviceStatusEl.textContent='Device sign-in timed out or could not connect. Your traveler is safe; retry without clearing website data.';enterWorldBtn.textContent='Retry device check';enterWorldBtn.disabled=false;return null;}
 }
 async function registerDevice(name){
   const response=await fetch(DEVICE_API,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'register',name,registrationKey:registrationKey(),legacyClientId:localStorage.getItem(CLIENT_KEY)||'',backupToken:localStorage.getItem(BACKUP_KEY)||''})}),data=await response.json();
