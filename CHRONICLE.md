@@ -162,3 +162,9 @@ The release advanced production from Day 20 to Day 21 through a guarded, atomic 
 Severe drought and a shortage of herbs prompted Edda to shelter a small nursery beside the healer's garden. A footpath, shade canopy, water cask, and limited hardy-herb patch now persist in the shared world. The herb patch offers at most one unit at a time and uses the existing resource gathering rules and independent regeneration timer.
 
 Production was advanced atomically from Day 21 to Day 22, recording a single release event. The four visible entities were verified in persistent world state; no orphan inventories were found. Weather, ecology, NPC routines, and other autonomous systems continue independently.
+
+## Day 24 — The Firewatch Weather Gauge
+
+With drought persistent and forest pressure critical, the settlement established an observation point beside the Western Firebreak. A short footpath, weather gauge, rain collector, and soil stake are now permanent visible features. Travelers can inspect the station while weather, wildfire risk, and the unfinished firebreak continue changing independently of the numbered world day.
+
+Production release verified October 20, 2026: Day 24, four persistent render entities, one release event, 66 player records and 66 inventories.
