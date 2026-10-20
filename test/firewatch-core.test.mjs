@@ -19,3 +19,5 @@ test('handles missing state and completed projects without NaN', () => {
   assert.match(firewatchReport({firebreak_project:{complete:true}}),/Firebreak complete/);
 });
 
+
+test('live gauge reads soil moisture and rain',()=>{const report=firewatchReport({weather_sim:{soilMoisture:.088,precipitation:'rain'}});assert.match(report,/Soil moisture 9%/);assert.match(report,/Weather rain/);});
