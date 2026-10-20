@@ -1,0 +1,23 @@
+name: JavaScript Syntax Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check game entrypoint and world API syntax
+        run: |
+          node --check main.js
+          node --check netlify/functions/world.mjs
+          node --check netlify/functions/device-session.mjs
