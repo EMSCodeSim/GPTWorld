@@ -363,13 +363,13 @@ export default async (req) => {
         sql`SELECT key, value, updated_at FROM world_state ORDER BY key`,
         sql`SELECT CASE WHEN client_id=${clientId} THEN client_id ELSE 'public-'||id::text END AS client_id,display_name,x,z,last_seen_at FROM players WHERE last_seen_at > now() - interval '90 seconds' ORDER BY last_seen_at DESC LIMIT 50`,
         clientId ? sql`SELECT p.client_id, p.display_name, p.x, p.z, i.wood, i.stone, i.herbs FROM players p LEFT JOIN player_inventory i ON i.player_id = p.id WHERE p.client_id = ${clientId} LIMIT 1` : Promise.resolve([]),
-        sql`SELECT entity_id, value, updated_at FROM world_entities ORDER BY entity_id`
+        sql`SELECT value FROM world_state WHERE key='world_entities' LIMIT 1`
       ]);
       return json({
         ok: true,
         world: Object.fromEntries(worldRows.map(r => [r.key, r.value])),
         ecosystem,
-        entities: entityRows.map(r => ({ entity_id: r.entity_id, ...r.value, updated_at: r.updated_at })),
+        entities: Object.entries(entityRows[0]?.value && typeof entityRows[0].value === 'object' && !Array.isArray(entityRows[0].value) ? entityRows[0].value : {}).map(([entity_id, value]) => ({ entity_id, ...(value && typeof value === 'object' ? value : {}) })),
         online: onlineRows,
         me: meRows[0] || null
       });
