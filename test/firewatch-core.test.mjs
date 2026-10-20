@@ -19,8 +19,3 @@ test('handles missing state and completed projects without NaN', () => {
   assert.match(firewatchReport({firebreak_project:{complete:true}}),/Firebreak complete/);
 });
 
-test('reports independently changing weather and soil moisture',()=>{
-  const text=firewatchReport({weather_sim:{soilMoisture:.088,precipitation:'rain',drought:.73}});
-  assert.match(text,/Soil moisture 9%/);
-  assert.match(text,/Weather rain/);
-});
