@@ -168,3 +168,15 @@ Production was advanced atomically from Day 21 to Day 22, recording a single rel
 With drought persistent and forest pressure critical, the settlement established an observation point beside the Western Firebreak. A short footpath, weather gauge, rain collector, and soil stake are now permanent visible features. Travelers can inspect the station while weather, wildfire risk, and the unfinished firebreak continue changing independently of the numbered world day.
 
 Production release verified October 20, 2026: Day 24, four persistent render entities, one release event, 66 player records and 66 inventories.
+
+## Day 25 — The Winter Firewatch Survey
+
+Winter snowfall arrived while dry soil and wildfire risk persisted around the Western Firebreak. The existing firewatch post gained a permanent survey path, observation board, snow-depth staff, and wind screen. The new landmarks help travelers inspect environmental conditions without altering weather or automatically completing the firebreak.
+
+Production release verified October 21, 2026: Day 25, four persistent render entities, one release event (9025), 66 player records and 66 inventories. The autonomous simulation clock remained independent.
+
+## Day 26 — Edda's Winter Herb Relay
+
+A traveler harvested the final available herb from Edda's hardy nursery patch while the settlement herb reserve stood at zero. Winter conditions persisted. Edda responded with a short herb relay path, an inspectable supply ledger, and a drying rack beside the existing garden. The structures leave a visible record of scarcity and future cooperation without manufacturing herbs or completing any shared project for players.
+
+Production release verified October 23, 2026: Day 26, three persistent render entities, one release event (9130), 66 players, 66 inventories, and zero orphan inventories. Weather, ecology, resource regeneration, settlement consumption, NPC life, disasters, and world aging continue on independent clocks.
