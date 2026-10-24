@@ -180,3 +180,9 @@ Production release verified October 21, 2026: Day 25, four persistent render ent
 A traveler harvested the final available herb from Edda's hardy nursery patch while the settlement herb reserve stood at zero. Winter conditions persisted. Edda responded with a short herb relay path, an inspectable supply ledger, and a drying rack beside the existing garden. The structures leave a visible record of scarcity and future cooperation without manufacturing herbs or completing any shared project for players.
 
 Production release verified October 23, 2026: Day 26, three persistent render entities, one release event (9130), 66 players, 66 inventories, and zero orphan inventories. Weather, ecology, resource regeneration, settlement consumption, NPC life, disasters, and world aging continue on independent clocks.
+
+## Day 27 — The Blacksmith Pledge Yard
+
+A traveler made renewed contributions to the unfinished community blacksmith: 700 coins, 50 stone, and 10 wood in the recent activity window. The settlement extended the existing material yard with a permanent pledge walk, an inspectable contributors board, and a sealed coffer that remembers those player-funded efforts. The coffer is not a source of free resources, and the project remains unfinished with all contribution requirements enforced by its authoritative ledger.
+
+Production release verified October 24, 2026: world Day 27, three new persistent render entities, one release event (9239), 66 players and inventories, zero orphan inventories. Autonomous weather, disasters, ecology, NPC life, settlement needs, and resource regeneration continue independently of numbered world days.
