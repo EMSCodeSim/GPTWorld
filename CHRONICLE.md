@@ -192,3 +192,9 @@ Production release verified October 24, 2026: world Day 27, three new persistent
 A crop disease event struck the gardens and increased herb demand. A traveler gathered three herbs from Edda's garden while the settlement herb stockpile remained empty. Edda marked a nearby winter inspection area rather than introducing free resources or changing the autonomous disease cycle.
 
 A blight watch path, weathered herb inspection bed, and inspectable observation board now persist beside the existing herb relay. The board points travelers toward the live gathering and settlement supply systems. Production release verified October 25, 2026: Day 28, three persistent render entities, exactly one release event (9298), 66 players, 66 inventories, and zero orphan inventories. Weather, ecology, crop disease, resource regeneration, NPC life, settlement needs, and world aging continue on independent clocks.
+
+## Day 29 — The Quiet Meadow Census
+
+The autonomous ecosystem reached simulated year 44, with two extinct herbivores: Meadow Grazer (grassland, year 24) and Reed Runner (riverbank, year 25). The latest traveler had gathered the last available herb from Edda's hardy nursery patch, while spring rain returned. Instead of conjuring new wildlife, the settlement made the loss visible along the existing empty-meadow route.
+
+A census spur, field observation board, Meadow Grazer remembrance stone, and Reed Runner survey marker now persist in the shared playable world. The records preserve actual ecological history without reviving species or altering the autonomous ecosystem. Production release verified October 26, 2026: world Day 29, four new render entities, one release event (9353), 84 total render entities, 66 players, 66 inventories, and zero orphan inventories. All recurring systems continue on their own clocks.
