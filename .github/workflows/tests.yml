@@ -13,7 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+      # This repository does not track a package-lock.json; npm ci and setup-node
+      # cache both require one. Install without modifying the repository instead.
+      - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
       - run: npm run check
       - run: npm test
