@@ -19,19 +19,34 @@ jobs:
         run: npm run check
       - name: Wait for production deploy
         run: sleep 55
+      - name: Skip already completed historical day
+        id: day_gate
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
+          day="$(BODY="$body" python3 -c 'import json,os; print(int(json.loads(os.environ["BODY"]).get("world",{}).get("current_day",{}).get("day",0)))')"
+          if [ "$day" -gt 14 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Day 14 is already in world history; no release needed."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify pre-release health
+        if: steps.day_gate.outputs.skip != 'true'
         run: |
           set -euo pipefail
           body="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
           echo "$body"
           BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); day=int(d.get("world",{}).get("current_day",{}).get("day",0)); sys.exit(0 if d.get("ok") is True and d.get("status")=="healthy" and day in (13,14) else 1)'
       - name: Release Day 14
+        if: steps.day_gate.outputs.skip != 'true'
         run: |
           set -euo pipefail
           body="$(curl -fsS -X POST --max-time 30 https://gptlife.netlify.app/.netlify/functions/day14-release)"
           echo "$body"
           BODY="$body" python3 -c 'import json,os,sys; d=json.loads(os.environ["BODY"]); day=d.get("day",0); day=day.get("day",0) if isinstance(day,dict) else day; sys.exit(0 if d.get("ok") is True and int(day)==14 else 1)'
       - name: Verify post-release health and state
+        if: steps.day_gate.outputs.skip != 'true'
         run: |
           set -euo pipefail
           health="$(curl -fsS --max-time 20 https://gptlife.netlify.app/.netlify/functions/health)"
