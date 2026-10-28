@@ -204,3 +204,9 @@ A census spur, field observation board, Meadow Grazer remembrance stone, and Ree
 After the quiet meadow census, travelers delivered six herbs and six stone to the communal storehouse and gathered 23 wood. One pine was exhausted while forest pressure remained critical, crop disease kept herb demand high, and the Western Firebreak still awaited explicit project contributions.
 
 The settlement marked a permanent delivery apron, herb sorting rack, and receipt board on the storehouse's eastern side. These visible objects remember actual player deliveries and explain that storehouse deposits do not automatically fund the firebreak; players still choose where to contribute. Production release verified October 27, 2026: Day 30, three persistent landmarks, one release event (9443), 87 total render entities, 66 players and inventories, zero orphan inventories. The living world's recurring systems remain autonomous.
+
+## Day 31 — The Burn Scar Rainwash Survey
+
+Following repeated timber harvesting, wildfire-1008, and heavy spring rain, the settlement marked the existing burn scar for a rainwash survey. Travelers had recently gathered 23 units of wood and deposited six herbs and six stone into the storehouse, but the Western Firebreak still had no direct contributions. Forest pressure remained critical and the soil stayed dry despite rain.
+
+A permanent survey path, exposed-soil patch, erosion reference stake, and risk board now make this environmental consequence visible in the shared world. The board points travelers to the existing firebreak workbench; it does not complete the project or transfer supplies. Weather, ecology, disasters, regrowth, NPC life, and other recurring systems remain autonomous.
