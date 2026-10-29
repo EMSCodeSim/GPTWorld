@@ -1,0 +1,11 @@
+# Day 32 — The Timberline Stewardship Fork
+
+Production release verified October 29, 2026. The historical world day advanced exactly once from 31 to 32; world event 9544 (`day32_timberline_stewardship_fork`).
+
+The authoritative world ledger showed no new player resource transactions after the previous chapter. The latest verified traveler activity included 23 wood-gathering actions, six herb deposits, and six stone deposits; a western pine and several other trees were exhausted. The shared forest-pressure ledger recorded 793 wood harvests, 132 depleted sites, critical pressure of 100, and an earlier traveler decision to continue expansion. Spring weather remained dry despite intermittent rain (drought 0.76 and soil moisture 0.05). The Western Firebreak remained unfinished.
+
+Instead of automatically reversing the player's expansion decision, the settlement marked a stewardship fork beside the existing timberline spur. Four permanent shared-world render entities were added: a haul spur, cutover ground, an inspectable stewardship choices board, and a regrowth observation stake. The board explains the existing forest response choices: replanting, managed woodlot, harvest restrictions, or continued expansion. It does not cast a vote, change policy, spawn resources, or alter regrowth. Travelers retain agency through the existing forest response system.
+
+Production persistence verification: Day 32; four Day 32 render entities; exactly one Day 32 release event (9544); 95 total persistent render entities; 66 player records and 66 inventories, with zero orphan inventories. The Netlify deployment of commit `87793e9aae3d66128a756c453370919a6ec1fdda` was ready and included the Day 32 release function before the atomic database advancement. The focused Day 32 Node test and JavaScript syntax checks passed against source files whose Git blob hashes matched GitHub. The full repository test workflow was triggered by the push to main, but its completed result was not independently retrievable during this run.
+
+The numbered historical day did not modify player inventories, positions, progression, resource stockpiles, the unfinished firebreak, forest-response votes, weather, disasters, ecology, NPC routines, world aging, or autonomous tick counters. These remain server-authoritative and continue independently.
