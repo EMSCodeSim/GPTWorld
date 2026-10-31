@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { ecologyRenderEntities, simulationSummary } from './_sim-core.mjs';
 import { decorateDay33Relief } from '../../lib/day33-relief-ledger.mjs';
+import { decorateDay34Firewatch } from '../../lib/day34-firewatch-signal.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -64,7 +65,7 @@ export default async (req) => {
         .filter(e=>!String(e?.id||'').startsWith('eco-'))
         .map(e=>decayTrailMarker(e,nowMs))
         .filter(Boolean);
-      world.render_entities=[...decorateDay33Relief(persistent,world.settlement_stockpile),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
+      world.render_entities=[...decorateDay34Firewatch(decorateDay33Relief(persistent,world.settlement_stockpile),world.disaster_sim,world.firebreak_project,world.weather_sim,world.forest_pressure),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
