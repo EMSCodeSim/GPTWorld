@@ -3,7 +3,7 @@ const API='/.netlify/functions/world-v2';
 const GAME_KEY='gptworld-day1';
 const CLIENT_KEY='gptworld-client-id';
 const DEFAULT={wood:0,stone:0,woodGoal:6,stoneGoal:24,complete:false};
-let state={...DEFAULT},day=0,busy=false,lastFetch=0,serverPack={wood:0,stone:0,herbs:0};
+let state={...DEFAULT},day=0,busy=false,lastFetch=0,serverPack={wood:0,stone:0,herbs:0},serverPosition=null,notice='';
 
 function game(){try{return JSON.parse(localStorage.getItem(GAME_KEY))||{}}catch{return{}}}
 function clientId(){return localStorage.getItem(CLIENT_KEY)||''}
@@ -43,7 +43,7 @@ function render(){
   ensureUI();
   const panel=document.getElementById('firebreakProject');
   const g=game();
-  if(day<8||!clientId()||!nearFirebreak(g)){panel.style.display='none';return}
+  if(day<8||!clientId()||!nearFirebreak(serverPosition||g)){panel.style.display='none';return}
   panel.style.display='block';
   const w=Math.min(Number(state.woodGoal||6),Number(state.wood||0));
   const s=Math.min(Number(state.stoneGoal||24),Number(state.stone||0));
@@ -55,7 +55,7 @@ function render(){
     buttons.style.display='none';
     hint.textContent='The timber line now carries a permanent defensive break built by travelers.';
   }else{
-    status.textContent=`Shared progress: ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. Server pack: ${Number(serverPack.wood||0)} wood · ${Number(serverPack.stone||0)} stone.`;
+    status.textContent=`Shared progress: ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. Server pack: ${Number(serverPack.wood||0)} wood · ${Number(serverPack.stone||0)} stone.${notice?' '+notice:''}`;
     buttons.style.display='flex';
     document.getElementById('firebreakWood').disabled=busy||Number(serverPack.wood||0)<1||w>=Number(state.woodGoal||6);
     document.getElementById('firebreakStone').disabled=busy||Number(serverPack.stone||0)<1||s>=Number(state.stoneGoal||24);
@@ -71,7 +71,7 @@ async function refresh(){
     const data=await r.json();if(!data.ok)return;
     day=Number(data.world?.current_day?.day||0);
     state=data.world?.firebreak_project||state;
-    if(data.me)serverPack={wood:Number(data.me.wood||0),stone:Number(data.me.stone||0),herbs:Number(data.me.herbs||0)};
+    if(data.me){serverPack={wood:Number(data.me.wood||0),stone:Number(data.me.stone||0),herbs:Number(data.me.herbs||0)};serverPosition={x:Number(data.me.x),z:Number(data.me.z)};}
     render();
   }catch{}
 }
@@ -88,15 +88,16 @@ async function contribute(wood,stone){
   busy=true;render();
   try{
     const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
-      clientId:id,name:g.playerName||'Traveler',x:g.x??0,z:g.z??12,
+      clientId:id,name:g.playerName||'Traveler',x:serverPosition?.x??g.x??0,z:serverPosition?.z??g.z??12,
       action:'contribute_firebreak',wood:giveWood,stone:giveStone
     })});
     const data=await r.json();
     if(!data.ok){
+      notice=`Donation declined: ${String(data.error||'unknown_error').replaceAll('_',' ')}.`;render();
       toast(data.error==='firebreak_out_of_range'?'Move closer to the firebreak staging point.':data.error==='not_enough_materials'?'Your server inventory does not have enough material.':'The firebreak could not accept that contribution.');
       return;
     }
-    state=data.firebreak||state;
+    notice='';state=data.firebreak||state;
     if(data.inventory){
       serverPack={wood:Number(data.inventory.wood||0),stone:Number(data.inventory.stone||0),herbs:Number(data.inventory.herbs||0)};
       g.inventory={...serverPack};
