@@ -168,9 +168,9 @@ export default async (req) => {
             RETURNING ws.value
           ), logged AS (
             INSERT INTO world_events(player_id,event_type,payload)
-            SELECT ${playerId},'firebreak_contribution',jsonb_build_object('wood',accepted_wood,'stone',accepted_stone,'complete',(value->>'complete')::boolean) FROM updated
+            SELECT ${playerId}::bigint,'firebreak_contribution',jsonb_build_object('wood',accepted_wood,'stone',accepted_stone,'complete',(value->>'complete')::boolean) FROM updated
             UNION ALL
-            SELECT ${playerId},'western_firebreak_completed',jsonb_build_object('day',8,'location','timber_line') FROM updated WHERE (value->>'complete')::boolean=true
+            SELECT ${playerId}::bigint,'western_firebreak_completed',jsonb_build_object('day',8,'location','timber_line') FROM updated WHERE (value->>'complete')::boolean=true
             RETURNING id
           )
           SELECT value,accepted_wood,accepted_stone,inventory_wood,inventory_stone,inventory_herbs,(SELECT value FROM rendered LIMIT 1) AS render_entities FROM updated
