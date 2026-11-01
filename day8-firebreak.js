@@ -9,7 +9,7 @@ function game(){try{return JSON.parse(localStorage.getItem(GAME_KEY))||{}}catch{
 function clientId(){return localStorage.getItem(CLIENT_KEY)||''}
 function nearFirebreak(g){
   const x=Number(g.x),z=Number(g.z);
-  return Number.isFinite(x)&&Number.isFinite(z)&&x<=-26&&z>=5&&z<=16;
+  return Number.isFinite(x)&&Number.isFinite(z)&&x<=-30&&z>=5&&z<=16;
 }
 function ensureUI(){
   if(document.getElementById('firebreakProject'))return;
