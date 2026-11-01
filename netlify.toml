@@ -1,4 +1,5 @@
 [build]
+  command = "npm run check && npm test"
   publish = "."
   functions = "netlify/functions"
 
