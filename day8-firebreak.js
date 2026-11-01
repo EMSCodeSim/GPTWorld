@@ -3,7 +3,7 @@ const API='/.netlify/functions/world-v2';
 const GAME_KEY='gptworld-day1';
 const CLIENT_KEY='gptworld-client-id';
 const DEFAULT={wood:0,stone:0,woodGoal:6,stoneGoal:24,complete:false};
-let state={...DEFAULT},day=0,busy=false,lastFetch=0,serverPack={wood:0,stone:0,herbs:0},serverPosition=null,notice='';
+let state={...DEFAULT},day=0,busy=false,lastFetch=0,serverPack={wood:0,stone:0,herbs:0},serverPosition=null,notice='',watch={patrols:0,lastInspector:null};
 
 function game(){try{return JSON.parse(localStorage.getItem(GAME_KEY))||{}}catch{return{}}}
 function clientId(){return localStorage.getItem(CLIENT_KEY)||''}
@@ -24,16 +24,18 @@ function ensureUI(){
       <button id="firebreakWood" type="button">Stage up to 3 wood</button>
       <button id="firebreakStone" type="button">Stage up to 8 stone</button>
       <button id="firebreakNeeded" type="button">Stage what’s needed</button>
+      <button id="firebreakPatrol" type="button" style="display:none">Record firebreak patrol</button>
     </div>
     <div id="firebreakHint" style="font-size:12px;opacity:.72;margin-top:8px">The stone spur now feeds this staging point. Materials committed here count directly toward the shared firebreak.</div>`;
   document.body.appendChild(panel);
-  for(const id of ['firebreakWood','firebreakStone','firebreakNeeded']){
+  for(const id of ['firebreakWood','firebreakStone','firebreakNeeded','firebreakPatrol']){
     const b=document.getElementById(id);
     b.style.cssText='background:#d9c896;color:#17231a;border:0;border-radius:9px;padding:9px 11px;font-weight:800;cursor:pointer;touch-action:manipulation';
   }
   document.getElementById('firebreakWood').addEventListener('click',()=>contribute(3,0));
   document.getElementById('firebreakStone').addEventListener('click',()=>contribute(0,8));
   document.getElementById('firebreakNeeded').addEventListener('click',contributeNeeded);
+  document.getElementById('firebreakPatrol').addEventListener('click',patrolFirebreak);
 }
 function toast(message){
   const t=document.getElementById('toast');if(!t)return;
@@ -51,12 +53,17 @@ function render(){
   const buttons=document.getElementById('firebreakButtons');
   const hint=document.getElementById('firebreakHint');
   if(state.complete){
-    status.textContent=`Complete · ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. The cleared line and cairns now remain in the shared world.`;
-    buttons.style.display='none';
-    hint.textContent='The timber line now carries a permanent defensive break built by travelers.';
+    status.textContent=`Complete · ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. Voluntary patrols: ${Number(watch.patrols||0)}.${notice?' '+notice:''}`;
+    buttons.style.display=day>=35?'flex':'none';
+    for(const id of ['firebreakWood','firebreakStone','firebreakNeeded'])document.getElementById(id).style.display='none';
+    document.getElementById('firebreakPatrol').style.display=day>=35?'inline-block':'none';
+    document.getElementById('firebreakPatrol').disabled=busy;
+    hint.textContent='Travelers built the cleared line and boundary cairns. Record a voluntary patrol to leave a shared watch entry; patrols do not consume supplies or stop autonomous wildfires.';
   }else{
     status.textContent=`Shared progress: ${w}/${state.woodGoal||6} wood · ${s}/${state.stoneGoal||24} stone. Server pack: ${Number(serverPack.wood||0)} wood · ${Number(serverPack.stone||0)} stone.${notice?' '+notice:''}`;
     buttons.style.display='flex';
+    for(const id of ['firebreakWood','firebreakStone','firebreakNeeded'])document.getElementById(id).style.display='inline-block';
+    document.getElementById('firebreakPatrol').style.display='none';
     document.getElementById('firebreakWood').disabled=busy||Number(serverPack.wood||0)<1||w>=Number(state.woodGoal||6);
     document.getElementById('firebreakStone').disabled=busy||Number(serverPack.stone||0)<1||s>=Number(state.stoneGoal||24);
     const neededWood=Math.max(0,Number(state.woodGoal||6)-w),neededStone=Math.max(0,Number(state.stoneGoal||24)-s);
@@ -71,9 +78,28 @@ async function refresh(){
     const data=await r.json();if(!data.ok)return;
     day=Number(data.world?.current_day?.day||0);
     state=data.world?.firebreak_project||state;
+    watch=data.world?.firebreak_watch||watch;
     if(data.me){serverPack={wood:Number(data.me.wood||0),stone:Number(data.me.stone||0),herbs:Number(data.me.herbs||0)};serverPosition={x:Number(data.me.x),z:Number(data.me.z)};}
     render();
   }catch{}
+}
+async function patrolFirebreak(){
+  const id=clientId(),g=game();if(!id||busy||day<35||!state.complete)return;
+  busy=true;render();
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      clientId:id,name:g.playerName||'Traveler',x:serverPosition?.x??g.x??0,z:serverPosition?.z??12,
+      action:'patrol_firebreak'
+    })});
+    const data=await r.json();
+    if(!data.ok){
+      notice=data.error==='patrol_unavailable_or_cooldown'?'Patrol already recorded recently; try again in about an hour.':`Patrol unavailable: ${String(data.error||'unknown_error').replaceAll('_',' ')}.`;
+      toast(notice);return;
+    }
+    watch=data.firebreak_watch||watch;notice='';
+    toast('Firebreak patrol recorded in the shared world.');
+  }catch{notice='Unable to reach the patrol ledger.';toast(notice);}
+  finally{busy=false;lastFetch=0;render();setTimeout(refresh,150);}
 }
 function contributeNeeded(){
   const needWood=Math.max(0,Number(state.woodGoal||6)-Number(state.wood||0));
