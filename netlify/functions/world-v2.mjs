@@ -131,14 +131,14 @@ export default async (req) => {
           ), claim AS (
             INSERT INTO world_state(key,value,updated_at)
             SELECT 'firebreak_patrol_player_' || ${playerId}::text,
-              jsonb_build_object('lastPatrolAt',now()),now() FROM gate,watch WHERE true
+              jsonb_build_object('lastPatrolAt',now()),now() FROM gate CROSS JOIN watch
             ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()
               WHERE world_state.updated_at <= now()-interval '60 minutes'
             RETURNING key
           ), updated AS (
             UPDATE world_state ws SET value=jsonb_build_object(
               'patrols',COALESCE((ws.value->>'patrols')::int,0)+1,
-              'lastInspector',${name},
+              'lastInspector',${name}::text,
               'lastPatrolAt',to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ),updated_at=now()
             FROM claim WHERE ws.key='firebreak_watch' RETURNING ws.value
