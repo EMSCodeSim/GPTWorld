@@ -52,7 +52,7 @@ export default async request=>{
         RETURNING ws.value
       ), watch AS (
         INSERT INTO world_state(key,value,updated_at)
-        SELECT 'firebreak_watch','{"patrols":0,"lastInspector":null,"lastPatrolAt":null}'::jsonb,now() FROM rendered
+        SELECT 'firebreak_watch','{"patrols":0,"lastInspector":null,"lastPatrolAt":null}'::jsonb,now() FROM rendered WHERE true
         ON CONFLICT(key) DO NOTHING RETURNING key
       ), advanced AS (
         UPDATE world_state ws SET value=jsonb_build_object('day',${DAY35}::int,
