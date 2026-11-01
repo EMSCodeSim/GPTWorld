@@ -131,7 +131,7 @@ export default async (req) => {
           ), claim AS (
             INSERT INTO world_state(key,value,updated_at)
             SELECT 'firebreak_patrol_player_' || ${playerId}::text,
-              jsonb_build_object('lastPatrolAt',now()),now() FROM gate,watch
+              jsonb_build_object('lastPatrolAt',now()),now() FROM gate,watch WHERE true
             ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()
               WHERE world_state.updated_at <= now()-interval '60 minutes'
             RETURNING key
