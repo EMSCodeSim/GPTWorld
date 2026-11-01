@@ -130,7 +130,7 @@ export default async (req) => {
             SELECT 1 FROM world_state WHERE key='firebreak_watch'
           ), claim AS (
             INSERT INTO world_state(key,value,updated_at)
-            SELECT 'firebreak_patrol_player_' || ${playerId}::text,
+            SELECT concat('firebreak_patrol_player_', ${playerId}::bigint::text),
               jsonb_build_object('lastPatrolAt',now()),now() FROM gate CROSS JOIN watch
             ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()
               WHERE world_state.updated_at <= now()-interval '60 minutes'
@@ -138,14 +138,14 @@ export default async (req) => {
           ), updated AS (
             UPDATE world_state ws SET value=jsonb_build_object(
               'patrols',COALESCE((ws.value->>'patrols')::int,0)+1,
-              'lastInspector',${name}::text,
+              'lastInspector',CAST(${name} AS text),
               'lastPatrolAt',to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ),updated_at=now()
             FROM claim WHERE ws.key='firebreak_watch' RETURNING ws.value
           ), logged AS (
             INSERT INTO world_events(player_id,event_type,payload)
             SELECT ${playerId}::bigint,'firebreak_patrol',
-              jsonb_build_object('x',${x},'z',${z},'firebreak_complete',true)
+              jsonb_build_object('x',${x}::double precision,'z',${z}::double precision,'firebreak_complete',true)
             FROM updated RETURNING id
           )
           SELECT updated.value,(SELECT id FROM logged LIMIT 1) AS event_id FROM updated
