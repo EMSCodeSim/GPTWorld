@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { ecologyRenderEntities, simulationSummary } from './_sim-core.mjs';
 import { decorateDay33Relief } from '../../lib/day33-relief-ledger.mjs';
 import { decorateDay34Firewatch } from '../../lib/day34-firewatch-signal.mjs';
+import { decorateDay35FirebreakWatch } from '../../lib/day35-firebreak-watch.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -65,7 +66,7 @@ export default async (req) => {
         .filter(e=>!String(e?.id||'').startsWith('eco-'))
         .map(e=>decayTrailMarker(e,nowMs))
         .filter(Boolean);
-      world.render_entities=[...decorateDay34Firewatch(decorateDay33Relief(persistent,world.settlement_stockpile),world.disaster_sim,world.firebreak_project,world.weather_sim,world.forest_pressure),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
+      world.render_entities=[...decorateDay35FirebreakWatch(decorateDay34Firewatch(decorateDay33Relief(persistent,world.settlement_stockpile),world.disaster_sim,world.firebreak_project,world.weather_sim,world.forest_pressure),world.firebreak_project,world.firebreak_watch,world.disaster_sim,world.weather_sim),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
@@ -114,6 +115,43 @@ export default async (req) => {
         `;
         if (!result.length) return json({ ok:false, error:'not_enough_materials' },409);
         return json({ ok:true, inventory:{wood:Number(result[0].wood||0),stone:Number(result[0].stone||0),herbs:Number(result[0].herbs||0)}, render_entities:result[0].value });
+      }
+
+      if (body.action === 'patrol_firebreak') {
+        // Voluntary watch: requires the completed player-built firebreak and proximity.
+        // One patrol per player per hour, enforced by an atomic per-player claim.
+        if (!(x >= -34 && x <= -26 && z >= 5 && z <= 16))
+          return json({ok:false,error:'firebreak_out_of_range'},403);
+        const result=await sql`
+          WITH gate AS (
+            SELECT 1 FROM world_state WHERE key='firebreak_project'
+              AND value->>'complete'='true'
+          ), watch AS (
+            SELECT 1 FROM world_state WHERE key='firebreak_watch'
+          ), claim AS (
+            INSERT INTO world_state(key,value,updated_at)
+            SELECT 'firebreak_patrol_player_' || ${playerId}::text,
+              jsonb_build_object('lastPatrolAt',now()),now() FROM gate,watch
+            ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()
+              WHERE world_state.updated_at <= now()-interval '60 minutes'
+            RETURNING key
+          ), updated AS (
+            UPDATE world_state ws SET value=jsonb_build_object(
+              'patrols',COALESCE((ws.value->>'patrols')::int,0)+1,
+              'lastInspector',${name},
+              'lastPatrolAt',to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            ),updated_at=now()
+            FROM claim WHERE ws.key='firebreak_watch' RETURNING ws.value
+          ), logged AS (
+            INSERT INTO world_events(player_id,event_type,payload)
+            SELECT ${playerId}::bigint,'firebreak_patrol',
+              jsonb_build_object('x',${x},'z',${z},'firebreak_complete',true)
+            FROM updated RETURNING id
+          )
+          SELECT updated.value,(SELECT id FROM logged LIMIT 1) AS event_id FROM updated
+        `;
+        if(!result.length)return json({ok:false,error:'patrol_unavailable_or_cooldown'},409);
+        return json({ok:true,firebreak_watch:result[0].value,event_id:result[0].event_id});
       }
 
       if (body.action === 'contribute_firebreak') {
