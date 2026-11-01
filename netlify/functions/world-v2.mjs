@@ -120,7 +120,7 @@ export default async (req) => {
       if (body.action === 'patrol_firebreak') {
         // Voluntary watch: requires the completed player-built firebreak and proximity.
         // One patrol per player per hour, enforced by an atomic per-player claim.
-        if (!(x >= -34 && x <= -26 && z >= 5 && z <= 16))
+        if (!(x >= -43 && x <= -30 && z >= 5 && z <= 16))
           return json({ok:false,error:'firebreak_out_of_range'},403);
         const result=await sql`
           WITH gate AS (
@@ -155,7 +155,7 @@ export default async (req) => {
       }
 
       if (body.action === 'contribute_firebreak') {
-        if (!(x <= -26 && z >= 5 && z <= 16)) return json({ok:false,error:'firebreak_out_of_range'},403);
+        if (!(x <= -30 && z >= 5 && z <= 16)) return json({ok:false,error:'firebreak_out_of_range'},403);
         const giveWood=Math.min(3,cleanInt(body.wood,3));
         const giveStone=Math.min(8,cleanInt(body.stone,8));
         if(giveWood+giveStone<1)return json({ok:false,error:'nothing_to_contribute'},400);
