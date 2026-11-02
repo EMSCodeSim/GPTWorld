@@ -21,7 +21,7 @@ test('Day 8 firebreak uses server-authoritative project action',()=>{
 });
 
 test('Day 8 stays hidden before authoritative day 8',()=>{
-  assert.match(client,/if\(day<8\|\|!clientId\(\)\|\|!nearFirebreak\(g\)\)/);
+  assert.match(client,/if\(day<8\|\|!clientId\(\)\|\|!nearFirebreak\(serverPosition\|\|g\)\)/);
   assert.match(index,/day8-firebreak\.js/);
   assert.doesNotMatch(index,/PUBLIC WORLD · DAY 5/);
 });
