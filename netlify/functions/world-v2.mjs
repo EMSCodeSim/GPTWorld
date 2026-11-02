@@ -3,6 +3,7 @@ import { ecologyRenderEntities, simulationSummary } from './_sim-core.mjs';
 import { decorateDay33Relief } from '../../lib/day33-relief-ledger.mjs';
 import { decorateDay34Firewatch } from '../../lib/day34-firewatch-signal.mjs';
 import { decorateDay35FirebreakWatch } from '../../lib/day35-firebreak-watch.mjs';
+import { decorateDay36LandwardWatch } from '../../lib/day36-landward-watch.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -66,7 +67,7 @@ export default async (req) => {
         .filter(e=>!String(e?.id||'').startsWith('eco-'))
         .map(e=>decayTrailMarker(e,nowMs))
         .filter(Boolean);
-      world.render_entities=[...decorateDay35FirebreakWatch(decorateDay34Firewatch(decorateDay33Relief(persistent,world.settlement_stockpile),world.disaster_sim,world.firebreak_project,world.weather_sim,world.forest_pressure),world.firebreak_project,world.firebreak_watch,world.disaster_sim,world.weather_sim),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
+      world.render_entities=[...decorateDay36LandwardWatch(decorateDay35FirebreakWatch(decorateDay34Firewatch(decorateDay33Relief(persistent,world.settlement_stockpile),world.disaster_sim,world.firebreak_project,world.weather_sim,world.forest_pressure),world.firebreak_project,world.firebreak_watch,world.disaster_sim,world.weather_sim),world.firebreak_watch,world.disaster_sim),...ecologyRenderEntities(world.ecosystem,nowMs,world.weather_sim,meRows[0]||null,world.forest_pressure||null)];
       return json({ ok: true, world, simulations: simulationSummary(world), entities: entityArray(world), online: onlineRows, me: meRows[0] || null });
     }
 
