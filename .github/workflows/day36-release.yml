@@ -6,10 +6,11 @@ on:
       - 'lib/day36-landward-watch.mjs'
       - 'netlify/functions/day36-release.mjs'
       - 'netlify/functions/world-v2.mjs'
+      - 'scripts/day36-document.mjs'
       - '.github/workflows/day36-release.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: gptworld-day36-production-release
   cancel-in-progress: false
@@ -80,3 +81,15 @@ jobs:
           echo "$M" | jq -e '.ok == true and .current_day.day == 36 and ([.world.render_entities[] | select(.id == "day36-landward-watch-trail" or .id == "day36-landward-watch-clearing" or .id == "day36-landward-watch-sign")] | length) == 3' >/dev/null
           R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day36-release)"
           echo "$R" | jq -e '.ok == true and .day == 36 and .already_released == true' >/dev/null
+      - name: Record verified Day 36 in the Chronicle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/day36-document.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DAY36.md CHRONICLE.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Record verified Day 36 in Chronicle"
+            git push
+          fi
