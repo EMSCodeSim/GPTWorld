@@ -38,7 +38,7 @@ jobs:
           elif [ -n "${NETLIFY_BUILD_HOOK_URL:-}" ]; then
             curl -fsS --retry 3 --retry-delay 5 -X POST "$NETLIFY_BUILD_HOOK_URL"
           else
-            echo "No Netlify deploy credential or build hook; waiting for linked Git continuous deployment."
+            echo "::warning::No Netlify deploy credential or build hook; checking linked Git deployment in the next step."
           fi
       - name: Wait for Day 36 function in production
         shell: bash
