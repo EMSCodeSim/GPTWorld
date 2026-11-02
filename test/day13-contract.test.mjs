@@ -8,7 +8,7 @@ const index=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 
 test('firebreak staging reads server-authoritative pack',()=>{
   assert.match(client,/serverPack=/);
-  assert.match(client,/if\(data\.me\)serverPack=/);
+  assert.match(client,/if\(data\.me\)\s*\{\s*serverPack=/);
   assert.match(client,/Server pack:/);
   assert.doesNotMatch(client,/Number\(g\.inventory\?\.stone/);
 });
