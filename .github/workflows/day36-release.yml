@@ -1,0 +1,79 @@
+name: Day 36 Production Release
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/day36-landward-watch.mjs'
+      - 'netlify/functions/day36-release.mjs'
+      - 'netlify/functions/world-v2.mjs'
+      - '.github/workflows/day36-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gptworld-day36-production-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - name: Deploy if Netlify CLI credentials are available
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 85cf4bb1-9601-4319-be2c-0ec4248bc6ed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${NETLIFY_AUTH_TOKEN:-}" ]; then
+            npx --yes netlify-cli@latest deploy --prod --build --site "$NETLIFY_SITE_ID"
+          else
+            echo "No Netlify CLI token; waiting for the linked Git continuous deployment."
+          fi
+      - name: Wait for Day 36 function in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://gptlife.netlify.app/.netlify/functions/day36-release || true)"
+            echo "Deploy probe $attempt: HTTP $code"
+            if [ "$code" = 405 ]; then exit 0; fi
+            sleep 20
+          done
+          echo "Day 36 endpoint not deployed; world day must not advance."
+          exit 1
+      - name: Verify production health and persistent world memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ([35,36] | index(.world.current_day.day | tonumber)) != null' >/dev/null
+          M="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and ([35,36] | index(.current_day.day | tonumber)) != null and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 107' >/dev/null
+      - name: Release exactly one world day (idempotent)
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RELEASE_TOKEN:-}"
+          R="$(curl -fsS --retry 3 --retry-delay 5 -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day36-release)"
+          echo "$R" | jq -e '.ok == true and .day == 36' >/dev/null
+      - name: Verify durable release and idempotence
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 36 and .checks.inventory_ownership == true' >/dev/null
+          M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and .current_day.day == 36 and ([.world.render_entities[] | select(.id == "day36-landward-watch-trail" or .id == "day36-landward-watch-clearing" or .id == "day36-landward-watch-sign")] | length) == 3' >/dev/null
+          R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day36-release)"
+          echo "$R" | jq -e '.ok == true and .day == 36 and .already_released == true' >/dev/null
