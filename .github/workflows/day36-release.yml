@@ -53,9 +53,9 @@ jobs:
         run: |
           set -euo pipefail
           H="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/health)"
-          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ([35,36] | index(.world.current_day.day | tonumber)) != null' >/dev/null
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 35 or (.world.current_day.day | tonumber) == 36)' >/dev/null
           M="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and ([35,36] | index(.current_day.day | tonumber)) != null and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 107' >/dev/null
+          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 35 or (.current_day.day | tonumber) == 36) and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 107' >/dev/null
       - name: Release exactly one world day (idempotent)
         env:
           RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
