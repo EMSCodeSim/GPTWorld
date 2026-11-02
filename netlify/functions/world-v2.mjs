@@ -190,15 +190,15 @@ export default async (req) => {
             RETURNING ws.value,deduct.accepted_wood,deduct.accepted_stone,deduct.inventory_wood,deduct.inventory_stone,deduct.inventory_herbs
           ), rendered AS (
             UPDATE world_state ws SET value=CASE WHEN jsonb_typeof(ws.value)='array' THEN ws.value || jsonb_build_array(
-                jsonb_build_object('id','western-firebreak','type','trail','points',jsonb_build_array(jsonb_build_array(-32,8),jsonb_build_array(-29.5,10.5),jsonb_build_array(-27,12.5)),'width',1.7,'color','#5f5141','label','Western firebreak'),
-                jsonb_build_object('id','western-firebreak-marker-a','type','object','x',-32.2,'z',8.2,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn'),
-                jsonb_build_object('id','western-firebreak-marker-b','type','object','x',-27.1,'z',12.4,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn')
+                jsonb_build_object('id','western-firebreak','type','trail','points',jsonb_build_array(jsonb_build_array(-39,8),jsonb_build_array(-36.5,10.5),jsonb_build_array(-34,12.5)),'width',1.7,'color','#5f5141','label','Western firebreak'),
+                jsonb_build_object('id','western-firebreak-marker-a','type','object','x',-39.2,'z',8.2,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn'),
+                jsonb_build_object('id','western-firebreak-marker-b','type','object','x',-34.1,'z',12.4,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn')
               ) ELSE jsonb_set(
               COALESCE(ws.value,'{"entities":[]}'::jsonb),'{entities}',
               COALESCE(ws.value->'entities','[]'::jsonb) || jsonb_build_array(
-                jsonb_build_object('id','western-firebreak','type','trail','points',jsonb_build_array(jsonb_build_array(-32,8),jsonb_build_array(-29.5,10.5),jsonb_build_array(-27,12.5)),'width',1.7,'color','#5f5141','label','Western firebreak'),
-                jsonb_build_object('id','western-firebreak-marker-a','type','object','x',-32.2,'z',8.2,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn'),
-                jsonb_build_object('id','western-firebreak-marker-b','type','object','x',-27.1,'z',12.4,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn')
+                jsonb_build_object('id','western-firebreak','type','trail','points',jsonb_build_array(jsonb_build_array(-39,8),jsonb_build_array(-36.5,10.5),jsonb_build_array(-34,12.5)),'width',1.7,'color','#5f5141','label','Western firebreak'),
+                jsonb_build_object('id','western-firebreak-marker-a','type','object','x',-39.2,'z',8.2,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn'),
+                jsonb_build_object('id','western-firebreak-marker-b','type','object','x',-34.1,'z',12.4,'width',0.55,'height',0.75,'depth',0.55,'color','#777065','label','Firebreak boundary cairn')
               )
             ) END,updated_at=now()
             FROM updated
