@@ -1,5 +1,5 @@
 import {neon} from '@neondatabase/serverless';
-import {DAY37,DAY37_EVENT,DAY37_ENTITIES} from '../../lib/day37-landward-watch.mjs';
+import {DAY37,DAY37_EVENT,DAY37_ENTITIES} from '../../lib/day37-first-patrol.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 export default async request=>{
   if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);
