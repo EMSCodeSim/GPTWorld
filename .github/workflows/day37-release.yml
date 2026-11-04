@@ -40,6 +40,7 @@ jobs:
           else
             echo "::warning::No Netlify deploy credential or build hook; checking linked Git deployment in the next step."
           fi
+      # Re-run the guarded Day 37 release after confirming Netlify deployed the release module.
       - name: Wait for Day 37 function in production
         shell: bash
         run: |
