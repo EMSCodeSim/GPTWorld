@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'lib/day37-landward-watch.mjs'
+      - 'lib/day37-first-patrol.mjs'
       - 'netlify/functions/day37-release.mjs'
       - 'netlify/functions/world-v2.mjs'
       - 'scripts/day37-document.mjs'
