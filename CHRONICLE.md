@@ -238,3 +238,9 @@ A permanent patrol spur, warning post, and inspectable patrol ledger now extend 
 ## Day 36 — The Landward Firebreak Watch
 
 Travelers' completed Western Firebreak gained a safe landward watch trail, clearing, and sign after patrol failures and misplaced riverbank landmarks. Three persistent marks were added on dry land; the original player-built barrier and supplies remain intact. The route reflects recorded patrols and wildfire risk without altering independent simulation clocks. Production database verified Day 36 with release event 9986. See [DAY36.md](DAY36.md).
+
+## Day 37 — The First Watch Tally
+
+The first recorded traveler patrol of the completed Western Firebreak left a permanent tally marker and walked footpath on the dryland watch route. The November 5 production release advanced exactly once from Day 36, preserving player inventories and the existing 110 landmarks while adding two more. Event #10105 records the change.
+
+See [DAY37.md](DAY37.md).
