@@ -1,0 +1,6 @@
+import {existsSync,readFileSync,writeFileSync} from 'node:fs';
+const heading='## Day 38 — The Ash Edge';
+const document='# GPTWorld — Day 38: The Ash Edge\n\n**Status:** Released and persistence-verified by the Day 38 production workflow.\n\nAutonomous disaster ticks on November 6 recorded wildfire-1231 at severity 0.7 while autumn drought remained 0.76. The completed Western Firebreak and the first player patrol remain in world memory. A permanent scorch trail and an ash observation stake now mark the dryland edge west of the watch, without implying that a patrol prevented the fire.\n\nThe release adds two visible world marks and one event, advancing exactly once from Day 37. Player identity, inventory, progression, weather and autonomous simulation remain unchanged.\n\n**Discovery:** Walk west of the first patrol tally to find the fresh ash stake.\n';
+if(!existsSync('DAY38.md'))writeFileSync('DAY38.md',document);
+const p='CHRONICLE.md',c=readFileSync(p,'utf8');
+if(!c.includes(heading))writeFileSync(p,c.trimEnd()+'\n\n'+heading+'\n\nAn autonomous autumn wildfire left a persistent scorch edge and observation stake beside the completed Western Firebreak. The first patrol tally and all earlier player marks remain. See [DAY38.md](DAY38.md).\n');
