@@ -244,3 +244,7 @@ Travelers' completed Western Firebreak gained a safe landward watch trail, clear
 The first recorded traveler patrol of the completed Western Firebreak left a permanent tally marker and walked footpath on the dryland watch route. The November 5 production release advanced exactly once from Day 36, preserving player inventories and the existing 110 landmarks while adding two more. Event #10105 records the change.
 
 See [DAY37.md](DAY37.md).
+
+## Day 38 — The Ash Edge
+
+An autonomous wildfire under prolonged drought left a permanent scorched trail and ash observation stake west of the player-built Western Firebreak. The first patrol tally and earlier player marks remain. Production verified the single Day 37→38 advancement, release event #10213, 114 landmarks, and 66 intact player inventories. See [DAY38.md](DAY38.md).
