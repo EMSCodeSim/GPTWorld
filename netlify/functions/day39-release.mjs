@@ -31,7 +31,7 @@ export default async request=>{
         AND (value->>'day')::int=${DAY39-1}::int FOR UPDATE
       ), finished AS (
         SELECT 1 FROM world_state WHERE key='firebreak_project' AND value->>'complete'='true'
-        AND EXISTS (SELECT 1 FROM world_events WHERE event_type='disaster_tick' AND payload->'active' @> '[{"type":"wildfire"}]'::jsonb)
+        AND EXISTS (SELECT 1 FROM world_state watch WHERE watch.key='firebreak_watch' AND (watch.value->>'patrols')::int >= 2)
       ), rendered AS (
         UPDATE world_state ws SET value=CASE
           WHEN jsonb_typeof(ws.value)='array' THEN ws.value||${additions}::jsonb
