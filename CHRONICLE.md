@@ -248,3 +248,7 @@ See [DAY37.md](DAY37.md).
 ## Day 38 — The Ash Edge
 
 An autonomous wildfire under prolonged drought left a permanent scorched trail and ash observation stake west of the player-built Western Firebreak. The first patrol tally and earlier player marks remain. Production verified the single Day 37→38 advancement, release event #10213, 114 landmarks, and 66 intact player inventories. See [DAY38.md](DAY38.md).
+
+## Day 39 — The Second Watch Route
+
+A second voluntary traveler patrol established a permanent dryland return trail and waymarker near the Western Firebreak ash edge. Production verified November 8, 2026: world day **39**, release event **#10289** exactly once, **116 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. The existing firebreak, earlier patrol marks, and autonomous systems were preserved. See [DAY39.md](DAY39.md).
