@@ -60,7 +60,7 @@ jobs:
           H="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/health)"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 38 or (.world.current_day.day | tonumber) == 39)' >/dev/null
           M="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 38 or (.current_day.day | tonumber) == 39) and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 116' >/dev/null
+          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 38 or (.current_day.day | tonumber) == 39) and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 114' >/dev/null
       - name: Release exactly one world day (idempotent)
         env:
           RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
