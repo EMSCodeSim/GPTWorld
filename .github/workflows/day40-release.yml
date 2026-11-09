@@ -1,0 +1,96 @@
+name: Day 40 Production Release
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/day40-second-watch.mjs'
+      - 'netlify/functions/day40-release.mjs'
+      - 'netlify/functions/world-v2.mjs'
+      - 'scripts/day40-document.mjs'
+      - '.github/workflows/day40-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: gptworld-day40-production-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - name: Deploy if Netlify CLI credentials are available
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          NETLIFY_SITE_ID: 85cf4bb1-9601-4319-be2c-0ec4248bc6ed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${NETLIFY_AUTH_TOKEN:-}" ]; then
+            npx --yes netlify-cli@latest deploy --prod --build --site "$NETLIFY_SITE_ID"
+          elif [ -n "${NETLIFY_BUILD_HOOK_URL:-}" ]; then
+            curl -fsS --retry 3 --retry-delay 5 -X POST "$NETLIFY_BUILD_HOOK_URL"
+          else
+            echo "::warning::No Netlify deploy credential or build hook; checking linked Git deployment in the next step."
+          fi
+      # Day 40 release waits for production deployment and verifies persisted state.
+      - name: Wait for Day 40 function in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://gptlife.netlify.app/.netlify/functions/day40-release || true)"
+            echo "Deploy probe $attempt: HTTP $code"
+            if [ "$code" = 405 ]; then exit 0; fi
+            sleep 20
+          done
+          echo "Day 40 endpoint not deployed; world day must not advance."
+          exit 1
+      - name: Verify production health and persistent world memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 39 or (.world.current_day.day | tonumber) == 40)' >/dev/null
+          M="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 39 or (.current_day.day | tonumber) == 40) and .world.firebreak_project.complete == true and (.world.render_entities | length) >= 116' >/dev/null
+      - name: Release exactly one world day (idempotent)
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RELEASE_TOKEN:-}"
+          R="$(curl -fsS --retry 3 --retry-delay 5 -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day40-release)"
+          echo "$R" | jq -e '.ok == true and .day == 40' >/dev/null
+      - name: Verify durable release and idempotence
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 40 and .checks.inventory_ownership == true' >/dev/null
+          M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and .current_day.day == 40 and ([.world.render_entities[] | select(.id == "day40-watch-junction-cairn" or .id == "day40-third-watch-connector")] | length) == 2' >/dev/null
+          R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day40-release)"
+          echo "$R" | jq -e '.ok == true and .day == 40 and .already_released == true' >/dev/null
+      - name: Record verified Day 40 in the Chronicle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/day40-document.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DAY40.md CHRONICLE.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Record verified Day 40 in Chronicle"
+            git push
+          fi
