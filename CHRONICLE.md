@@ -252,3 +252,7 @@ An autonomous wildfire under prolonged drought left a permanent scorched trail a
 ## Day 39 — The Second Watch Route
 
 A second voluntary traveler patrol established a permanent dryland return trail and waymarker near the Western Firebreak ash edge. Production verified November 8, 2026: world day **39**, release event **#10289** exactly once, **116 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. The existing firebreak, earlier patrol marks, and autonomous systems were preserved. See [DAY39.md](DAY39.md).
+
+## Day 40 — The Third Watch Circuit
+
+A third voluntary traveler patrol completed a permanent dryland watch circuit beside the player-built Western Firebreak, leaving a connecting trail and junction cairn. Production verified November 9, 2026: world day **40**, release event **#10333** exactly once, **118 persistent landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Existing construction and autonomous systems remain intact. See [DAY40.md](DAY40.md).
