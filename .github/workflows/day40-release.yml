@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'lib/day40-second-watch.mjs'
+      - 'lib/day40-third-watch.mjs'
       - 'netlify/functions/day40-release.mjs'
       - 'netlify/functions/world-v2.mjs'
       - 'scripts/day40-document.mjs'
