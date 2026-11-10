@@ -256,3 +256,7 @@ A second voluntary traveler patrol established a permanent dryland return trail 
 ## Day 40 — The Third Watch Circuit
 
 A third voluntary traveler patrol completed a permanent dryland watch circuit beside the player-built Western Firebreak, leaving a connecting trail and junction cairn. Production verified November 9, 2026: world day **40**, release event **#10333** exactly once, **118 persistent landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Existing construction and autonomous systems remain intact. See [DAY40.md](DAY40.md).
+
+## Day 41 — The Winter Watch
+
+The fourth voluntary player patrol on November 9 extended the Western Firebreak watch circuit as winter weather brought snow. A persistent footprint route and frost observation stake now mark the dryland approach. Production verified November 10, 2026: Day **41**, release event **#10390** exactly once, **120 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Previous player construction and autonomous simulation continue unchanged. See [DAY41.md](DAY41.md).
