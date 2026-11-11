@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'lib/day42-winter-watch.mjs'
+      - 'lib/day42-winter-runoff.mjs'
       - 'netlify/functions/day42-release.mjs'
       - 'netlify/functions/world-v2.mjs'
       - 'scripts/day42-document.mjs'
