@@ -40,7 +40,7 @@ jobs:
           else
             echo "::warning::No Netlify deploy credential or build hook; checking linked Git deployment in the next step."
           fi
-      # Day 42 release waits for production deployment and verifies persisted state.
+      # Day 42 Netlify function verified ready; trigger guarded production release and persistence verification.
       - name: Wait for Day 42 function in production
         shell: bash
         run: |
