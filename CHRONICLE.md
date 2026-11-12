@@ -260,3 +260,7 @@ A third voluntary traveler patrol completed a permanent dryland watch circuit be
 ## Day 41 — The Winter Watch
 
 The fourth voluntary player patrol on November 9 extended the Western Firebreak watch circuit as winter weather brought snow. A persistent footprint route and frost observation stake now mark the dryland approach. Production verified November 10, 2026: Day **41**, release event **#10390** exactly once, **120 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Previous player construction and autonomous simulation continue unchanged. See [DAY41.md](DAY41.md).
+
+## Day 42 — Winter Runoff
+
+Winter rain and snow left a permanent runoff channel and depth observation post beside the fourth-watch frost stake on the player-maintained Western Firebreak. Production verified November 12, 2026: **Day 42**, release event **#10499** exactly once, **122 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous weather and disaster systems remain independent. See [DAY42.md](DAY42.md).
