@@ -24,6 +24,7 @@ jobs:
           node-version: '24'
       - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
       - run: npm run check
+      - run: node --check lib/day43-firewatch-embers.mjs && node --check netlify/functions/day43-release.mjs && node --check scripts/day43-document.mjs
       - run: npm test
       - name: Deploy if Netlify CLI credentials are available
         env:
