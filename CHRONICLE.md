@@ -268,3 +268,7 @@ Winter rain and snow left a permanent runoff channel and depth observation post 
 ## Day 43 — The Ember Watch
 
 The fifth voluntary firebreak patrol and a new autonomous wildfire prompted a permanent ember-watch footpath and observation marker on the existing dryland watch route. Production verified November 13, 2026: **Day 43**, release event **#10588** exactly once, **124 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous wildfire and weather systems and earlier player construction remain intact. See [DAY43.md](DAY43.md).
+
+## Day 44 — The Thaw Crossing
+
+Five voluntary player patrols and winter snow/rain revealed a lasting crossing beside the Western Firebreak watch circuit. A permanent dryland trail and waystone now extend the visible route without spending resources. Production verified November 14, 2026: **Day 44**, event **#10611** exactly once, **126 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous systems continue independently. See [DAY44.md](DAY44.md).
