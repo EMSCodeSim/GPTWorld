@@ -24,13 +24,13 @@ jobs:
           node-version: '24'
       - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
       - run: npm run check
-      - run: node --check lib/day44-firewatch-embers.mjs && node --check netlify/functions/day44-release.mjs && node --check scripts/day44-document.mjs
+      - run: node --check lib/day44-thaw-crossing.mjs && node --check netlify/functions/day44-release.mjs && node --check scripts/day44-document.mjs
       - run: npm test
       - name: Deploy if Netlify CLI credentials are available
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
-          NETLIFY_SITE_ID: 85cf4bb1-9601-4419-be2c-0ec4348bc6ed
+          NETLIFY_SITE_ID: 85cf4bb1-9601-4319-be2c-0ec4248bc6ed
         shell: bash
         run: |
           set -euo pipefail
@@ -80,7 +80,7 @@ jobs:
           H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 44 and .checks.inventory_ownership == true' >/dev/null
           M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and .current_day.day == 44 and ([.world.render_entities[] | select(.id == "day44-ember-watch-marker" or .id == "day44-ember-watch-footpath")] | length) == 2' >/dev/null
+          echo "$M" | jq -e '.ok == true and .current_day.day == 44 and ([.world.render_entities[] | select(.id == "day44-crossing-waystone" or .id == "day44-runoff-crossing")] | length) == 2' >/dev/null
           R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day44-release)"
           echo "$R" | jq -e '.ok == true and .day == 44 and .already_released == true' >/dev/null
       - name: Record verified Day 44 in the Chronicle
