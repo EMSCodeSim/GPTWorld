@@ -264,3 +264,7 @@ The fourth voluntary player patrol on November 9 extended the Western Firebreak 
 ## Day 42 — Winter Runoff
 
 Winter rain and snow left a permanent runoff channel and depth observation post beside the fourth-watch frost stake on the player-maintained Western Firebreak. Production verified November 12, 2026: **Day 42**, release event **#10499** exactly once, **122 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous weather and disaster systems remain independent. See [DAY42.md](DAY42.md).
+
+## Day 43 — The Ember Watch
+
+The fifth voluntary firebreak patrol and a new autonomous wildfire prompted a permanent ember-watch footpath and observation marker on the existing dryland watch route. Production verified November 13, 2026: **Day 43**, release event **#10588** exactly once, **124 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous wildfire and weather systems and earlier player construction remain intact. See [DAY43.md](DAY43.md).
