@@ -78,11 +78,11 @@ jobs:
         run: |
           set -euo pipefail
           H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
-          echo "$H" | jq -e '.ok == true and .status == "healthy" and .world.current_day.day == 44 and .checks.inventory_ownership == true' >/dev/null
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day | tonumber) == 45 and .checks.inventory_ownership == true' >/dev/null
           M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and .current_day.day == 44 and ([.world.render_entities[] | select(.id == "day45-drainage-survey-stake" or .id == "day45-spring-scour")] | length) == 2' >/dev/null
+          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 45 and ([.world.render_entities[] | select(.id == "day45-drainage-survey-stake" or .id == "day45-spring-scour")] | length) == 2' >/dev/null
           R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day45-release)"
-          echo "$R" | jq -e '.ok == true and .day == 44 and .already_released == true' >/dev/null
+          echo "$R" | jq -e '.ok == true and .day == 45 and .already_released == true' >/dev/null
       - name: Record verified Day 45 in the Chronicle
         shell: bash
         run: |
