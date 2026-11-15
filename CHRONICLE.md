@@ -272,3 +272,7 @@ The fifth voluntary firebreak patrol and a new autonomous wildfire prompted a pe
 ## Day 44 — The Thaw Crossing
 
 Five voluntary player patrols and winter snow/rain revealed a lasting crossing beside the Western Firebreak watch circuit. A permanent dryland trail and waystone now extend the visible route without spending resources. Production verified November 14, 2026: **Day 44**, event **#10611** exactly once, **126 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous systems continue independently. See [DAY44.md](DAY44.md).
+
+## Day 45 — The Spring Scour Survey
+
+A sixth voluntary firebreak patrol and spring rain revealed a shallow drainage scour beside the thaw crossing. A permanent trace and survey stake now record this discovery in the playable world. Production verified November 15, 2026: **Day 45**, release event **#10680** exactly once, **128 landmarks**, **66 players**, **66 inventories**, and **zero orphan inventories**. Autonomous systems and earlier construction remain intact. See [DAY45.md](DAY45.md).
