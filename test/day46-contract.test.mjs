@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {DAY46,DAY46_EVENT,DAY46_ENTITIES} from '../lib/day46-dry-watch.mjs';
 test('Day 46 preserves a unique visible dry-weather watch route',()=>{
  assert.equal(DAY46,46);
- assert.equal(DAY46_EVENT,'day46_spring_scour_survey_recorded');
+ assert.equal(DAY46_EVENT,'day46_dry_watch_recorded');
  assert.equal(DAY46_ENTITIES.length,2);
  assert.equal(new Set(DAY46_ENTITIES.map(x=>x.id)).size,2);
  assert.ok(DAY46_ENTITIES.some(x=>x.type==='trail'&&x.points.length>=2));
