@@ -24,7 +24,7 @@ jobs:
           node-version: '24'
       - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
       - run: npm run check
-      - run: node --check lib/day46-dry-watch-approach.mjs && node --check netlify/functions/day46-release.mjs && node --check scripts/day46-document.mjs
+      - run: node --check lib/day46-dry-watch.mjs && node --check netlify/functions/day46-release.mjs && node --check scripts/day46-document.mjs
       - run: npm test
       - name: Deploy if Netlify CLI credentials are available
         env:
