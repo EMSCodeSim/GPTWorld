@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           H="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/health)"
-          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 46 or (.world.current_day.day | tonumber) == 46)' >/dev/null
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 46 or (.world.current_day.day | tonumber) == 47)' >/dev/null
           M="$(curl -fsS --retry 4 --retry-delay 5 https://gptlife.netlify.app/.netlify/functions/world-memory)"
           echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 45 or (.current_day.day | tonumber) == 46) and .world.firebreak_project.complete == true and (.world.render_entities | length)  >= 130' >/dev/null
       - name: Release exactly one world day (idempotent)
@@ -78,9 +78,9 @@ jobs:
         run: |
           set -euo pipefail
           H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
-          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day | tonumber) == 46 and .checks.inventory_ownership == true' >/dev/null
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day | tonumber) == 47 and .checks.inventory_ownership == true' >/dev/null
           M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 46 and ([.world.render_entities[] | select(.id == "day47-fire-watch-post" or .id == "day47-firebreak-watch-line")] | length) == 2' >/dev/null
+          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 47 and ([.world.render_entities[] | select(.id == "day47-fire-watch-post" or .id == "day47-firebreak-watch-line")] | length) == 2' >/dev/null
           R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day47-release)"
           echo "$R" | jq -e '.ok == true and .day == 46 and .already_released == true' >/dev/null
       - name: Record verified Day 47 in the Chronicle
