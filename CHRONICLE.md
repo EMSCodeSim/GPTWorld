@@ -280,3 +280,7 @@ A sixth voluntary firebreak patrol and spring rain revealed a shallow drainage s
 ## Day 46 — The Dry Watch Approach
 
 Seven voluntary patrols of the completed Western Firebreak led to a permanent dry-watch inspection trail and drought observation stake beside the drainage survey. Verified in production as event #10854 with 130 persistent landmarks; player inventories and autonomous simulation remain intact. See [DAY46.md](DAY46.md).
+
+## Day 47 — The Firebreak Watch Line
+
+After an autonomous wildfire and seven player patrols of the completed Western Firebreak, a permanent fire-watch line and observation post were established beside the drought-watch approach. Both new landmarks and the single release event were verified in production. Existing player inventories and autonomous systems remain intact. See [DAY47.md](DAY47.md).
