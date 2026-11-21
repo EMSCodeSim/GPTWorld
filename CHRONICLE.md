@@ -284,3 +284,7 @@ Seven voluntary patrols of the completed Western Firebreak led to a permanent dr
 ## Day 47 — The Firebreak Watch Line
 
 After an autonomous wildfire and seven player patrols of the completed Western Firebreak, a permanent fire-watch line and observation post were established beside the drought-watch approach. Both new landmarks and the single release event were verified in production. Existing player inventories and autonomous systems remain intact. See [DAY47.md](DAY47.md).
+
+## Day 48 — The Ash Recovery Survey
+
+After autonomous wildfire activity, the completed Western Firebreak and seven voluntary patrols inspired a persistent ash recovery trail and marker. Production event #11014 confirms the Day 48 release and two new visible marks. See [DAY48.md](DAY48.md).
