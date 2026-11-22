@@ -288,3 +288,7 @@ After an autonomous wildfire and seven player patrols of the completed Western F
 ## Day 48 — The Ash Recovery Survey
 
 After autonomous wildfire activity, the completed Western Firebreak and seven voluntary patrols inspired a persistent ash recovery trail and marker. Production event #11014 confirms the Day 48 release and two new visible marks. See [DAY48.md](DAY48.md).
+
+## Day 49 — The Watch and Recovery Junction
+
+Seven player patrols and the autonomous wildfire recovery survey led to a persistent signed junction connecting the watch and recovery trails. Production event #11059 confirms exactly one Day 49 advancement and two new visible marks. See [DAY49.md](DAY49.md).
