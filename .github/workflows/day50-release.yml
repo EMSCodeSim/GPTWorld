@@ -1,0 +1,74 @@
+name: Day 50 Production Release
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/day50-recovery-plot.mjs'
+      - 'netlify/functions/day50-release.mjs'
+      - 'scripts/day50-document.mjs'
+      - '.github/workflows/day50-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: gptworld-day50-production-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: node --check lib/day50-recovery-plot.mjs && node --check netlify/functions/day50-release.mjs && node --check scripts/day50-document.mjs
+      - run: npm test
+      - name: Wait for production Day 50 endpoint
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 24); do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://gptlife.netlify.app/.netlify/functions/day50-release || true)"
+            if [ "$code" = 405 ]; then exit 0; fi
+            echo "Awaiting production deployment: $code"
+            sleep 20
+          done
+          exit 1
+      - name: Verify production health and memory
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS --retry 4 https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 49 or (.world.current_day.day | tonumber) == 50)' >/dev/null
+          M="$(curl -fsS --retry 4 https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 48 or (.current_day.day | tonumber) == 50) and (.world.render_entities | length) >= 136' >/dev/null
+      - name: Release exactly one day idempotently
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_TOKEN"
+          R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day50-release)"
+          echo "$R" | jq -e '.ok == true and .day == 50' >/dev/null
+      - name: Verify persistent release and idempotence
+        env:
+          RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
+          echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day | tonumber) == 50 and .checks.inventory_ownership == true' >/dev/null
+          M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
+          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 50 and ([.world.render_entities[] | select(.id == "day50-recovery-plot-trail" or .id == "day50-recovery-plot-sign")] | length) == 2' >/dev/null
+          R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day50-release)"
+          echo "$R" | jq -e '.ok == true and .day == 50 and .already_released == true' >/dev/null
+      - name: Document verified Day 50
+        run: |
+          set -euo pipefail
+          node scripts/day50-document.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DAY50.md CHRONICLE.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Record verified Day 50 in Chronicle"
+            git push
+          fi
