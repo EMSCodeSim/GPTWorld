@@ -41,7 +41,7 @@ jobs:
           H="$(curl -fsS --retry 4 https://gptlife.netlify.app/.netlify/functions/health)"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and .checks.database == true and .checks.required_tables == true and .checks.inventory_ownership == true and ((.world.current_day.day | tonumber) == 49 or (.world.current_day.day | tonumber) == 50)' >/dev/null
           M="$(curl -fsS --retry 4 https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 48 or (.current_day.day | tonumber) == 50) and (.world.render_entities | length) >= 136' >/dev/null
+          echo "$M" | jq -e '.ok == true and ((.current_day.day | tonumber) == 49 or (.current_day.day | tonumber) == 50) and (.world.render_entities | length) >= 136' >/dev/null
       - name: Release exactly one day idempotently
         env:
           RELEASE_TOKEN: ${{ secrets.GPTWORLD_RELEASE_TOKEN }}
@@ -58,7 +58,7 @@ jobs:
           H="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/health)"
           echo "$H" | jq -e '.ok == true and .status == "healthy" and (.world.current_day.day | tonumber) == 50 and .checks.inventory_ownership == true' >/dev/null
           M="$(curl -fsS https://gptlife.netlify.app/.netlify/functions/world-memory)"
-          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 50 and ([.world.render_entities[] | select(.id == "day50-recovery-plot-trail" or .id == "day50-recovery-plot-sign")] | length) == 2' >/dev/null
+          echo "$M" | jq -e '.ok == true and (.current_day.day | tonumber) == 50 and ([.world.render_entities[] | select(.id == "day50-recovery-plot-path" or .id == "day50-recovery-plot-marker")] | length) == 2' >/dev/null
           R="$(curl -fsS -X POST -H "Authorization: Bearer $RELEASE_TOKEN" https://gptlife.netlify.app/.netlify/functions/day50-release)"
           echo "$R" | jq -e '.ok == true and .day == 50 and .already_released == true' >/dev/null
       - name: Document verified Day 50
