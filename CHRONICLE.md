@@ -292,3 +292,7 @@ After autonomous wildfire activity, the completed Western Firebreak and seven vo
 ## Day 49 — The Watch and Recovery Junction
 
 Seven player patrols and the autonomous wildfire recovery survey led to a persistent signed junction connecting the watch and recovery trails. Production event #11059 confirms exactly one Day 49 advancement and two new visible marks. See [DAY49.md](DAY49.md).
+
+## Day 50 — The Drought Recovery Plot
+
+Severe summer drought and earlier player patrols of the Western Firebreak prompted a permanent recovery-monitoring spur and field marker beside the watch/recovery junction. Production event #11113 verified two persistent visible marks, with player inventories intact. See [DAY50.md](DAY50.md).
