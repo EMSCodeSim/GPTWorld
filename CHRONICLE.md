@@ -296,3 +296,7 @@ Seven player patrols and the autonomous wildfire recovery survey led to a persis
 ## Day 50 — The Drought Recovery Plot
 
 Severe summer drought and earlier player patrols of the Western Firebreak prompted a permanent recovery-monitoring spur and field marker beside the watch/recovery junction. Production event #11113 verified two persistent visible marks, with player inventories intact. See [DAY50.md](DAY50.md).
+
+## Day 51 — Autumn Rain Observation
+
+Autumn rain returned to the recovery plot after severe summer drought. A visible rain collection basin and observation gauge commemorate the player-influenced recovery effort without altering autonomous weather or resources. Production database verified Day 51, event 11277, two new marks and zero orphan inventories on November 26, 2026. See [DAY51.md](DAY51.md).
